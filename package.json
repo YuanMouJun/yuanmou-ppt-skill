@@ -1,0 +1,24 @@
+{
+  "name": "@yuanmou/pptx-kit",
+  "version": "0.1.0",
+  "description": "渊眸策略原创商业级可编辑 PPTX 建模、流式排版与原子终检引擎 (Non-Commercial Source-Available)",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "author": "渊眸策略 (Yuanmou Strategy)",
+  "exports": {
+    ".": "./packages/pptx-kit/index.mjs",
+    "./providers": "./packages/pptx-kit/src/providers/index.mjs",
+    "./finalizer": "./packages/pptx-kit/src/finalizer.mjs"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "install:skill": "node scripts/install.mjs --target all",
+    "showcase:m1": "node examples/m1-showcase/build_m1_showcase.mjs",
+    "benchmark:m1": "node examples/m1-1to1-clone/build_1to1_clones.mjs",
+    "benchmark:m2": "node examples/m2-surgery-and-data/build_m2_benchmark.mjs",
+    "test:m3": "node examples/m3-finalizer-and-providers/verify_m3_and_providers.mjs",
+    "demo:m4": "node examples/m4-standalone-presets/build_m4_presets_demo.mjs"
+  }
+}

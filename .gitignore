@@ -1,0 +1,22 @@
+# Dependencies & OS
+node_modules/
+.DS_Store
+
+# Never commit external/cloud SQLite indexes or credentials into the skill repo!
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*slide-index*
+.env
+.env.*
+!.env.example
+
+# Staging receipts & transient build outputs
+.yuanmou-finalizer/
+.codex-finalizer/
+examples/*/output/
+examples/*/references/
+examples/*/assets/
