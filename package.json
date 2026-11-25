@@ -19,6 +19,7 @@
     "trae",
     "qoder",
     "codebuddy",
+    "workbuddy",
     "openclaw",
     "ooxml",
     "powerpoint"
@@ -36,6 +37,7 @@
   },
   "scripts": {
     "install:skill": "node scripts/install.mjs --target all",
+    "pack:zip": "node scripts/pack_zip.mjs",
     "showcase:m1": "node examples/m1-showcase/build_m1_showcase.mjs",
     "benchmark:m1": "node examples/m1-1to1-clone/build_1to1_clones.mjs",
     "benchmark:m2": "node examples/m2-surgery-and-data/build_m2_benchmark.mjs",

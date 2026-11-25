@@ -20,3 +20,4 @@ node_modules/
 examples/*/output/
 examples/*/references/
 examples/*/assets/
+dist/

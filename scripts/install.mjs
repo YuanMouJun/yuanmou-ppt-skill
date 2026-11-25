@@ -41,6 +41,7 @@ const AGENT_TARGETS = {
   trae: () => path.join(os.homedir(), ".trae", "skills", "yuanmou-ppt"),
   qoder: () => path.join(os.homedir(), ".qoder", "skills", "yuanmou-ppt"),
   codebuddy: () => path.join(os.homedir(), ".codebuddy", "skills", "yuanmou-ppt"),
+  workbuddy: () => path.join(os.homedir(), ".workbuddy", "skills", "yuanmou-ppt"),
   openclaw: () => path.join(os.homedir(), ".openclaw", "skills", "yuanmou-ppt"),
   agents: () => path.join(os.homedir(), ".agents", "skills", "yuanmou-ppt"),
 };
