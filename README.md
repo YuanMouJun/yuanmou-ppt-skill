@@ -3,7 +3,7 @@
 [![Node.js >=22.5](https://img.shields.io/badge/Node.js-%3E%3D22.5-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Dependencies: 0](https://img.shields.io/badge/npm%20dependencies-0-brightgreen)](#快速开始)
 [![AI Agents](https://img.shields.io/badge/AI%20Agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Antigravity-6366F1)](#快速开始)
-[![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-orange)](./LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
 > **Zero-dependency native OOXML PowerPoint (`.pptx`) engine & AI Agent Skill** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — built for people who need real editable slides (native vector shapes, embedded `.xlsx` charts, lossless `.pptx` template editing) rather than static images or broken HTML exports.
 >
@@ -85,11 +85,12 @@
 环境要求：**Node.js `>= 22.5`**（直接利用原生内置的 `node:sqlite` 与 `node:zlib`，无需 `npm install`）。
 
 ```bash
-# 1. 克隆仓库（约 1.1 MB）
+# 方式一：通过 skills.sh 一键安装（推荐，支持 Claude Code / Codex / Cursor / Gemini CLI 等）
+npx skills add YuanMouJun/yuanmou-ppt-skill
+
+# 方式二：克隆仓库本地安装（约 1.1 MB，0 第三方 npm 依赖）
 git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
 cd yuanmou-ppt-skill
-
-# 2. 一键安装 Skill 到 Claude Code / Codex / Cursor / Antigravity
 node scripts/install.mjs --target all
 
 # 3. 运行内置自检测试（验证引擎、五项终检门闸与数据源接口）
@@ -107,7 +108,7 @@ npm run test:m3
 | **L0 · 开源离线版（默认）** | 所有个人学习与本地排版用户 | 无需注册与联网，直接使用内置 12 套咨询骨架、复刻自己的参考截图，或原位改版自己的 `.pptx` 文件。 |
 | **L1 · 免费公开体验星球** | 想体验“云端报告 + `.pptx` 母本”联动 | 知识星球搜索 **`77391343`**（0 元免审加入「广告营销及各行业报告资料分享」，含 500+ 份公开行业报告与精选通用体验 `.pptx`），运行 `node skills/yuanmou-ppt/scripts/provider_cli.mjs connect` 扫码即可连接。 |
 | **L2 · 日更主力资料库（付费）** | 策划、咨询与品牌运营从业者 | 如需规模化 `.pptx` 原厂母本与 2026 各赛道深度报告，可按需加入 **渊眸·数据行业报告库（`43773104`）** 与 **渊眸·品牌策划方案库（`37656012`）**，入群后无需改本机配置即可直接检索调用。 |
-| **L3 · 企业商用授权 / 人工定制** | 企业市场部、品牌方、Agency | 如用于企业商业交付或需要团队人工承接方案撰写、账号运营与全域种草，可在知识星球内私信 **星主 Ann** 咨询。 |
+| **L3 · 团队定制与代运营** | 企业市场部、品牌方、Agency | 代码本身 Apache-2.0 免费商用；如需渊眸团队真人承接方案撰写定制、账号代运营、品牌直播与全域种草，可在知识星球内私信 **星主 Ann** 沟通。 |
 
 ---
 
@@ -120,10 +121,12 @@ yuanmou-ppt-skill/
 ├── scripts/install.mjs         # Claude Code / Codex / Cursor / Antigravity 一键安装脚本
 ├── examples/                   # 自包含验证与示例脚本
 ├── docs/showcase/              # README 实战展示图
-├── LICENSE                     # PolyForm Noncommercial License 1.0.0（非商业个人学习免费）
-└── LICENSE-COMMERCIAL.md       # 企业商业使用授权说明
+├── LICENSE                     # Apache License 2.0（允许个人与企业商业项目免费使用）
+└── NOTICE                      # 渊眸策略版权与署名声明
 ```
 
 ## 许可协议
 
-本项目采用 **[PolyForm Noncommercial License 1.0.0](./LICENSE)**：个人非商业学习、技术研究与内部自测完全免费；任何企业办公汇报交付、商业外包/商单制作、付费课程或 SaaS 集成，请参阅 [LICENSE-COMMERCIAL.md](./LICENSE-COMMERCIAL.md) 获取商业授权。
+本项目代码引擎与 Skill 定义采用标准 OSI 认证的 **[Apache License 2.0](./LICENSE)**：**完全允许个人学习、企业办公汇报、商业项目与二次开发免费使用**（二次分发须按 Apache-2.0 保留 [NOTICE](./NOTICE) 中的「渊眸策略」版权署名）。
+
+> 注：外部知识星球内托管的行业报告与 `.pptx` 原厂母本属于星球会员专享资料，不适用代码开源协议，仅供会员参考使用，严禁转售或公开二次分发。

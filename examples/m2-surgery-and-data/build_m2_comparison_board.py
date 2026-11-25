@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Non-commercial use only (PolyForm Noncommercial 1.0.0).
+# Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 # Generates Left (Original Source Slide) vs Right (@yuanmou/pptx-kit M2 Output) comparison plates,
 # self-contained Base64 HTML gallery, and widescreen horizontal comparison PDF.
 

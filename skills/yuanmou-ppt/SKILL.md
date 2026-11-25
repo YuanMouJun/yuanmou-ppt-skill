@@ -5,7 +5,7 @@ description: 渊眸策略商业级可编辑 PPT 构建与母本外科手术技�
 
 # Yuanmou PPT Skill (`yuanmou-ppt` · `@yuanmou/pptx-kit`)
 
-> **授权声明**：本技能及配套引擎遵循 `PolyForm Noncommercial License 1.0.0`，仅供个人非商业学习与学术研究；任何企业办公汇报、咨询/广告商单交付、付费培训或 SaaS 集成均须取得「渊眸策略」书面商业授权。
+> **开源协议**：本技能及 `@yuanmou/pptx-kit` 代码引擎采用标准 **[Apache License 2.0](../../LICENSE)**，**允许个人学习、企业内部汇报与商业项目免费使用**（二次分发须按 Apache-2.0 保留「渊眸策略」版权与 `NOTICE` 署名）。外部知识星球内的行业报告与 `.pptx` 原厂母本受星球会员条款保护，严禁转售分发。
 
 ---
 

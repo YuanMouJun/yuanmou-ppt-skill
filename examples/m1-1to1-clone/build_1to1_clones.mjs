@@ -1,4 +1,4 @@
-// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Non-commercial use only (PolyForm Noncommercial 1.0.0).
+// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 // M1 Engine Real-World 1:1 Template Fidelity Benchmark:
 // Rebuilds 3 complex real agency/consulting template pages (BCG p18, BCG p20, Courseware p43)
 // as 100% native editable OOXML vector shapes, gradients, shadows, lines, and rich text.

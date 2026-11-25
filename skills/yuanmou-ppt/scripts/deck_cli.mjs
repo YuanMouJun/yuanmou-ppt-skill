@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Non-commercial use only (PolyForm Noncommercial 1.0.0).
+// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 // Deck Engineering CLI: Inspect, Validate Plan, Prepare Starter, Audit Fidelity, Finalize, Render, Inspect-Ref & Diff
 
 import fs from "node:fs/promises";

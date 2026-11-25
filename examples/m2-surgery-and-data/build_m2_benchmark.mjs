@@ -1,4 +1,4 @@
-// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Non-commercial use only (PolyForm Noncommercial 1.0.0).
+// Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 // Milestone M2 Benchmark: Real-Template Surgical Suite (Weapons 07-11) + Native <a:tbl> & Embedded-.xlsx <c:chart> (Weapons 12-15)
 
 import fs from "node:fs/promises";
