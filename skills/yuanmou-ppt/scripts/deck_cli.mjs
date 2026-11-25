@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
-// Deck Engineering CLI: Inspect, Validate Plan, Prepare Starter, Audit Fidelity, Finalize, Render, Inspect-Ref & Diff
+// Deck Engineering CLI: Verify (One-Shot QA), Inspect-Ref (PNG/JPG/PDF), Diff (Auto-Crops), Render, Finalize & Surgery
 
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import {
@@ -11,6 +13,7 @@ import {
   validateTemplatePlan,
   prepareStarterDeck,
   auditTemplateFidelity,
+  validateDeckBuffer,
   finalizeDeck,
   renderDeckToPngs,
   buildShowcaseGalleryHtml,
@@ -32,6 +35,36 @@ function assertRequiredRenderDeps() {
     );
   }
   return tc;
+}
+
+async function sha256File(filePath) {
+  const buf = await fs.readFile(path.resolve(filePath));
+  return createHash("sha256").update(buf).digest("hex");
+}
+
+/**
+ * If `inputPath` is a `.pdf`, renders `pageNo` (1-based) to PNG via mandatory `pdftoppm`.
+ */
+async function ensureReferenceImagePath(inputPath, outDir, pageNo = 1, pdftoppmBin = "pdftoppm") {
+  const abs = path.resolve(inputPath);
+  if (!existsSync(abs)) {
+    throw new Error(`Reference file not found: ${abs}`);
+  }
+  if (path.extname(abs).toLowerCase() !== ".pdf") {
+    return abs;
+  }
+  await fs.mkdir(outDir, { recursive: true });
+  const prefix = path.join(outDir, `pdf_p${pageNo}`);
+  const res = spawnSync(
+    pdftoppmBin,
+    ["-png", "-r", "220", "-f", String(pageNo), "-l", String(pageNo), "-singlefile", abs, prefix],
+    { encoding: "utf8" }
+  );
+  const outPng = `${prefix}.png`;
+  if (res.status !== 0 || !existsSync(outPng)) {
+    throw new Error(`Failed to render PDF page ${pageNo} via pdftoppm:\n${res.stderr || res.stdout}`);
+  }
+  return outPng;
 }
 
 function runPythonVision(pyCode, argsJson) {
@@ -115,17 +148,14 @@ for c in crops:
     zoom.save(out_png)
 
     px = list(sub.getdata())
-    # Top / Mid / Bottom strips
     top_px = list(sub.crop((0, 0, sw, max(1, int(sh * 0.18)))).getdata())
     mid_px = list(sub.crop((0, int(sh * 0.4), sw, max(int(sh * 0.4) + 1, int(sh * 0.6)))).getdata())
     bot_px = list(sub.crop((0, int(sh * 0.82), sw, sh)).getdata())
 
-    # Darkest ink pixels (5th percentile by luminance, excluding pure white)
     non_white = [p for p in px if (p[0] + p[1] + p[2]) < 700]
     non_white.sort(key=lambda p: 0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2])
     darkest = non_white[min(len(non_white) - 1, max(0, int(len(non_white) * 0.05)))] if non_white else (30, 30, 30)
 
-    # Quantized dominant colors
     q = sub.quantize(colors=6, method=Image.Quantize.MEDIANCUT).convert("RGB")
     counts = sorted(q.getcolors(maxcolors=32) or [], reverse=True)[:5]
     total = float(sw * sh)
@@ -143,6 +173,7 @@ for c in crops:
     })
 
 print(json.dumps({
+    "refPng": ref_path,
     "sourceSize": list(im_raw.size),
     "normalizedCanvas": [1280, 720],
     "crops": results,
@@ -158,6 +189,7 @@ ref_path = cfg["refPath"]
 gen_path = cfg["genPath"]
 out_dir = cfg["outDir"]
 crops = cfg["crops"]
+auto_crops = cfg.get("autoCrops", True)
 os.makedirs(out_dir, exist_ok=True)
 
 ref = Image.open(ref_path).convert("RGB").resize((1280, 720), Image.Resampling.LANCZOS)
@@ -166,7 +198,6 @@ gen = Image.open(gen_path).convert("RGB").resize((1280, 720), Image.Resampling.L
 def calc_similarity(a, b):
     diff = ImageChops.difference(a, b)
     hist = diff.histogram()
-    # 3 channels x 256 bins
     total_px = a.size[0] * a.size[1] * 3
     err_sum = 0
     for ch in range(3):
@@ -177,6 +208,23 @@ def calc_similarity(a, b):
     return round(mae, 2), round(max(0.0, 100.0 - mae / 2.55), 2)
 
 full_mae, full_sim = calc_similarity(ref, gen)
+
+# Auto-detect Top 2 highest-error hotspot regions when explicit crops are omitted
+if not crops and auto_crops:
+    diff_gray = ImageChops.difference(ref, gen).convert("L")
+    grid_w, grid_h = 320, 240
+    cells = []
+    for gy in range(0, 720, grid_h):
+        for gx in range(0, 1280, grid_w):
+            sub = diff_gray.crop((gx, gy, min(1280, gx + grid_w), min(720, gy + grid_h)))
+            h = sub.histogram()
+            tot = max(1, sub.size[0] * sub.size[1])
+            mean_err = sum(i * h[i] for i in range(256)) / float(tot)
+            cells.append((mean_err, gx, gy, sub.size[0], sub.size[1]))
+    cells.sort(reverse=True)
+    for idx, (err, gx, gy, gw, gh) in enumerate(cells[:2]):
+        if err >= 2.0:
+            crops.append({"name": f"hotspot_{idx+1}", "x": gx, "y": gy, "w": gw, "h": gh})
 
 # 1) Side-by-side (Left: Ref, Right: Gen)
 tw, th = 1000, 562
@@ -231,17 +279,45 @@ print(json.dumps({
 }, ensure_ascii=False))
 `;
 
+const PY_CONTACT_SHEET = `
+import json, math, os, sys
+from PIL import Image
+
+cfg = json.loads(sys.argv[1])
+pngs = cfg["pngs"]
+out_png = cfg["outPng"]
+os.makedirs(os.path.dirname(out_png), exist_ok=True)
+
+n = len(pngs)
+cols = 1 if n == 1 else (2 if n <= 4 else 3)
+rows = max(1, math.ceil(n / cols))
+tw, th = (1280, 720) if n == 1 else (800, 450)
+gap = 20
+canvas = Image.new("RGB", (cols * tw + (cols + 1) * gap, rows * th + (rows + 1) * gap), (15, 23, 42))
+for idx, p in enumerate(pngs):
+    r, c = divmod(idx, cols)
+    im = Image.open(p).convert("RGB").resize((tw, th), Image.Resampling.LANCZOS)
+    canvas.paste(im, (gap + c * (tw + gap), gap + r * (th + gap)))
+canvas.save(out_png, quality=92)
+print(json.dumps({"qaSheetPng": out_png, "slideCount": n, "grid": [rows, cols]}))
+`;
+
 async function main() {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
     options: {
       pptx: { type: "string" },
+      final: { type: "string" },
       source: { type: "string" },
+      "readonly-source": { type: "string" },
+      "source-sha256": { type: "string" },
       map: { type: "string" },
       out: { type: "string" },
       dpi: { type: "string" },
+      page: { type: "string" },
       "anti-slop": { type: "string" },
       "font-policy": { type: "string" },
+      "allow-full-bg-pic": { type: "boolean" },
       ref: { type: "string" },
       gen: { type: "string" },
       crops: { type: "string" },
@@ -302,6 +378,7 @@ async function main() {
       outputPath: values.out,
       antiSlop: values["anti-slop"] || "warn",
       fontPolicy: values["font-policy"] || "warn",
+      allowFullBgPic: Boolean(values["allow-full-bg-pic"]),
     });
     console.log(JSON.stringify(res, null, 2));
     return;
@@ -317,8 +394,10 @@ async function main() {
   }
 
   if (cmd === "inspect-ref") {
-    const refPath = path.resolve(values.ref || positionals[1] || "");
+    const rawRef = values.ref || positionals[1] || "";
     const outDir = path.resolve(values.out || "./ref_inspect");
+    const pageNo = values.page ? Number(values.page) : 1;
+    const refPath = await ensureReferenceImagePath(rawRef, outDir, pageNo, toolchain.pdftoppm);
     const crops = parseCropSpecs(values.crops);
     const res = runPythonVision(PY_INSPECT_REF, { refPath, outDir, crops });
     console.log(JSON.stringify(res, null, 2));
@@ -326,11 +405,12 @@ async function main() {
   }
 
   if (cmd === "diff") {
-    const refPath = path.resolve(values.ref || "");
-    const genPath = path.resolve(values.gen || "");
     const outDir = path.resolve(values.out || "./visual_diff");
+    const pageNo = values.page ? Number(values.page) : 1;
+    const refPath = await ensureReferenceImagePath(values.ref || "", outDir, pageNo, toolchain.pdftoppm);
+    const genPath = path.resolve(values.gen || "");
     const crops = parseCropSpecs(values.crops);
-    const res = runPythonVision(PY_DIFF, { refPath, genPath, outDir, crops });
+    const res = runPythonVision(PY_DIFF, { refPath, genPath, outDir, crops, autoCrops: true });
 
     if (values.gallery) {
       const slides = [
@@ -366,8 +446,149 @@ async function main() {
     return;
   }
 
+  // One-Shot Verification Pipeline: Optional Read-Only Source Hash + 5+6 Gate Finalizer + Render + QA Contact Sheet + Optional Diff & Gallery
+  if (cmd === "verify") {
+    const candidatePath = path.resolve(values.pptx || positionals[1] || "");
+    if (!existsSync(candidatePath)) {
+      throw new Error(`verify requires an existing --pptx path (got: ${candidatePath})`);
+    }
+    const outDir = path.resolve(values.out || path.join(path.dirname(candidatePath), "qa_verify"));
+    await fs.mkdir(outDir, { recursive: true });
+
+    // 1) Optional read-only source file integrity check
+    let sourceIntegrity = null;
+    if (values["readonly-source"]) {
+      const actualSha = await sha256File(values["readonly-source"]);
+      if (values["source-sha256"] && values["source-sha256"].toLowerCase() !== actualSha.toLowerCase()) {
+        throw new Error(
+          `[READONLY VIOLATION] Source file "${values["readonly-source"]}" SHA-256 changed (expected ${values["source-sha256"]}, got ${actualSha})`
+        );
+      }
+      sourceIntegrity = { path: path.resolve(values["readonly-source"]), sha256: actualSha, intact: true };
+    }
+
+    // 2) Atomic 5+6 gate validation (publish `--final` if supplied, else validate candidate)
+    let validation;
+    let targetPptx = candidatePath;
+    if (values.final) {
+      const finRes = await finalizeDeck({
+        candidatePptxPath: candidatePath,
+        outputPath: values.final,
+        antiSlop: values["anti-slop"] || "fail",
+        fontPolicy: values["font-policy"] || "warn",
+        allowFullBgPic: Boolean(values["allow-full-bg-pic"]),
+      });
+      validation = finRes.validation;
+      targetPptx = finRes.outputPath;
+    } else {
+      const buf = await fs.readFile(candidatePath);
+      validation = await validateDeckBuffer(buf, {
+        antiSlop: values["anti-slop"] || "fail",
+        fontPolicy: values["font-policy"] || "warn",
+        allowFullBgPic: Boolean(values["allow-full-bg-pic"]),
+      });
+      if (!validation.passed) {
+        const summary = validation.issues
+          .filter((i) => i.severity === "fail")
+          .map((i) => `  - [${i.gate}/${i.code}] ${i.message}`)
+          .join("\n");
+        throw new Error(`verify blocked (${validation.failCount} failure(s)):\n${summary}`);
+      }
+    }
+
+    // 3) Render all slides via cached-font LibreOffice + Poppler
+    const renderDir = path.join(outDir, "slides_png");
+    const renderRes = await renderDeckToPngs(targetPptx, {
+      outDir: renderDir,
+      dpi: values.dpi ? Number(values.dpi) : 220,
+    });
+
+    // 4) Stitch 1-image QA contact sheet so the Agent inspects the whole deck in a single `read_file`
+    const renderedPngs = renderRes.pngFiles || renderRes.pngPaths || [];
+    let qaSheet = null;
+    if (renderedPngs.length > 0) {
+      qaSheet = runPythonVision(PY_CONTACT_SHEET, {
+        pngs: renderedPngs,
+        outPng: path.join(outDir, "qa_sheet.png"),
+      });
+    }
+
+    // 5) Optional reference diff + auto hotspots + Base64 HTML gallery
+    let diffRes = null;
+    let galleryHtml = null;
+    const galleryOut = values.gallery ? path.resolve(values.gallery) : path.join(outDir, "qa_gallery.html");
+    if (values.ref && renderedPngs.length > 0) {
+      const pageNo = values.page ? Number(values.page) : 1;
+      const refPng = await ensureReferenceImagePath(values.ref, outDir, pageNo, toolchain.pdftoppm);
+      const genPng = renderedPngs[Math.min(Math.max(0, pageNo - 1), renderedPngs.length - 1)];
+      const crops = parseCropSpecs(values.crops);
+      diffRes = runPythonVision(PY_DIFF, { refPath: refPng, genPath: genPng, outDir, crops, autoCrops: true });
+
+      const gallerySlides = [
+        {
+          title: values.title || "全页并排对比（左：参考原图 ｜ 右：最终成稿）",
+          caption: `整页像素相似度 ${diffRes.fullSimilarityPct}%（MAE=${diffRes.fullMae}）`,
+          pngPath: diffRes.sideBySidePng,
+          weapons: ["左原图 vs 右成稿", "Base64 内联防裂图"],
+        },
+        {
+          title: "三联 50% 半透明 X 光叠图校准",
+          caption: "核查形状轮廓、梯度透明度与文字对齐",
+          pngPath: diffRes.overlay3PanelPng,
+          weapons: ["50% 叠图校准"],
+        },
+        ...diffRes.zoomCrops.map((z) => ({
+          title: `局部 2× 放大精检：${z.name}`,
+          caption: `区域 [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
+          pngPath: z.zoomPng2x,
+          weapons: ["自动热点 2× 放大"],
+        })),
+      ];
+      galleryHtml = await buildShowcaseGalleryHtml({
+        title: values.title || "渊眸 PPT 引擎 · 参考原图 vs 成稿视觉精检画廊",
+        subtitle: "左：参考原图 ｜ 右：@yuanmou/pptx-kit 零依赖原生可编辑成稿",
+        pptxPath: targetPptx,
+        slides: gallerySlides,
+        outHtmlPath: galleryOut,
+      });
+    } else if (renderedPngs.length > 0) {
+      galleryHtml = await buildShowcaseGalleryHtml({
+        title: values.title || "渊眸 PPT 引擎 · 成稿视觉验收画廊",
+        subtitle: "@yuanmou/pptx-kit 零依赖原生可编辑成稿（点击可放大）",
+        pptxPath: targetPptx,
+        slides: renderedPngs.map((p, idx) => ({
+          title: `Slide ${idx + 1}`,
+          caption: `已通过全部自动门禁（fail=0, warn=${validation.warnCount}）`,
+          pngPath: p,
+          weapons: ["纯原生 OOXML"],
+        })),
+        outHtmlPath: galleryOut,
+      });
+    }
+
+    console.log(
+      JSON.stringify(
+        {
+          passed: validation.passed,
+          pptx: targetPptx,
+          failCount: validation.failCount,
+          warnCount: validation.warnCount,
+          warnings: validation.issues.filter((i) => i.severity === "warn").slice(0, 12),
+          sourceIntegrity,
+          renderedSlides: renderedPngs,
+          qaSheetPng: qaSheet?.qaSheetPng || null,
+          diff: diffRes,
+          galleryHtml,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   throw new Error(
-    `Unknown command "${cmd}". Expected: inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
+    `Unknown command "${cmd}". Expected: check-env | verify | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
   );
 }
 

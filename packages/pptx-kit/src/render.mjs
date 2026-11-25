@@ -59,23 +59,32 @@ async function ensureChineseFontconfig(workDir) {
   if (process.platform !== "darwin") return undefined;
 
   const home = os.homedir();
-  const fcDir = path.join(workDir, "fontconfig");
+  // Persist fontconfig cache across renders (~3-8s faster per headless LibreOffice call!)
+  const persistRoot = path.join(home, ".cache", "yuanmou-pptx", "fontconfig");
+  let fcDir = persistRoot;
+  try {
+    await fs.mkdir(path.join(persistRoot, "cache"), { recursive: true });
+  } catch {
+    fcDir = path.join(workDir, "fontconfig");
+    await fs.mkdir(path.join(fcDir, "cache"), { recursive: true });
+  }
   const cacheDir = path.join(fcDir, "cache");
-  await fs.mkdir(cacheDir, { recursive: true });
   const fcFile = path.join(fcDir, "fonts.conf");
 
-  const xml = [
-    '<?xml version="1.0"?>',
-    '<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">',
-    "<fontconfig>",
-    "  <dir>/System/Library/Fonts</dir>",
-    "  <dir>/System/Library/Fonts/Supplemental</dir>",
-    "  <dir>/Library/Fonts</dir>",
-    `  <dir>${home}/Library/Fonts</dir>`,
-    `  <cachedir>${cacheDir}</cachedir>`,
-    "</fontconfig>",
-  ].join("\n");
-  await fs.writeFile(fcFile, xml, "utf8");
+  if (!existsSync(fcFile)) {
+    const xml = [
+      '<?xml version="1.0"?>',
+      '<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">',
+      "<fontconfig>",
+      "  <dir>/System/Library/Fonts</dir>",
+      "  <dir>/System/Library/Fonts/Supplemental</dir>",
+      "  <dir>/Library/Fonts</dir>",
+      `  <dir>${home}/Library/Fonts</dir>`,
+      `  <cachedir>${cacheDir}</cachedir>`,
+      "</fontconfig>",
+    ].join("\n");
+    await fs.writeFile(fcFile, xml, "utf8");
+  }
   return fcFile;
 }
 

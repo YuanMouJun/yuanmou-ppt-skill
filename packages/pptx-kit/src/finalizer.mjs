@@ -19,6 +19,7 @@ export const CHINESE_AI_SLOP_PATTERNS = Object.freeze([
   { id: "slop_jargon_funeng", re: /(?:深度赋能|全面赋能|双向赋能|生态闭环|闭环生态|核心抓手|打出组合拳|底层逻辑重构|开启新篇章|重塑新格局)/g, label: "空洞AI黑话套词" },
   { id: "slop_emdash_abuse", re: /——[\s\S]{1,40}——/g, label: "单段重复破折号连接" },
   { id: "slop_bullet_chain", re: /[^\s•·]+\s*[•·]\s*[^\s•·]+\s*[•·]\s*[^\s•·]+/g, label: "行内假圆点串词(A • B • C)" },
+  { id: "client_placeholder_leak", re: /\[待补充[^\]]*\]|【待补充[^】]*】|待补数据|\b(?:TBD|TODO|Lorem\s+ipsum)\b|XXX%/gi, label: "面向客户页内遗留待补占位符" },
 ]);
 
 function decodeXml(str) {
@@ -360,11 +361,36 @@ function measureLinePx(str, fontPx) {
   return w;
 }
 
+function parseHexRgb(hex) {
+  const s = String(hex || "").replace(/^#/, "").trim();
+  if (!/^[0-9a-fA-F]{6}$/.test(s)) return null;
+  return [
+    Number.parseInt(s.slice(0, 2), 16),
+    Number.parseInt(s.slice(2, 4), 16),
+    Number.parseInt(s.slice(4, 6), 16),
+  ];
+}
+
+function relativeLuminance([r, g, b]) {
+  const conv = (v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * conv(r) + 0.7152 * conv(g) + 0.0722 * conv(b);
+}
+
+function wcagContrastRatio(rgb1, rgb2) {
+  const l1 = relativeLuminance(rgb1);
+  const l2 = relativeLuminance(rgb2);
+  const hi = Math.max(l1, l2);
+  const lo = Math.min(l1, l2);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 function extractTopLevelShapeBoxes(slideXml) {
   const spTree = slideXml.match(/<p:spTree\b[^>]*>([\s\S]*?)<\/p:spTree>/)?.[1] || "";
-  // Strip `<p:grpSp>...</p:grpSp>` for top-level box checks (grouped decorative badges intentionally overlap!)
   const items = [];
-  const tagRe = /<(p:sp|p:graphicFrame)\b[^>]*>([\s\S]*?)<\/\1>/g;
+  const tagRe = /<(p:sp|p:graphicFrame|p:pic)\b[^>]*>([\s\S]*?)<\/\1>/g;
   let m;
   while ((m = tagRe.exec(spTree)) !== null) {
     const tag = m[1];
@@ -382,12 +408,36 @@ function extractTopLevelShapeBoxes(slideXml) {
     const width = emuToPx(Number.parseInt(ext[1], 10));
     const height = emuToPx(Number.parseInt(ext[2], 10));
 
+    const isPic = tag === "p:pic";
     const isTable = tag === "p:graphicFrame" && blk.includes("<a:tbl");
     const isChart = tag === "p:graphicFrame" && blk.includes(":chart");
     const isTextbox = /<p:cNvSpPr\b[^>]*\btxBox="1"/.test(blk);
     const bodyPrTag = blk.match(/<a:bodyPr\b[^>]*>/)?.[0] || "";
     const noWrap = /\bwrap="none"/.test(bodyPrTag);
     const hasNoAutofit = /<a:noAutofit\b/.test(blk);
+
+    const spPr = blk.match(/<p:spPr\b[^>]*>([\s\S]*?)<\/p:spPr>/)?.[1] || "";
+    const prstM = spPr.match(/<a:prstGeom\b[^>]*\bprst="([^"]+)"/);
+    const prst = prstM ? prstM[1] : spPr.includes("<a:custGeom") ? "custom" : "rect";
+    const adjM = spPr.match(/<a:gd\b[^>]*\bfmla="val\s+(\d+)"/);
+    const adjVal = adjM ? Number.parseInt(adjM[1], 10) : 0;
+
+    // Strip `<a:ln>...</a:ln>` before checking shape fill so border color isn't mistaken for fill
+    const spPrNoLn = spPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>/g, "");
+    const hasGradOrBlipFill = /<a:(?:gradFill|blipFill|pattFill)\b/.test(spPrNoLn);
+    const solidFillMatch = spPrNoLn.match(/<a:solidFill\b[^>]*>([\s\S]*?)<\/a:solidFill>/);
+    const hasSolidFill = Boolean(solidFillMatch) && !/<a:alpha\b[^>]*\bval="0"/.test(solidFillMatch[1]);
+    const solidFillHex =
+      !hasGradOrBlipFill && solidFillMatch && !/<a:alpha\b/.test(solidFillMatch[1])
+        ? solidFillMatch[1].match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || null
+        : null;
+    const lnMatch = spPr.match(/<a:ln\b([^>]*)>([\s\S]*?)<\/a:ln>/);
+    const hasVisibleBorder =
+      Boolean(lnMatch) &&
+      !/<a:noFill\b/.test(lnMatch[2]) &&
+      getAttr(`<a:ln${lnMatch[1]}>`, "w") !== "0" &&
+      /<a:(?:solidFill|gradFill)\b/.test(lnMatch[2]);
+    const hasVisibleFillOrBorder = hasSolidFill || hasGradOrBlipFill || hasVisibleBorder;
 
     const lIns = emuToPx(Number.parseInt(getAttr(bodyPrTag, "lIns") ?? "91440", 10));
     const rIns = emuToPx(Number.parseInt(getAttr(bodyPrTag, "rIns") ?? "91440", 10));
@@ -398,16 +448,33 @@ function extractTopLevelShapeBoxes(slideXml) {
     if (tag === "p:sp") {
       for (const pm of blk.matchAll(/<a:p\b[^>]*>([\s\S]*?)<\/a:p>/g)) {
         const pInner = pm[1];
-        const text = [...pInner.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)]
-          .map((tm) => decodeXml(tm[1]))
-          .join("");
+        const runs = [];
+        for (const rm of pInner.matchAll(/<a:r\b[^>]*>([\s\S]*?)<\/a:r>/g)) {
+          const rInner = rm[1];
+          const rTxt = decodeXml(rInner.match(/<a:t>([\s\S]*?)<\/a:t>/)?.[1] || "");
+          const rPr = rInner.match(/<a:rPr\b([^>]*)>([\s\S]*?)<\/a:rPr>/);
+          const rSz = rPr?.[1]?.match(/\bsz="(\d+)"/)?.[1];
+          const rClr =
+            rPr?.[2] && !/<a:alpha\b/.test(rPr[2])
+              ? rPr[2].match(/<a:solidFill\b[^>]*>[\s\S]*?<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || null
+              : null;
+          runs.push({
+            text: rTxt,
+            fontPt: rSz ? Number.parseInt(rSz, 10) / 100 : null,
+            colorHex: rClr,
+          });
+        }
+        const text =
+          runs.length > 0
+            ? runs.map((r) => r.text).join("")
+            : [...pInner.matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((tm) => decodeXml(tm[1])).join("");
         const szAttr = pInner.match(/\bsz="(\d+)"/)?.[1];
         const fontPt = szAttr ? Number.parseInt(szAttr, 10) / 100 : 18;
         const spcPct = pInner.match(/<a:spcPct\b[^>]*\bval="(\d+)"/)?.[1];
         const lineMult = spcPct ? Number.parseInt(spcPct, 10) / 100000 : 1.22;
         const hasBuNone = /<a:buNone\b/.test(pInner);
         const hasNativeBullet = /<a:buChar\b|<a:buAutoNum\b/.test(pInner);
-        paras.push({ text, fontPt, lineMult, hasBuNone, hasNativeBullet });
+        paras.push({ text, fontPt, lineMult, hasBuNone, hasNativeBullet, runs });
       }
     }
 
@@ -420,9 +487,16 @@ function extractTopLevelShapeBoxes(slideXml) {
       top,
       width,
       height,
+      isPic,
       isTable,
       isChart,
       isTextbox,
+      prst,
+      adjVal,
+      hasGradOrBlipFill,
+      hasSolidFill,
+      solidFillHex,
+      hasVisibleFillOrBorder,
       noWrap,
       hasNoAutofit,
       insets: isTextbox ? { l: 0, r: 0, t: 0, b: 0 } : { l: lIns, r: rIns, t: tIns, b: bIns },
@@ -433,7 +507,10 @@ function extractTopLevelShapeBoxes(slideXml) {
   return items;
 }
 
-function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOverflow = true } = {}) {
+function runGates2And4GeometryAndText(
+  zipMap,
+  { antiSlop = "warn", checkTextOverflow = true, strictInShape = true, allowFullBgPic = false } = {}
+) {
   const issues = [];
   const presXml = zipMap.get("ppt/presentation.xml")?.toString("utf8") || "";
   const szM = presXml.match(/<p:sldSz\b[^>]*\bcx="(\d+)"[^>]*\bcy="(\d+)"/);
@@ -447,8 +524,19 @@ function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOver
     const xml = buf.toString("utf8");
     const items = extractTopLevelShapeBoxes(xml);
 
-    // 1) Out-of-bounds & Fake Bullet & Overflow & Anti-Slop checks
+    // Resolve slide solid background color (default white `#FFFFFF`)
+    const bgBlock = xml.match(/<p:bg\b[^>]*>([\s\S]*?)<\/p:bg>/)?.[1] || "";
+    const slideBgHex =
+      bgBlock && !/<a:(?:gradFill|blipFill)\b/.test(bgBlock)
+        ? bgBlock.match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || "FFFFFF"
+        : !bgBlock
+          ? "FFFFFF"
+          : null;
+    const slideBgRgb = slideBgHex ? parseHexRgb(slideBgHex) : null;
+
+    // 1) Out-of-bounds, Fake Bullets, Space-Padding, Overflow, Inscribed Width, Contrast & Anti-Slop
     for (const it of items) {
+      if (it.isPic) continue;
       const hasMeaningfulContent = Boolean(it.plainText) || it.isTable || it.isChart;
       if (hasMeaningfulContent && it.width > 4 && it.height > 4) {
         const tol = 12; // 12px tolerance for edge-hugging labels/page numbers
@@ -470,7 +558,16 @@ function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOver
         }
       }
 
-      // Fake typed bullets check
+      // Fake typed bullets + Space-padding alignment + WCAG contrast checks
+      const shapeBgRgb = it.hasGradOrBlipFill
+        ? null
+        : it.solidFillHex
+          ? parseHexRgb(it.solidFillHex)
+          : !it.hasVisibleFillOrBorder
+            ? slideBgRgb
+            : null;
+      let contrastFlagged = false;
+
       for (const p of it.paras) {
         if (!p.hasNativeBullet && p.hasBuNone && /^\s*[•●▪▸]\s+\S/.test(p.text)) {
           issues.push({
@@ -481,6 +578,118 @@ function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOver
             element: it.name,
             message: `Slide ${slideNo} "${it.name}" uses literal bullet character in text instead of native <a:buChar> hanging indent`,
           });
+        }
+        if (/ {8,}/.test(p.text)) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: "fail",
+            code: "space_padding_alignment",
+            slide: slideNo,
+            element: it.name,
+            message: `Slide ${slideNo} "${it.name}" uses 8+ consecutive spaces for layout spacing ("${p.text.trim().slice(0, 32)}") — use native alignment, tabs, or table cells`,
+          });
+        } else if (/ {4,}/.test(p.text)) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: "warn",
+            code: "space_padding_alignment",
+            slide: slideNo,
+            element: it.name,
+            message: `Slide ${slideNo} "${it.name}" uses 4+ consecutive spaces ("${p.text.trim().slice(0, 32)}") which may drift across Office/WPS fonts`,
+          });
+        }
+
+        if (shapeBgRgb && !contrastFlagged) {
+          for (const r of p.runs || []) {
+            if (!r.colorHex || !r.text.trim()) continue;
+            const txtRgb = parseHexRgb(r.colorHex);
+            if (!txtRgb) continue;
+            const cr = wcagContrastRatio(txtRgb, shapeBgRgb);
+            if (cr < 1.35) {
+              contrastFlagged = true;
+              issues.push({
+                gate: "layout_geometry",
+                severity: "fail",
+                code: "low_contrast_text",
+                slide: slideNo,
+                element: it.name,
+                contrastRatio: Number(cr.toFixed(2)),
+                message: `Slide ${slideNo} "${it.name}" text (#${r.colorHex}) is nearly invisible against background (${cr.toFixed(2)}:1): "${r.text.trim().slice(0, 20)}"`,
+              });
+              break;
+            } else if (cr < 1.9) {
+              contrastFlagged = true;
+              issues.push({
+                gate: "layout_geometry",
+                severity: "warn",
+                code: "low_contrast_text",
+                slide: slideNo,
+                element: it.name,
+                contrastRatio: Number(cr.toFixed(2)),
+                message: `Slide ${slideNo} "${it.name}" has low text/background contrast (${cr.toFixed(2)}:1) on "${r.text.trim().slice(0, 20)}"`,
+              });
+              break;
+            }
+          }
+        }
+      }
+
+      // Inscribed horizontal width overflow / orphan wrap check (triangle, trapezoid, ellipse/pill, single-line painted labels)
+      if (checkTextOverflow && it.tag === "p:sp" && it.plainText && it.width >= 30 && it.height >= 16) {
+        const isNarrowGeom =
+          it.prst === "triangle" ||
+          it.prst === "trapezoid" ||
+          it.prst === "ellipse" ||
+          (it.prst === "roundRect" && it.adjVal >= 35000);
+        let inscribedW;
+        if (it.prst === "triangle") {
+          inscribedW = it.width * (it.noWrap ? 0.85 : 0.48);
+        } else if (it.prst === "trapezoid") {
+          inscribedW = it.width * (it.noWrap ? 0.9 : 0.68);
+        } else if (it.prst === "ellipse" || (it.prst === "roundRect" && it.adjVal >= 35000)) {
+          inscribedW = it.noWrap ? it.width * 0.92 : it.width * 0.78 - it.insets.l - it.insets.r;
+        } else {
+          inscribedW = it.noWrap ? it.width * 0.98 : it.width - it.insets.l - it.insets.r;
+        }
+        const effW = Math.max(16, inscribedW);
+        const nonEmptyParas = it.paras.filter((p) => p.text.trim().length > 0);
+        if (nonEmptyParas.length === 1 && (it.noWrap || it.hasVisibleFillOrBorder)) {
+          const p0 = nonEmptyParas[0];
+          const fontPx = p0.fontPt / 0.75;
+          const lineW = measureLinePx(p0.text.trim(), fontPx);
+          const ratio = lineW / effW;
+          const wrappedLines = it.noWrap ? 1 : Math.max(1, Math.ceil(lineW / effW));
+          const inscribedH =
+            it.prst === "triangle"
+              ? it.height * 0.62
+              : it.prst === "ellipse"
+                ? Math.max(12, it.height * 0.78 - it.insets.t - it.insets.b)
+                : Math.max(12, it.height - it.insets.t - it.insets.b);
+          const estHInscribed = wrappedLines * fontPx * p0.lineMult;
+
+          if ((it.noWrap && ratio > 1.38) || (isNarrowGeom && estHInscribed > inscribedH * 1.25)) {
+            issues.push({
+              gate: "text_overflow",
+              severity: "fail",
+              code: "inscribed_width_overflow",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" (${it.prst}, ${Math.round(it.width)}x${Math.round(it.height)}px) text overflows inscribed area (~${Math.round(lineW)}px vs ${Math.round(effW)}px): "${p0.text.trim().slice(0, 24)}"`,
+            });
+          } else if (
+            (it.noWrap && ratio > 1.15) ||
+            (isNarrowGeom && ratio > 1.15) ||
+            (it.hasVisibleFillOrBorder && it.height <= fontPx * 2.1 && ratio > 1.15)
+          ) {
+            issues.push({
+              gate: "text_overflow",
+              severity: "warn",
+              code: "inscribed_width_overflow",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" (${it.prst}) label width (~${Math.round(lineW)}px) is tight for inscribed box (${Math.round(effW)}px) — risk of orphan wrap across fonts`,
+            });
+          }
         }
       }
 
@@ -507,7 +716,7 @@ function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOver
         }
       }
 
-      // Anti-AI-Slop Lexicon check
+      // Anti-AI-Slop & Client Placeholder Leak check
       if (antiSlop !== "off" && it.plainText) {
         for (const rule of CHINESE_AI_SLOP_PATTERNS) {
           rule.re.lastIndex = 0;
@@ -526,8 +735,56 @@ function runGates2And4GeometryAndText(zipMap, { antiSlop = "warn", checkTextOver
       }
     }
 
-    // 2) Substantive Text-on-Text AABB Collision Check
-    const textBoxes = items.filter((x) => x.plainText.length >= 2 && x.width > 12 && x.height > 12);
+    // 2) Nested-Textbox-Inside-Colored-Shape Detector (严禁图形框中另套透明文本框)
+    const emptyPaintedShapes = items.filter(
+      (x) => x.tag === "p:sp" && !x.plainText && x.hasVisibleFillOrBorder && x.width >= 24 && x.height >= 16
+    );
+    const transparentTextShapes = items.filter(
+      (x) => x.tag === "p:sp" && x.plainText.length >= 1 && (x.isTextbox || !x.hasVisibleFillOrBorder) && x.width >= 16 && x.height >= 12
+    );
+    for (const bg of emptyPaintedShapes) {
+      const bgArea = bg.width * bg.height;
+      for (const tb of transparentTextShapes) {
+        const tbArea = tb.width * tb.height;
+        const ix = Math.max(0, Math.min(bg.left + bg.width, tb.left + tb.width) - Math.max(bg.left, tb.left));
+        const iy = Math.max(0, Math.min(bg.top + bg.height, tb.top + tb.height) - Math.max(bg.top, tb.top));
+        if (ix <= 4 || iy <= 4) continue;
+        const interArea = ix * iy;
+        const overlapMin = interArea / Math.min(bgArea, tbArea);
+        const areaRatio = Math.max(bgArea, tbArea) / Math.min(bgArea, tbArea);
+        if (overlapMin >= 0.7 && areaRatio <= 2.4) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: strictInShape ? "fail" : "warn",
+            code: "nested_textbox_in_shape",
+            slide: slideNo,
+            elements: [bg.name, tb.name],
+            message: `Slide ${slideNo} overlays textbox "${tb.name}" ("${tb.plainText.slice(0, 18)}") on empty colored shape "${bg.name}" — put fill + text on a single <p:sp> instead`,
+          });
+        }
+      }
+    }
+
+    // 3) Full-bleed bitmap imposter check (严禁整页贴图冒充可编辑重绘)
+    if (!allowFullBgPic) {
+      const slideArea = slideW * slideH;
+      const fullPics = items.filter((x) => x.isPic && x.width * x.height >= slideArea * 0.88);
+      const editableTextCount = items.filter((x) => x.tag === "p:sp" && x.plainText.length >= 2).length;
+      const dataObjCount = items.filter((x) => x.isTable || x.isChart).length;
+      if (fullPics.length > 0 && editableTextCount <= 1 && dataObjCount === 0) {
+        issues.push({
+          gate: "layout_geometry",
+          severity: "fail",
+          code: "full_bleed_pic_imposter",
+          slide: slideNo,
+          element: fullPics[0].name,
+          message: `Slide ${slideNo} contains a full-bleed bitmap "${fullPics[0].name}" with almost no native editable shapes/text — rebuild natively instead of pasting a flat slide image`,
+        });
+      }
+    }
+
+    // 4) Substantive Text-on-Text AABB Collision Check
+    const textBoxes = items.filter((x) => !x.isPic && x.plainText.length >= 2 && x.width > 12 && x.height > 12);
     for (let i = 0; i < textBoxes.length; i++) {
       for (let j = i + 1; j < textBoxes.length; j++) {
         const a = textBoxes[i];
@@ -744,6 +1001,8 @@ export async function validateDeckBuffer(pptxBuffer, options = {}) {
   const gate2And4 = runGates2And4GeometryAndText(zipMap, {
     antiSlop: options.antiSlop ?? "warn",
     checkTextOverflow: options.checkTextOverflow !== false,
+    strictInShape: options.strictInShape !== false,
+    allowFullBgPic: Boolean(options.allowFullBgPic),
   });
   const gate3 = runGate3FontAvailability(zipMap, options.fontPolicy ?? "warn");
   const gate5 = runGate5DataEvidence(zipMap);
@@ -790,6 +1049,8 @@ export async function finalizeDeck({
   antiSlop = "warn",
   fontPolicy = "warn",
   checkTextOverflow = true,
+  strictInShape = true,
+  allowFullBgPic = false,
 }) {
   if (!outputPath) {
     throw new Error("finalizeDeck requires `outputPath`");
@@ -814,7 +1075,13 @@ export async function finalizeDeck({
     throw new Error("finalizeDeck requires `deck` or `candidatePptxPath`");
   }
 
-  const report = await validateDeckBuffer(buf, { antiSlop, fontPolicy, checkTextOverflow });
+  const report = await validateDeckBuffer(buf, {
+    antiSlop,
+    fontPolicy,
+    checkTextOverflow,
+    strictInShape,
+    allowFullBgPic,
+  });
   const shortHash = report.sha256.slice(0, 8);
   const stem = path.basename(absOut, path.extname(absOut));
   const receiptPath = path.join(stagingRoot, `${stem}.${shortHash}.validation.json`);

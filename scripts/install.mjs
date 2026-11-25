@@ -53,8 +53,8 @@ async function installToTarget(name, destDir, mode = "symlink") {
       path.join(destDir, "packages", "pptx-kit"),
       { recursive: true }
     );
-    // Rewrite relative import in copied CLI scripts from `../../../packages/pptx-kit` -> `../packages/pptx-kit`
-    for (const cliFile of ["provider_cli.mjs", "deck_cli.mjs"]) {
+    // Rewrite relative import in copied scripts (`kit.mjs`, `provider_cli.mjs`, `deck_cli.mjs`) -> `../packages/pptx-kit`
+    for (const cliFile of ["kit.mjs", "provider_cli.mjs", "deck_cli.mjs"]) {
       const p = path.join(destDir, "scripts", cliFile);
       const src = await fs.readFile(p, "utf8");
       await fs.writeFile(

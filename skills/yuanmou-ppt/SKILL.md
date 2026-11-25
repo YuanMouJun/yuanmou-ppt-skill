@@ -1,65 +1,88 @@
 ---
 name: yuanmou-ppt
-description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 商业级原生 PPTX 生成与母本无损改版技能（Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持任意参考图/小红书截图/PDF 1:1 矢量复刻为可编辑 PowerPoint、既有 .pptx 无损换字换图、内嵌 .xlsx 可双击改数真图表、原生比例表格、免登录商业版式库/飞书云盘版式库及 5 道原子终检门闸。
+description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 商业级原生 PPTX 生成与母本无损改版技能（Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持任意参考图/小红书截图/PDF 1:1 矢量复刻为可编辑 PowerPoint、既有 .pptx 无损换字换图、内嵌 .xlsx 可双击改数真图表、原生比例表格、免登录商业版式库/飞书云盘版式库及多道原子终检门闸。
 ---
 
 # Yuanmou PPT Skill (`@yuanmou/pptx-kit`)
 
-## 1. 强制门禁与工程铁律
+> 下文 `<SKILL_DIR>` 指本 `SKILL.md` 所在目录。无论用户当前在哪个工作目录，一律通过 `<SKILL_DIR>/scripts/{provider_cli,deck_cli,kit}.mjs` 调用，严禁写死相对仓库路径。
 
-1. **环境门禁（禁止盲画）**：首次执行先跑 `node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env`，确认已装 **Node.js `>=22.5` + LibreOffice (`soffice`) + Poppler (`pdftoppm`)**；缺项时先协助用户安装，严禁跳过渲染自检直接交付。
-2. **纯原生 OOXML（禁止简化或贴图）**：所有构建、改版、图表与终检均调用 `@yuanmou/pptx-kit`；严禁 `python-pptx`，严禁简化/合并省略结构，严禁用整页背景图、截图碎片或扁平 PNG 冒充表格/流程图/可编辑重绘。图表必须内嵌 `ppt/embeddings/*.xlsx` 可双击改数。
-3. **单图形承载底色与富文本（严禁框中套框）**：圆角矩形、色带、圆形、箭头等带底色/描边节点必须在同一个 `<p:sp>` 上直接设置 `fill / line / text / textStyle`（多字号/多色用富文本 `runs`）；**严禁在图形内另套内框、覆盖透明文本框或用编组冒充图形自身承载文字**，表格文字直接写入单元格。项目符号必须用 `makeBulletList()`，禁手敲 `"• "`；局部透明渐变描边用 `buildPolylineStrokeCommands()` + `<a:gradFill>`。
-4. **只读保护与交付边界**：区分「内容源」与「版式参考」（仅用户指定或确认的参考页决定版式）；用户要求源文件不动时严格只读并在副本制作，核对物理页码、隐藏页与交付份数（独立交付按单页独立文件输出）。
+## 1. 铁律与红线（不翻源码、不绕路）
 
-## 2. 内容解构 → 双向同构选版（Step 1）
+1. **纯原生 OOXML（禁止简化或贴图）**：所有构建、改版、图表与终检均调用 `<SKILL_DIR>/scripts/kit.mjs`；严禁 `python-pptx`，严禁简化/合并省略结构，严禁用整页背景图或截图碎片冒充表格/流程图/可编辑重绘。图表必须内嵌 `.xlsx` 可双击改数。
+2. **单图形承载底色与富文本（严禁框中套框）**：圆角矩形、色带、圆形、箭头等带底色/描边节点必须在同一个 `<p:sp>` 上直接设 `fill / line / text / textStyle`（多字号/多色用富文本 `runs`）；**严禁另套内框、覆盖透明文本框或用编组冒充**；表格文字直写单元格；项目符号用 `makeBulletList()`，禁手敲 `"• "`；禁 4+ 连续空格定位（改用原生对齐/制表位/表格）；跨系统优先通用字体且窄标签留足 5% 宽度余量防换字掉孤字。
+3. **只读保护与交付边界**：区分「内容源」与「版式参考」（仅用户指定或确认的参考页决定版式）；要求原稿不动时严禁改写原件（可用 `verify --readonly-source` 锁哈希），核对物理页码、隐藏页与独立单页交付份数。
+4. **强制视觉自检**：所有成稿必须跑通 `deck_cli.mjs verify`（自动依赖 **Node >=22.5 + LibreOffice (`soffice`) + Poppler (`pdftoppm`)**；缺项时会直接报错并给出安装命令，无需每轮空跑 `check-env`）。
 
-**严禁不读内容直接乱搜或硬套版式**，无现成指定参考图时必须按以下两步走：
+## 2. 内容解构 → 1 条命令全库同构选版（Step 1）
 
-1. **先理解内容，按逻辑单元提炼「槽位指纹」**：通读用户文稿/Brief，**按逻辑单元规划页面**（不把 Markdown 章节或 PDF/Word 原页机械等同于 1 页 PPT），逐页拆出 **页型**（封面/目录/正文/封底）、**业务目的**（`purpose`）、**逻辑关系/图示家族**（`diagram_family`：`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、**图槽数**（`--target-images`，单张账号主页/后台/长图界面按 1 张独立截图计）、**文槽数**（`--target-text-slots`）、**实绩槽数**（`--target-results`）以及**是否需表格/图表**；同时区分「用户硬要求」与「初拟分组弹性」。
-2. **双向同构打分选版 + 单选看板确认**：按每页指纹调用 `provider_cli.mjs` 检索并拉取无损原图（**严禁手搓裸 SQL 绕过同构打分，不得按行业文件名盲翻**；默认自动探活：`feishu` -> `yuanmou-cloud` -> `zsxq` -> `local` 免登录体验库，纯离线设 `YUANMOU_OFFLINE=1`）。每页实看至少 3 张候选原图（通常给 3 个方向；候选少时先放宽自加弹性条件，不因凑不齐 3 张卡住；用户要求“再找一轮”时沿用已明确否定原因），生成**严格单选、默认不勾选、支持点击放大与一键复制**的 Base64 选版看板（多页按 4～6 页/批；保留原稿原文/原页图不先改写，右侧展示原图严禁换字或 AI 加工冒充；**未获用户确认前严禁开始重绘或填充**；用户已指定版式/仅调色/局部修形/兼容修复时直接跳至对应环节）：
+**严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；无现成指定参考图时按两步走（已指定版式/仅调色/局部修形直接跳过海选）：
+
+1. **按逻辑单元提炼「槽位指纹」**：通读原稿，不把 Markdown 章节或 PDF/Word 原页机械当 1 页；逐页拆出 `purpose`（支持逗号多词如 `"执行策略,方法论"`）、`diagramFamily`（`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、`targetImages`（单张账号主页/后台界面按 1 计）、`targetTextSlots`、`targetResults`、`whiteBackground` 及是否需表格/图表；区分用户硬要求与初拟分组弹性。
+2. **1 条命令出多页单选看板（默认自动探活 `feishu` -> `local` 免登录库，纯离线设 `YUANMOU_OFFLINE=1`）**：多页（4～6 页/批）直接写一份 `pages.json` 跑 **`batch-search`**，1 次完成全库打分、本地缓存优先并发拉无损图并输出**严格单选、默认不勾选、支持左原稿对照与一键复制**的 Base64 HTML 看板（严禁换字加工冒充原图；候选少时放宽自加弹性条件；“再找一轮”时传 `exclude` 并沿用否定原因；**未获用户确认前严禁重绘或填充**）：
 
 ```bash
-node skills/yuanmou-ppt/scripts/provider_cli.mjs search-slides \
-  --purpose 方法论 --diagram-family funnel --target-images 0 --target-text-slots 4 \
-  --fetch-previews --limit 3 --out ./selection_board.html
+# 多页一条龙：全库双向同构打分 + 拉无损图 + 直出严格单选分节看板
+node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --fetch-previews --out ./selection_board.html
 
-# 多页批次统一生成严格单选、带页码区隔的 HTML 选版看板（严禁手搓可多选 HTML）
-node skills/yuanmou-ppt/scripts/provider_cli.mjs build-board --plan ./board_plan.json --out ./selection_board.html
-
-# 可选：连接飞书云盘 VIP 版式库（触发 429 限流或需要全行业海量模板时引导）
-node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu
+# 单页速查（可选连接飞书 VIP 全量库：provider_cli.mjs connect --provider feishu）
+node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,方法论" --diagram-family funnel \
+  --target-images 0 --target-text-slots 4 --white-background --fetch-previews --limit 3 --out ./selection_board.html
 ```
-
-- 禁止在无匹配版式时套用廉价通用蓝白骨架敷衍。
 
 ## 3. 双通道制作流（Step 2 ～ Step 4）
 
-### 通道 A：有可编辑 `.pptx` 母本（L1 · 五步无损改版）
-严禁新建空白页重画，按五步原位改版：
-1. `inspectTemplateDeck({ pptxPath, outDir })` 提取元素锚点（`sh/`、`im/`、`tb/`、`ch/`）；
-2. 编写 `template-frame-map.json` 并过 `validateTemplatePlan({ map, inspection })`；
-3. `prepareStarterDeck({ pptxPath, map, outPptxPath })` 无损抽页并自动清理未用媒体；
-4. 原位改写：`.text.set()` / `.text.replace()` 保样式换字、`.replace({ path, fit: "cover" })` 保蒙版裁切换图、`slide.charts.add()` / `slide.tables.add()` 混合注入原生表图；
-5. `auditTemplateFidelity({ sourcePptxPath, finalPptxPath, expectedSlideCount })` 保真稽查。
+### 通道 A：既有 `.pptx` 母本（L1 · 原位无损改版）
+严禁新建空白页重画：`inspectTemplateDeck` → 写 `template-frame-map.json` 并 `validateTemplatePlan` → `prepareStarterDeck` 无损抽页 → `.text.set()` / `.text.replace()` 保样式换字 + `.replace({ path, fit: "cover" })` 换图 + 原生表图注入 → `auditTemplateFidelity`。
 
-### 通道 B：图片 / 截图 / PDF 1:1 复刻（先读 [结构还原规范](references/structure-and-text.md) 与 [字体兼容规范](references/pptx-compatibility.md)）
-多页任务按**单页独立脚本**推进（严禁把多页硬塞进单个巨型脚本），按复杂度分级执行：
-- **L2（常规卡片 / 表格 / 图表 / 时间轴）**：单步成稿 + 1 次全页并排审图。
-- **L3（半透明玻璃叠层 / 弧边锥体 / 渐窄箭头 / 圆角倒梯形 / 复杂流程图）**：
-  1. **采色测透**：`node skills/yuanmou-ppt/scripts/deck_cli.mjs inspect-ref --ref ./ref.png --out ./work/inspect --crops "zone:x,y,w,h"`，确认透底（`<a:alpha>` 渐变）、最深墨色与字号（`pt ≈ h_px × 0.80`）；
-  2. **骨架叠图校准**：先拼装 `structure` 骨架（单图形底色+富文本、`buildRoundedTrapezoidPath`），再跑 `deck_cli.mjs diff --ref ./ref.png --gen ./work/s1.png --out ./work/diff --crops "..." --pptx ./work/out.pptx --gallery ./work/gallery.html`，审阅 `overlay_3panel.png` 与 `zoom_*_2x.png`（最多 1~2 轮收敛；自检通过即继续，不另向用户请求重绘确认）；
-  3. **锁死样式灌入正文**：壳子通过后切换 `final` 模式，锁死几何/透明/字号/字色，再优化文案并原位替换用户图文（有源 PPT 时优先提取内嵌原图，保留关键数字、账号身份与咨询入口）。
-- **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标并复核可见层次；**横竖重排**保持逻辑与文字正常阅读方向，严禁旋转整张截图或倒转文字。
+### 通道 B：图片 / 截图 / PDF 1:1 复刻（分级提速，不搞一刀切）
+多页任务用**模块化单页文件**推进（`slides/p1.mjs`…`pN.mjs` 各自 `export function addSlide(deck) { ... }`，再由 10 行 `build_deck.mjs` 汇总 `Presentation.create()` 一次性导出，绝不生成 N 个散装 `.pptx` 再硬合并）：
+- **L2（常规卡片 / 表格 / 图表 / 时间轴，占 ~80% 场景）**：**单步直出**完整内容稿 → 跑 1 次 `deck_cli.mjs verify` 看 `qa_sheet.png`（多页合一总览图，1 次读图审完）即可。
+- **L3（半透明玻璃叠层 / 弧边锥体 / 渐窄箭头 / 圆角倒梯形 / 复杂曲线，遇难题再按需查 `references/structure-and-text.md`）**：
+  1. `node <SKILL_DIR>/scripts/deck_cli.mjs inspect-ref --ref ./ref.pdf --page 1 --out ./work/inspect`（原生支持 PNG/JPG/PDF，自动采色与 2× 切片）；
+  2. 先拼装 `structure` 骨架（单图形底色+富文本、`buildRoundedTrapezoidPath`、`buildPolylineStrokeCommands`），跑 `verify --ref ./ref.png` 核对 `overlay_3panel.png` 与自动定位的 `zoom_hotspot_*_2x.png`（最多 1~2 轮收敛；自检通过即继续，不中途打断问用户）；
+  3. 切 `final` 锁死几何/透明/字号/字色，优化文案并原位替换用户图文（有源 PPT 时优先提取内嵌原图，保留关键数字与账号身份）。
+- **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标并保可见层次；**横竖重排**保持文字正常阅读方向，禁整图旋转。
 
 ## 4. 文案保真与去 AI 腔铁律（Anti-Slop）
 
-- **数据与口径红线**：严禁编造数据、严禁把策略建议/目标/Demo 示意数字改写成已实现成果，严格保留原稿指标名称、数值与统计周期；缺少量化成果时仅呈现已有执行产出与定性成果，**待补数据与核查项放交付说明，严禁直接把 `[待补充]` 写进面向客户的页内**（除非用户要求）。
-- **封杀 AI 水词**：严禁 `不是X而是Y`、`深度赋能`、`核心抓手`、`生态闭环`、`打出组合拳`、`底层逻辑重构`、`开启新篇章`；禁单段滥用 `——` 或行内假圆点 `A • B • C`。
-- **结论前置与字号底线**：结构自检通过后再优化文案；内容页主标题必须结论前置（Action Title）；正文不低于 `12pt`，挤不下先删废话，不强缩字号。
+- 严禁编造数据、严禁把建议/目标/Demo 数字写成已实现成果，严格保留原稿指标名称、数值与统计周期；缺量化成果时仅写已有执行产出与定性成果，**待补数据放交付说明，严禁把 `[待补充]` / `TBD` 写进页内**（已被 `finalizer` 自动拦截）。
+- 封杀 AI 水词（`不是X而是Y`、`深度赋能`、`核心抓手`、`生态闭环`、`打出组合拳`、`底层逻辑重构`、`开启新篇章`）、单段滥用 `——`、行内假圆点 `A • B • C`。
+- 内容页主标题结论前置；正文 `>=12pt`，挤不下先删废话，不强缩字号。
 
-## 5. 终检门禁与视觉验收（Step 5 ～ Step 6）
+## 5. 一条龙终检与视觉验收（Step 5）
 
-交付前必须跑通 `finalizeDeck({ deck, outputPath, antiSlop: "fail" })` 与 `renderDeckToPngs(outputPath, { outDir, dpi: 220 })`：
-1. **原生对象与并排 Diff 双重自检**：交付前必须同时通过两项核验——① **原生对象归属**：确认带底色节点文字归属同一 `<p:sp>`（零内框/零覆盖透明文本框/零背景文字分离），表格文字归属单元格、图表内嵌 `.xlsx`；② **视觉并排 Diff**：有参考图/母本时，必须生成「左原图 vs 右成稿」并排图亲自审图，核对标题/正文视觉字号偏差 ≤15%、相邻区块接触拓扑（半压/贴边/留白）、圆角梯形/渐变/描边边缘及图片区尺寸节奏。不达标必须返工；
-2. **交付附带对比画廊与诚实验证说明**：用 `buildShowcaseGalleryHtml()` 输出 Base64 内联 HTML 画廊（禁止外部相对路径防裂图）；交付说明如实写明所用渲染器、字体替换、适配决定与验证范围（仅实际用 PowerPoint/WPS 打开查看过才标实机通过）。
+交付前 1 条命令跑完「**全部自动门禁**（ECMA-376 包结构 + 越界/碰撞/框中套框/内切宽溢出/WCAG 对比度/整页贴图冒充/长空格/Anti-Slop/`[待补充]` + 字体 + 表格合计与 `.xlsx` 图表同步）+ **缓存加速渲染** + **`qa_sheet.png` 总览图** + **自动热点 2× 对比 & Base64 HTML 画廊**」：
+
+```bash
+node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --final ./output/final.pptx \
+  --out ./work/qa --ref ./ref.png --gallery ./output/qa_gallery.html --anti-slop fail
+```
+
+1. 必须亲自 `read_file` 审阅 `qa_sheet.png`（及有参考图时的 `side_by_side.png` / `zoom_hotspot_*_2x.png`），不达标必须返工；
+2. 交付附带 `.pptx` + Base64 HTML 对比画廊，并如实写明渲染器、字体替换与验证范围（仅实际用 PowerPoint/WPS 打开过才标实机通过）。
+
+## 6. `@yuanmou/pptx-kit` 零翻源码 API 速查（1280×720 坐标）
+
+```js
+import {
+  Presentation, finalizeDeck, makeBulletList, fr, fixed,
+  buildRoundedTrapezoidPath, buildPolylineStrokeCommands,
+} from "<SKILL_DIR>/scripts/kit.mjs";
+
+const deck = Presentation.create({ title: "方案标题", defaultFont: "PingFang SC" });
+const s = deck.slides.add({ background: "#FFFFFF" }); // 或 { type: "linear", angle: 135, stops: [...] }
+// 1) 带底色单图形直写文字（严禁再叠透明文本框）
+s.shapes.add({
+  name: "卡片标题", geometry: "roundRect", borderRadius: 8,
+  position: { left: 64, top: 120, width: 320, height: 56 },
+  fill: "#0F3A7D", line: { fill: "#0F3A7D", width: 1 },
+  text: "结论前置标题", // 富文本可用 [{ runs: [{ run: "主标", bold: true, fontSize: 18 }, ...] }] 或 makeBulletList(["条目1","条目2"])
+  textStyle: { fontSize: 18, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: { left: 10, right: 10, top: 6, bottom: 6 } },
+});
+// 2) 原生图片 / 比例表格 / 内嵌 .xlsx 真图表
+s.images.add({ path: "./shot.png", position: { left: 64, top: 200, width: 420, height: 280 }, fit: "cover", borderRadius: 8 });
+s.tables.add({ position: { left: 520, top: 200, width: 696, height: 280 }, columnTracks: [fixed(120), fr(1), fr(1)], values: [["维度","现状","目标"], ["转化率","2.1%","3.8%"]], totalRow: false });
+s.charts.add("bar", { position: { left: 64, top: 200, width: 560, height: 340 }, title: "季度对比", categories: ["Q1","Q2","Q3"], series: [{ name: "曝光", values: [120, 185, 240], fill: "#0F3A7D" }] });
+await finalizeDeck({ deck, outputPath: "./work/candidate.pptx", antiSlop: "fail" });
+```

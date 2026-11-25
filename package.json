@@ -24,7 +24,7 @@
     "./finalizer": "./packages/pptx-kit/src/finalizer.mjs"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.5.0"
   },
   "scripts": {
     "install:skill": "node scripts/install.mjs --target all",

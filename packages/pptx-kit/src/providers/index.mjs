@@ -44,11 +44,11 @@ export function createSourceProvider(id, options = {}) {
 
 /**
  * Auto-resolves the active `SlideSourceProvider`:
- * 1) Explicit `options.provider` or `YUANMOU_PROVIDER` env override
- * 2) `feishu` (Primary Cloud Pure-Image Library) if Feishu OAuth credentials exist and authenticate
- * 3) `yuanmou-cloud` if `YUANMOU_API_KEY` / cloud credentials exist and authenticate
- * 4) `zsxq` (Optional legacy plugin) if `zsxq-cli` is installed and authenticated
- * 5) `local` (Free Open-Source Standalone mode)
+ * 1) Explicit `options.provider` or `YUANMOU_PROVIDER` env override (`feishu`, `local`, `yuanmou-cloud`, `zsxq`)
+ * 2) `feishu` (VIP Cloud Pure-Image Library) if Feishu OAuth credentials exist and authenticate
+ * 3) `yuanmou-cloud` if explicit `YUANMOU_API_KEY` / cloud credentials exist and authenticate
+ * 4) `local` (Default Zero-Login Public Trial Library & Standalone Offline Mode)
+ * Note: Legacy `zsxq` is decoupled from default auto-probe and only activates when explicitly requested.
  */
 export async function resolveActiveSourceProvider(options = {}) {
   const explicit = options.provider || process.env.YUANMOU_PROVIDER;
@@ -71,14 +71,6 @@ export async function resolveActiveSourceProvider(options = {}) {
     const auth = await cloud.checkAuth();
     if (auth.authenticated) {
       return { provider: cloud, auth, mode: "yuanmou-cloud" };
-    }
-  }
-
-  const zsxq = createSourceProvider("zsxq", options);
-  if (zsxq.isCliAvailable?.()) {
-    const auth = await zsxq.checkAuth();
-    if (auth.authenticated) {
-      return { provider: zsxq, auth, mode: "zsxq" };
     }
   }
 

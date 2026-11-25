@@ -29,7 +29,7 @@ function buildTrialRateLimitError() {
  * 1) If `YUANMOU_LOCAL_DIR` is set and contains a local SQLite index (`ppt-index-dist.db` / `ppt-index-lite.db` / etc.),
  *    queries that local directory 100% offline.
  * 2) Otherwise (unless `YUANMOU_OFFLINE=1` or `enablePublicTrial: false`), seamlessly syncs the free public
- *    2,000-slide commercial reference library (`ppt-index-trial.db.gz`, ~740 KB) from Cloudflare R2 CDN
+ *    16,000+ slide commercial reference library (`ppt-index-trial.db.gz`) from Cloudflare R2 CDN
  *    into `~/.cache/yuanmou-ppt/trial/` and fetches lossless preview PNGs on demand with permanent local caching.
  */
 export class LocalStandaloneProvider extends SlideSourceProvider {
@@ -119,9 +119,14 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       };
     }
 
-    const indexUrl = `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
+    const indexUrl = force
+      ? `${this.trialBaseUrl}/ppt-index-trial.db.gz?t=${Date.now()}`
+      : `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
     const res = await fetch(indexUrl, {
-      headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
+      headers: {
+        [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE,
+        ...(force ? { "Cache-Control": "no-cache" } : {}),
+      },
     });
     if (res.status === 429) {
       throw buildTrialRateLimitError();
