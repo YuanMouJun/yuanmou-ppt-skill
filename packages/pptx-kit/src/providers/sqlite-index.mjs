@@ -1,6 +1,7 @@
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 
 import { existsSync } from "node:fs";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 export const SLIDE_INDEX_DDL = `
@@ -48,13 +49,170 @@ async function openNodeSqlite(dbPath, readOnly = false) {
   return null;
 }
 
+async function runSqliteQuery(dbPath, sql, params = []) {
+  const db = await openNodeSqlite(dbPath, true);
+  if (db) {
+    try {
+      return db.prepare(sql).all(...params);
+    } finally {
+      db.close();
+    }
+  }
+  const pCopy = [...params];
+  const inlinedSql = sql.replace(/\?/g, () => {
+    const v = pCopy.shift();
+    if (typeof v === "number") return String(v);
+    return `'${String(v ?? "").replace(/'/g, "''")}'`;
+  });
+  const res = spawnSync("sqlite3", ["-json", dbPath, inlinedSql], { encoding: "utf8" });
+  if (res.status === 0 && res.stdout.trim()) {
+    return JSON.parse(res.stdout);
+  }
+  return [];
+}
+
 /**
- * Queries `yuanmou-slide-index.db` by bidirectional slot fingerprint (`purpose`, `imageCount`, `textSlots`, `keywords`).
- * Works identically for both V1 `ZsxqPlanetProvider` and V2 `YuanmouCloudR2Provider`!
+ * Queries either:
+ * 1) Unified `pages` schema (`ppt-index-dist.db` / `ppt-index-trial.db` / `ppt-index-lite.db`)
+ *    with slot_v2 fingerprints + `diagram_family` + optional `feishu_file_token`; OR
+ * 2) Legacy `slides` schema (`yuanmou-slide-index.db`).
  */
-export async function querySlideIndexDb(dbPath, filter = {}, providerId = "zsxq") {
+export async function querySlideIndexDb(dbPath, filter = {}, providerId = "feishu") {
   if (!dbPath || !existsSync(dbPath)) return [];
 
+  const tableRows = await runSqliteQuery(dbPath, "SELECT name FROM sqlite_master WHERE type='table'");
+  const tableSet = new Set(tableRows.map((r) => r.name));
+
+  if (tableSet.has("pages")) {
+    return queryPagesSchema(dbPath, filter, providerId);
+  }
+  if (tableSet.has("slides")) {
+    return queryLegacySlidesSchema(dbPath, filter, providerId);
+  }
+  return [];
+}
+
+async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
+  const colRows = await runSqliteQuery(dbPath, "PRAGMA table_info(pages)");
+  const colSet = new Set(colRows.map((c) => c.name));
+
+  const {
+    purpose,
+    pageType,
+    diagramFamily,
+    minImages,
+    maxImages,
+    minTextSlots,
+    maxTextSlots,
+    hasTable,
+    hasChart,
+    keywords,
+    contentPageId,
+    limit = 12,
+  } = filter;
+
+  const clauses = ["1=1"];
+  const params = [];
+
+  if (contentPageId) {
+    clauses.push("content_page_id = ?");
+    params.push(String(contentPageId));
+  }
+  if (purpose && purpose !== "any") {
+    clauses.push("(business_purpose LIKE ? OR search_text LIKE ?)");
+    const pat = `%${purpose}%`;
+    params.push(pat, pat);
+  }
+  if (pageType && pageType !== "any") {
+    clauses.push("page_type LIKE ?");
+    params.push(`%${pageType}%`);
+  }
+  if (diagramFamily && diagramFamily !== "any" && colSet.has("diagram_family")) {
+    clauses.push("lower(diagram_family) = lower(?)");
+    params.push(String(diagramFamily));
+  }
+  if (typeof minImages === "number" && colSet.has("image_slots")) {
+    clauses.push("image_slots >= ?");
+    params.push(minImages);
+  }
+  if (typeof maxImages === "number" && colSet.has("image_slots")) {
+    clauses.push("image_slots <= ?");
+    params.push(maxImages);
+  }
+  if (typeof minTextSlots === "number" && colSet.has("text_slots")) {
+    clauses.push("text_slots >= ?");
+    params.push(minTextSlots);
+  }
+  if (typeof maxTextSlots === "number" && colSet.has("text_slots")) {
+    clauses.push("text_slots <= ?");
+    params.push(maxTextSlots);
+  }
+  if (hasTable === true && colSet.has("local_graphics")) {
+    clauses.push("(local_graphics LIKE '%表%' OR raw_layout LIKE '%表%')");
+  }
+  if (hasChart === true && colSet.has("local_graphics")) {
+    clauses.push("(local_graphics LIKE '%柱%' OR local_graphics LIKE '%折线%' OR local_graphics LIKE '%饼%' OR local_graphics LIKE '%环%' OR local_graphics LIKE '%图%')");
+  }
+
+  const kwTokens = Array.isArray(keywords)
+    ? keywords
+    : typeof keywords === "string" && keywords.trim()
+      ? keywords.trim().split(/\s+/)
+      : [];
+  for (const kw of kwTokens) {
+    const pat = `%${kw}%`;
+    if (colSet.has("diagram_labels")) {
+      clauses.push("(search_text LIKE ? OR coalesce(diagram_labels, '') LIKE ? OR coalesce(layout, '') LIKE ?)");
+      params.push(pat, pat, pat);
+    } else {
+      clauses.push("(search_text LIKE ? OR coalesce(layout, '') LIKE ?)");
+      params.push(pat, pat);
+    }
+  }
+
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 12));
+  const orderCol = colSet.has("diagram_family")
+    ? "CASE WHEN diagram_family IS NOT NULL AND diagram_family != '' THEN 0 ELSE 1 END, content_page_id ASC"
+    : "content_page_id ASC";
+  const sql = `
+    SELECT *
+    FROM pages
+    WHERE ${clauses.join(" AND ")}
+    ORDER BY ${orderCol}
+    LIMIT ${safeLimit}
+  `;
+
+  const rows = await runSqliteQuery(dbPath, sql, params);
+  return rows.map((r) => {
+    const rawPrev = r.preview_file || r.preview_path || `${r.content_page_id}.png`;
+    const previewFile = path.basename(String(rawPrev).replace(/\\/g, "/"));
+    const lg = String(r.local_graphics || "");
+    return {
+      provider: providerId,
+      slideUid: r.content_page_id,
+      contentPageId: r.content_page_id,
+      sku: r.content_page_id,
+      deckTitle: r.business_topic || r.layout || r.content_page_id,
+      slideNo: r.physical_page || 1,
+      purpose: r.business_purpose || r.page_type || "general",
+      pageType: r.page_type || undefined,
+      diagramFamily: r.diagram_family || undefined,
+      diagramLabels: r.diagram_labels || undefined,
+      imageCount: r.image_slots ?? 0,
+      textSlots: r.text_slots ?? 0,
+      resultCount: r.result_slots ?? 0,
+      hasTable: lg.includes("表"),
+      hasChart: /柱|折线|饼|环|图表|条形/.test(lg),
+      layoutSummary: r.raw_layout || r.layout || "",
+      visualTraits: r.raw_visual || r.visual_traits || "",
+      restoreNote: r.restore_note || undefined,
+      previewFile,
+      feishuFileToken: r.feishu_file_token || undefined,
+    };
+  });
+}
+
+async function queryLegacySlidesSchema(dbPath, filter = {}, providerId = "zsxq") {
   const {
     purpose,
     minImages,
@@ -116,7 +274,6 @@ export async function querySlideIndexDb(dbPath, filter = {}, providerId = "zsxq"
   }
 
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 12));
-  // Check if `tier` / `group_id` columns exist (backward compatible with v1.0 DBs)
   const sql = `
     SELECT *
     FROM slides
@@ -125,27 +282,7 @@ export async function querySlideIndexDb(dbPath, filter = {}, providerId = "zsxq"
     LIMIT ${safeLimit}
   `;
 
-  const db = await openNodeSqlite(dbPath, true);
-  let rows = [];
-  if (db) {
-    try {
-      rows = db.prepare(sql).all(...params);
-    } finally {
-      db.close();
-    }
-  } else {
-    // Fallback to system `sqlite3 -json`
-    const inlinedSql = sql.replace(/\?/g, () => {
-      const v = params.shift();
-      if (typeof v === "number") return String(v);
-      return `'${String(v ?? "").replace(/'/g, "''")}'`;
-    });
-    const res = spawnSync("sqlite3", ["-json", dbPath, inlinedSql], { encoding: "utf8" });
-    if (res.status === 0 && res.stdout.trim()) {
-      rows = JSON.parse(res.stdout);
-    }
-  }
-
+  const rows = await runSqliteQuery(dbPath, sql, params);
   return rows.map((r) => ({
     provider: providerId,
     slideUid: r.slide_uid,

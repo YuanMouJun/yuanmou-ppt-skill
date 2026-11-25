@@ -65,6 +65,7 @@ export {
   SlideCacheStore,
   SlideSourceProvider,
   LocalStandaloneProvider,
+  FeishuDriveProvider,
   ZsxqPlanetProvider,
   YuanmouCloudR2Provider,
   SLIDE_INDEX_DDL,

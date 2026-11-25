@@ -1,11 +1,11 @@
 ---
 name: yuanmou-ppt
-description: 渊眸策略商业级可编辑 PPT 构建与母本外科手术技能（基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持可插拔数据源（Local 本地目录 / V1 知识星球 zsxq-cli / V2 自有云端 API+R2）、既有 .pptx 无损克隆改版、1:1 矢量贝塞尔复刻、内嵌 .xlsx 可双击编辑真图表、原生比例表格及 5 道原子终检门闸 finalizeDeck。
+description: 渊眸策略商业级可编辑 PPT 构建与母本外科手术技能（基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持可插拔数据源（飞书云盘双仓无损纯图库 / Local 本地目录 / 可选云端或外部数据源）、既有 .pptx 无损克隆改版、1:1 矢量贝塞尔复刻、内嵌 .xlsx 可双击编辑真图表、原生比例表格及 5 道原子终检门闸 finalizeDeck。
 ---
 
 # Yuanmou PPT Skill (`yuanmou-ppt` · `@yuanmou/pptx-kit`)
 
-> **开源协议**：本技能及 `@yuanmou/pptx-kit` 代码引擎采用标准 **[Apache License 2.0](../../LICENSE)**，**允许个人学习、企业内部汇报与商业项目免费使用**（二次分发须按 Apache-2.0 保留「渊眸策略」版权与 `NOTICE` 署名）。外部知识星球内的行业报告与 `.pptx` 原厂母本受星球会员条款保护，严禁转售分发。
+> **开源协议**：本技能及 `@yuanmou/pptx-kit` 代码引擎采用标准 **[Apache License 2.0](../../LICENSE)**，**允许个人学习、企业内部汇报与商业项目免费使用**（二次分发须按 Apache-2.0 保留「渊眸策略」版权与 `NOTICE` 署名）。飞书云盘内共享的精选/VIP 高清版式参考图库受会员共享条款保护，严禁转售或公开二次分发。
 
 ---
 
@@ -24,27 +24,29 @@ description: 渊眸策略商业级可编辑 PPT 构建与母本外科手术技�
 
 ## 二、可插拔数据源路由（Step 1：先探活数据源）
 
-执行选版或数据检索前，先运行统一数据源 CLI 探测当前激活的 Provider（自动优先级：`yuanmou-cloud` V2 -> `zsxq` V1 -> `local` 独立版）：
+执行选版或拉图前，先运行统一数据源 CLI 探测当前激活的 Provider（自动优先级：`feishu` 飞书云盘 -> `yuanmou-cloud` -> `zsxq` -> `local` 本地离线）：
 
 ```bash
-# 0) 若用户尚未连接知识星球，可引导 0 元加入免费体验星球（星球号 77391343）并一键拉起官方扫码授权
-node skills/yuanmou-ppt/scripts/provider_cli.mjs connect
+# 0) 首次连接飞书云盘共享版式库（支持免费体验仓 / VIP 全量仓，扫码授权 1 次即可自动续期）
+node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu
 
-# 1) 查看当前激活的数据源模式（local / zsxq[tier=trial|vip] / yuanmou-cloud）
+# 1) 查看当前激活的数据源模式（feishu / local / yuanmou-cloud / zsxq）
 node skills/yuanmou-ppt/scripts/provider_cli.mjs status
 
-# 2) 若处于 VIP 模式（zsxq 或 yuanmou-cloud），按需同步云端单页槽位索引（自动缓存至 ~/.cache/yuanmou-ppt/）
+# 2) 同步脱敏版式索引库 ppt-index-dist.db.gz 至本地缓存（~/.cache/yuanmou-ppt/feishu/，后续查库 0 API 消耗）
 node skills/yuanmou-ppt/scripts/provider_cli.mjs sync-index
 
-# 3) 按待排页槽位指纹检索匹配版式并输出 HTML 选版确认看板
-node skills/yuanmou-ppt/scripts/provider_cli.mjs search-slides --purpose data --has-chart --out ./selection_board.html
+# 3) 按槽位指纹或图示家族（flow/funnel/timeline/hierarchy/cycle 等）检索引导并按需拉取无损原图生成 Base64 选版看板
+node skills/yuanmou-ppt/scripts/provider_cli.mjs search-slides \
+  --diagram-family funnel --fetch-previews --limit 6 --out ./selection_board.html
 
-# 4) VIP 模式下检索行业报告补齐真实业务数据
-node skills/yuanmou-ppt/scripts/provider_cli.mjs search-reports --keywords "新茶饮 消费者"
+# 4) 按需下载单张选定的无损高清原图 PNG（自动永久缓存本地）
+node skills/yuanmou-ppt/scripts/provider_cli.mjs fetch-asset \
+  --kind preview --cid CP_5c8f88c67d22cc4de3a5 --file-token <feishu_file_token>
 ```
 
-- **路线一（`local` 独立免费模式）**：无需外部索引库或会员账号，直接基于用户本地参考截图/PDF 进行 1:1 矢量复刻，或对用户自带的 `.pptx` 模板执行无损原位改版（亦支持通过 `YUANMOU_LOCAL_DIR` 挂载本地自定义模板库）。
-- **路线二（`zsxq` V1 知识星球 VIP / `yuanmou-cloud` V2 云端 R2 VIP）**：自动拉取 `1xxx` 行业报告提取定量证据，并按槽位指纹匹配 `5xxx` 原版 `.pptx` 母本按需拉取至 `~/.cache/yuanmou-ppt/`。
+- **路线一（`local` 开源离线模式）**：无需登录或联网，直接基于用户本地参考截图/PDF 进行 1:1 矢量复刻，或对用户自带的 `.pptx` 模板执行无损原位改版（亦支持通过 `YUANMOU_LOCAL_DIR` 直接读取本地 `ppt-index-dist.db` 与 `previews/` 目录）。
+- **路线二（`feishu` 飞书云盘双仓模式 · 主推）**：通过飞书 OAuth 用户级授权直接接入**免费体验仓**或**VIP 全量仓（29,000+ 页无水印高清原图 + 12 类图示家族索引）**；本地毫秒级搜库，按需拉取命中的 4～6 张原始无损 PNG 走通道 B 1:1 复刻。
 
 ---
 
@@ -91,7 +93,7 @@ node skills/yuanmou-ppt/scripts/provider_cli.mjs search-reports --keywords "新�
    - 仅在壳子通过后优化当页业务文案（保留原稿真实数据与逻辑，按原槽位容量精炼，绝不编造或靠极小字硬塞）；
    - 切换 `final` 模式，**锁死全部几何路径、坐标、透明渐变、描边、字号、字重与字色**，原位替换用户文案与案例图，再过 Step 5~6 五门禁与宽屏左右对比画廊交付。
 
-- 若用户既未提供 `.pptx` 母本也未提供参考截图，**不要套用廉价通用蓝白骨架敷衍成稿**；优先请用户贴一张喜欢的参考页面截图（1:1 复刻），或引导 0 元加入免费公开体验星球 `77391343`（运行 `provider_cli.mjs connect`）直接调取真实商业 `.pptx` 母本。
+- 若用户既未提供 `.pptx` 母本也未提供参考截图，**不要套用廉价通用蓝白骨架敷衍成稿**；优先请用户贴一张喜欢的参考页面截图（1:1 复刻），或引导连接**渊眸飞书云盘免费体验仓**（`provider_cli.mjs connect --provider feishu`）直接按槽位/图示家族挑选无水印商业参考原图。
 
 ---
 

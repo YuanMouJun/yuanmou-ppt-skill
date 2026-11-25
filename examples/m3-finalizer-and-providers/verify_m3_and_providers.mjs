@@ -6,6 +6,7 @@ import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
@@ -90,7 +91,7 @@ async function buildSampleIndexDbBuffer(tmpDir) {
 
 async function testPluggableProviders() {
   console.log("=== [A] Verifying Pluggable Data Source Provider SPI ===");
-  assert.deepEqual(listSourceProviders(), ["local", "zsxq", "yuanmou-cloud"]);
+  assert.deepEqual(listSourceProviders(), ["local", "feishu", "zsxq", "yuanmou-cloud"]);
 
   // A1: `LocalStandaloneProvider` (Open-Source Free Mode — empty when no local folder, or queries co-located SQLite DB)
   const local = createSourceProvider("local");
@@ -111,6 +112,128 @@ async function testPluggableProviders() {
     console.log(`  [PASS] local provider: empty fallback + co-located SQLite query verified`);
   } finally {
     await fs.rm(localDbDir, { recursive: true, force: true });
+  }
+
+  // A1b: `FeishuDriveProvider` (Sanitized `ppt-index-dist.db.gz` + `diagram_family` + On-Demand Lossless PNG Download & Cache)
+  const feishuTmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_feishu_test_"));
+  const distDbPath = path.join(feishuTmpDir, "ppt-index-dist.db");
+  const distDb = new DatabaseSync(distDbPath);
+  distDb.exec(`
+    CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    INSERT INTO metadata VALUES ('db_variant', 'dist_vip');
+    CREATE TABLE pages (
+      content_page_id TEXT PRIMARY KEY,
+      preview_file TEXT NOT NULL,
+      business_purpose TEXT,
+      business_topic TEXT,
+      page_type TEXT,
+      layout TEXT,
+      logic TEXT,
+      local_graphics TEXT,
+      visual_traits TEXT,
+      background TEXT,
+      result_slots INTEGER,
+      text_slots INTEGER,
+      image_slots INTEGER,
+      raw_layout TEXT,
+      raw_visual TEXT,
+      restore_note TEXT,
+      diagram_family TEXT,
+      diagram_labels TEXT,
+      feishu_file_token TEXT,
+      search_text TEXT NOT NULL
+    );
+  `);
+  distDb
+    .prepare(
+      `INSERT INTO pages VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    )
+    .run(
+      "CP_5c8f88c67d22cc4de3a5",
+      "CP_5c8f88c67d22cc4de3a5.png",
+      "方法论",
+      "全域转化漏斗",
+      "正文页",
+      "左右分栏",
+      "递进",
+      "漏斗",
+      "留白充足",
+      "白底",
+      0,
+      4,
+      0,
+      "左侧四层圆角倒梯形漏斗 + 右侧四段动作拆解",
+      "浅蓝渐变白底",
+      "注意倒梯形圆角",
+      "funnel",
+      "漏斗转化",
+      "boxcnFunnelPng001",
+      "方法论 全域转化漏斗 漏斗转化 四层倒梯形"
+    );
+  distDb.close();
+  const distDbGz = zlib.gzipSync(await fs.readFile(distDbPath));
+  const fakePngBuf = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+  let feishuDownloadHits = 0;
+
+  const feishuServer = http.createServer((req, res) => {
+    if (req.headers.authorization !== "Bearer test-feishu-user-token") {
+      res.writeHead(401);
+      res.end("Unauthorized");
+      return;
+    }
+    if (req.url === "/drive/v1/files/boxcnDistIndexGz/download") {
+      res.writeHead(200, { "Content-Type": "application/gzip" });
+      res.end(distDbGz);
+      return;
+    }
+    if (req.url === "/drive/v1/files/boxcnFunnelPng001/download") {
+      feishuDownloadHits += 1;
+      res.writeHead(200, { "Content-Type": "image/png" });
+      res.end(fakePngBuf);
+      return;
+    }
+    res.writeHead(404);
+    res.end("Not found");
+  });
+  await new Promise((r) => feishuServer.listen(0, "127.0.0.1", r));
+  try {
+    const port = feishuServer.address().port;
+    const feishu = createSourceProvider("feishu", {
+      apiBaseUrl: `http://127.0.0.1:${port}`,
+      userAccessToken: "test-feishu-user-token",
+      indexFileToken: "boxcnDistIndexGz",
+      cacheDir: path.join(feishuTmpDir, "cache"),
+    });
+    const fAuth = await feishu.checkAuth();
+    assert.equal(fAuth.authenticated, true);
+    const syncRes = await feishu.syncSlideIndex({ force: true });
+    assert.equal(syncRes.synced, true);
+    const funnelHits = await feishu.searchSlides({ diagramFamily: "funnel" });
+    assert.equal(funnelHits.length, 1);
+    assert.equal(funnelHits[0].contentPageId, "CP_5c8f88c67d22cc4de3a5");
+    assert.equal(funnelHits[0].feishuFileToken, "boxcnFunnelPng001");
+
+    const dl1 = await feishu.fetchAsset({
+      kind: "preview",
+      contentPageId: funnelHits[0].contentPageId,
+      previewFile: funnelHits[0].previewFile,
+      feishuFileToken: funnelHits[0].feishuFileToken,
+    });
+    assert.equal(dl1.cached, false);
+    assert.equal(feishuDownloadHits, 1);
+
+    const dl2 = await feishu.fetchAsset({
+      kind: "preview",
+      contentPageId: funnelHits[0].contentPageId,
+      previewFile: funnelHits[0].previewFile,
+      feishuFileToken: funnelHits[0].feishuFileToken,
+    });
+    assert.equal(dl2.cached, true);
+    assert.equal(feishuDownloadHits, 1, "Second fetch must hit local preview cache (0 API calls)");
+    console.log("  [PASS] feishu provider: dist.db.gz sync + diagram_family search + lossless PNG cache verified!");
+  } finally {
+    feishuServer.close();
+    await fs.rm(feishuTmpDir, { recursive: true, force: true });
   }
 
   // A2: `ZsxqPlanetProvider` (V1 Live Auth check — gracefully passes in offline/CI environments too)

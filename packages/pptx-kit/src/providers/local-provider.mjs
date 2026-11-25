@@ -32,11 +32,25 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     };
   }
 
+  _findColocatedDb() {
+    if (!this.localLibraryDir) return "";
+    const candidates = [
+      "ppt-index-dist.db",
+      "ppt-index-trial.db",
+      "ppt-index-lite.db",
+      "ppt-index.db",
+      "yuanmou-slide-index.db",
+    ];
+    for (const name of candidates) {
+      const full = path.join(this.localLibraryDir, name);
+      if (existsSync(full)) return full;
+    }
+    return "";
+  }
+
   async syncSlideIndex() {
-    const colocatedDb = this.localLibraryDir
-      ? path.join(this.localLibraryDir, "yuanmou-slide-index.db")
-      : "";
-    if (colocatedDb && existsSync(colocatedDb)) {
+    const colocatedDb = this._findColocatedDb();
+    if (colocatedDb) {
       return {
         synced: true,
         dbPath: colocatedDb,
@@ -52,12 +66,9 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
   }
 
   async searchSlides(filter = {}) {
-    // If user has a local folder where `yuanmou-slide-index.db` sits alongside `.pptx` templates, query it directly.
-    if (this.localLibraryDir) {
-      const colocatedDb = path.join(this.localLibraryDir, "yuanmou-slide-index.db");
-      if (existsSync(colocatedDb)) {
-        return querySlideIndexDb(colocatedDb, filter, "local");
-      }
+    const colocatedDb = this._findColocatedDb();
+    if (colocatedDb) {
+      return querySlideIndexDb(colocatedDb, filter, "local");
     }
     return [];
   }
@@ -79,13 +90,21 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
 
   async fetchAsset(request = {}) {
     let resolvedPath = request.localPath;
-    if (!resolvedPath && this.localLibraryDir && request.sku && existsSync(this.localLibraryDir)) {
-      const ext = request.kind === "pdf" ? ".pdf" : ".pptx";
-      const files = await fs.readdir(this.localLibraryDir);
-      const hit = files.find(
-        (f) => f.toLowerCase().endsWith(ext) && f.includes(String(request.sku))
-      );
-      if (hit) resolvedPath = path.join(this.localLibraryDir, hit);
+    if (!resolvedPath && this.localLibraryDir && existsSync(this.localLibraryDir)) {
+      if (request.kind === "preview" || request.previewFile || request.contentPageId) {
+        const fname = path.basename(request.previewFile || `${request.contentPageId}.png`);
+        const p1 = path.join(this.localLibraryDir, "previews", fname);
+        const p2 = path.join(this.localLibraryDir, fname);
+        if (existsSync(p1)) resolvedPath = p1;
+        else if (existsSync(p2)) resolvedPath = p2;
+      } else if (request.sku) {
+        const ext = request.kind === "pdf" ? ".pdf" : ".pptx";
+        const files = await fs.readdir(this.localLibraryDir);
+        const hit = files.find(
+          (f) => f.toLowerCase().endsWith(ext) && f.includes(String(request.sku))
+        );
+        if (hit) resolvedPath = path.join(this.localLibraryDir, hit);
+      }
     }
     if (resolvedPath && existsSync(resolvedPath)) {
       const st = await fs.stat(resolvedPath);
