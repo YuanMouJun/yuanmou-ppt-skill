@@ -11,21 +11,23 @@ description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可
 2. **纯原生 OOXML**：所有构建、改版、图表与终检均调用 `@yuanmou/pptx-kit`；严禁 `python-pptx`，严禁把表格/流程图/文字渲染成 PNG 贴图。图表必须内嵌 `ppt/embeddings/*.xlsx` 可双击改数。
 3. **单图形承载底色与富文本**：带底色/描边的卡片标题与标签直接在单个 `<p:sp>` 上设置 `fill / line / text / textStyle`；项目符号必须用 `makeBulletList()`，禁手敲 `"• "`；局部透明渐变描边用 `buildPolylineStrokeCommands()` + `<a:gradFill>`。
 
-## 2. 选版与取图（Step 1）
+## 2. 内容解构 → 双向同构选版（Step 1）
 
-默认自动探活数据源（优先级：`feishu` -> `yuanmou-cloud` -> `zsxq` -> `local`；`local` 免登录自动对接公共体验库，纯离线设 `YUANMOU_OFFLINE=1`）：
+**严禁不读内容直接乱搜或硬套版式**，无现成指定参考图时必须按以下两步走：
+
+1. **先理解内容，逐页提炼「槽位指纹」**：通读用户文稿/Brief，拆出每一页的 **页型**（封面/目录/正文/封底）、**业务目的**（`purpose`）、**逻辑关系/图示家族**（`diagram_family`：`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、**图槽数**（`image_slots`）、**文槽数**（`text_slots`）以及**是否需表格/图表/实绩区**。
+2. **按指纹检索并出看板确认**：带着每页指纹调用统一 CLI 检索并拉取无损原图（默认自动探活：`feishu` -> `yuanmou-cloud` -> `zsxq` -> `local` 免登录体验库，纯离线设 `YUANMOU_OFFLINE=1`），生成 Base64 缩略图看板给用户确认版式（`CP_xxx`）后再动手制作：
 
 ```bash
-# 查看状态 / 同步索引 / 按槽位或图示家族搜版式并拉无损原图出 Base64 选版看板
-node skills/yuanmou-ppt/scripts/provider_cli.mjs status
 node skills/yuanmou-ppt/scripts/provider_cli.mjs search-slides \
-  --diagram-family funnel --fetch-previews --limit 6 --out ./selection_board.html
+  --purpose 方法论 --diagram-family funnel --min-images 0 --max-images 0 \
+  --fetch-previews --limit 6 --out ./selection_board.html
 
 # 可选：连接飞书云盘 VIP 版式库（触发 429 限流或需要全行业海量模板时引导）
 node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu
 ```
 
-- 用户未提供 `.pptx` 或参考截图时，直接通过 `search-slides --fetch-previews` 从体验/飞书图库检索候选并让用户选版，禁止套用廉价通用蓝白骨架敷衍。
+- 禁止在无匹配版式时套用廉价通用蓝白骨架敷衍。
 
 ## 3. 双通道制作流（Step 2 ～ Step 4）
 
