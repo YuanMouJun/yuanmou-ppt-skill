@@ -11,6 +11,8 @@ import { querySlideIndexDb } from "./sqlite-index.mjs";
 const gunzipAsync = promisify(zlib.gunzip);
 
 export const DEFAULT_PUBLIC_TRIAL_BASE_URL = "https://ppt-trial.resourcehub.dpdns.org";
+export const TRIAL_CLIENT_HEADER_NAME = "X-Yuanmou-Client";
+export const TRIAL_CLIENT_HEADER_VALUE = "yuanmou-ppt-skill";
 
 /**
  * Default Open-Source Provider (`provider: "local"`).
@@ -110,7 +112,9 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     }
 
     const indexUrl = `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
-    const res = await fetch(indexUrl);
+    const res = await fetch(indexUrl, {
+      headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
+    });
     if (!res.ok) {
       throw new Error(`Failed to fetch public trial index (${res.status}) from ${indexUrl}`);
     }
@@ -214,7 +218,9 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
         };
       }
       const imgUrl = `${this.trialBaseUrl}/previews/${encodeURIComponent(fname)}`;
-      const res = await fetch(imgUrl);
+      const res = await fetch(imgUrl, {
+        headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
+      });
       if (!res.ok) {
         throw new Error(`Public trial preview download failed (${res.status}) for ${imgUrl}`);
       }
