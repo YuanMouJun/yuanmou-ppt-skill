@@ -1,0 +1,4 @@
+interface:
+  display_name: "Yuanmou PPT (Image to Editable PPTX)"
+  short_description: "图片转可编辑PPT / 1:1截图复刻 / 原生Excel图表 / 既有PPTX无损改版（内置1W+免登录版式库）"
+  default_prompt: "帮我先解构这份文稿的每页逻辑与槽位指纹，按同构版式出选版看板给我确认，再生成100%可编辑的原生PPTX并附带视觉对比自检。"

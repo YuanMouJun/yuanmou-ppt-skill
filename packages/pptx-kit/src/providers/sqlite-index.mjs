@@ -100,10 +100,16 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
     purpose,
     pageType,
     diagramFamily,
+    targetImages,
+    targetTextSlots,
+    targetResults,
     minImages,
     maxImages,
     minTextSlots,
     maxTextSlots,
+    layout,
+    logic,
+    exclude,
     hasTable,
     hasChart,
     keywords,
@@ -117,6 +123,15 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
   if (contentPageId) {
     clauses.push("content_page_id = ?");
     params.push(String(contentPageId));
+  }
+  const excludeList = Array.isArray(exclude)
+    ? exclude
+    : typeof exclude === "string" && exclude.trim()
+      ? exclude.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+      : [];
+  if (excludeList.length > 0) {
+    clauses.push(`content_page_id NOT IN (${excludeList.map(() => "?").join(",")})`);
+    params.push(...excludeList);
   }
   if (purpose && purpose !== "any") {
     clauses.push("(business_purpose LIKE ? OR search_text LIKE ?)");
@@ -171,6 +186,13 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
   }
 
   const safeLimit = Math.max(1, Math.min(100, Number(limit) || 12));
+  const needsScoring =
+    typeof targetImages === "number" ||
+    typeof targetTextSlots === "number" ||
+    typeof targetResults === "number" ||
+    Boolean(layout) ||
+    Boolean(logic);
+  const fetchLimit = needsScoring ? Math.max(safeLimit * 20, 300) : safeLimit;
   const orderCol = colSet.has("diagram_family")
     ? "CASE WHEN diagram_family IS NOT NULL AND diagram_family != '' THEN 0 ELSE 1 END, content_page_id ASC"
     : "content_page_id ASC";
@@ -179,14 +201,48 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
     FROM pages
     WHERE ${clauses.join(" AND ")}
     ORDER BY ${orderCol}
-    LIMIT ${safeLimit}
+    LIMIT ${fetchLimit}
   `;
 
   const rows = await runSqliteQuery(dbPath, sql, params);
-  return rows.map((r) => {
+
+  const layoutTokens = typeof layout === "string" && layout.trim() ? layout.split(/[,;，；\s]+/).filter(Boolean) : [];
+  const logicTokens = typeof logic === "string" && logic.trim() ? logic.split(/[,;，；\s]+/).filter(Boolean) : [];
+
+  const mapped = rows.map((r) => {
     const rawPrev = r.preview_file || r.preview_path || `${r.content_page_id}.png`;
     const previewFile = path.basename(String(rawPrev).replace(/\\/g, "/"));
     const lg = String(r.local_graphics || "");
+    const imgSlots = r.image_slots ?? 0;
+    const txtSlots = r.text_slots ?? 0;
+    const resSlots = r.result_slots ?? 0;
+
+    // Bidirectional slot-fingerprint isomorphism score
+    let score = 0;
+    if (typeof targetImages === "number") {
+      const d = Math.abs(imgSlots - targetImages);
+      score += d === 0 ? 30 : Math.max(-20, 22 - d * 10);
+      if ((targetImages === 0) !== (imgSlots === 0)) score -= 18;
+    }
+    if (typeof targetTextSlots === "number") {
+      const d = Math.abs(txtSlots - targetTextSlots);
+      score += d === 0 ? 24 : Math.max(-15, 18 - d * 6);
+    }
+    if (typeof targetResults === "number") {
+      const d = Math.abs(resSlots - targetResults);
+      score += d === 0 ? 18 : Math.max(-12, 12 - d * 6);
+    }
+    if (layoutTokens.length > 0) {
+      const hay = `${r.layout || ""} ${r.raw_layout || ""}`;
+      if (layoutTokens.some((t) => hay.includes(t))) score += 20;
+    }
+    if (logicTokens.length > 0) {
+      const hay = `${r.logic || ""} ${r.diagram_labels || ""}`;
+      if (logicTokens.some((t) => hay.includes(t))) score += 20;
+    }
+    if (r.diagram_family) score += 8;
+    if (String(r.raw_visual || "").includes("水印")) score -= 25;
+
     return {
       provider: providerId,
       slideUid: r.content_page_id,
@@ -198,9 +254,9 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
       pageType: r.page_type || undefined,
       diagramFamily: r.diagram_family || undefined,
       diagramLabels: r.diagram_labels || undefined,
-      imageCount: r.image_slots ?? 0,
-      textSlots: r.text_slots ?? 0,
-      resultCount: r.result_slots ?? 0,
+      imageCount: imgSlots,
+      textSlots: txtSlots,
+      resultCount: resSlots,
       hasTable: lg.includes("表"),
       hasChart: /柱|折线|饼|环|图表|条形/.test(lg),
       layoutSummary: r.raw_layout || r.layout || "",
@@ -208,8 +264,14 @@ async function queryPagesSchema(dbPath, filter = {}, providerId = "feishu") {
       restoreNote: r.restore_note || undefined,
       previewFile,
       feishuFileToken: r.feishu_file_token || undefined,
+      matchScore: needsScoring ? score : undefined,
     };
   });
+
+  if (needsScoring) {
+    mapped.sort((a, b) => (b.matchScore ?? 0) - (a.matchScore ?? 0));
+  }
+  return mapped.slice(0, safeLimit);
 }
 
 async function queryLegacySlidesSchema(dbPath, filter = {}, providerId = "zsxq") {
