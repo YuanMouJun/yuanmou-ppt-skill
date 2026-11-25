@@ -24,7 +24,7 @@ export const DEFAULT_PUBLIC_TRIAL_BASE_URL = "https://ppt-trial.resourcehub.dpdn
  */
 export class LocalStandaloneProvider extends SlideSourceProvider {
   constructor(options = {}) {
-    super("local", "Local & Zero-Login Public Trial Library (2,000 Slides)", options);
+    super("local", "Local & Zero-Login Public Trial Library (10,000+ Slides)", options);
     this.localLibraryDir = options.localLibraryDir || process.env.YUANMOU_LOCAL_DIR || "";
     this.trialBaseUrl = (
       options.trialBaseUrl ||
