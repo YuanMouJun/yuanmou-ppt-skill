@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 商业级原生 PPTX 生成与母本无损改版技能（Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持任意参考图/小红书截图/PDF 1:1 矢量复刻为可编辑 PowerPoint、既有 .pptx 无损换字换图、内嵌 .xlsx 可双击改数真图表、原生比例表格、免登录商业版式库/飞书云盘版式库及多道原子终检门闸。
+description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库 / 10W+ 飞书云盘版式库同构选版、复杂自由排版与半透明玻璃叠层 1:1 矢量复刻、内嵌 .xlsx 可双击改数真图表及 11 道自动硬门禁。
 ---
 
 # Yuanmou PPT Skill (`@yuanmou/pptx-kit`)
@@ -14,12 +14,13 @@ description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可
 3. **只读保护与交付边界**：区分「内容源」与「版式参考」（仅用户指定或确认的参考页决定版式）；要求原稿不动时严禁改写原件（可用 `verify --readonly-source` 锁哈希），核对物理页码、隐藏页与独立单页交付份数。
 4. **强制视觉自检**：所有成稿必须跑通 `deck_cli.mjs verify`（自动依赖 **Node >=22.5 + LibreOffice (`soffice`) + Poppler (`pdftoppm`)**；缺项时会直接报错并给出安装命令，无需每轮空跑 `check-env`）。
 
-## 2. 内容解构 → 1 条命令全库同构选版（Step 1）
+## 2. 从零策划 / 内容解构 → 1 条命令全库同构选版（Step 0 ～ Step 1）
 
-**严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；无现成指定参考图时按两步走（已指定版式/仅调色/局部修形直接跳过海选）：
+**严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；已指定参考图/仅调色/局部修形直接跳过海选，否则按以下流程推进：
 
-1. **按逻辑单元提炼「槽位指纹」**：通读原稿，不把 Markdown 章节或 PDF/Word 原页机械当 1 页；逐页拆出 `purpose`（支持逗号多词如 `"执行策略,方法论"`）、`diagramFamily`（`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、`targetImages`（单张账号主页/后台界面按 1 计）、`targetTextSlots`、`targetResults`、`whiteBackground` 及是否需表格/图表；区分用户硬要求与初拟分组弹性。
-2. **1 条命令出多页单选看板（默认自动探活 `feishu` -> `local` 免登录库，纯离线设 `YUANMOU_OFFLINE=1`）**：多页（4～6 页/批）直接写一份 `pages.json` 跑 **`batch-search`**，1 次完成全库打分、本地缓存优先并发拉无损图并输出**严格单选、默认不勾选、支持左原稿对照与一键复制**的 Base64 HTML 看板（严禁换字加工冒充原图；候选少时放宽自加弹性条件；“再找一轮”时传 `exclude` 并沿用否定原因；**未获用户确认前严禁重绘或填充**）：
+0. **一句话主题从零策划（无现成文稿时自动激活）**：用户仅给出一句话主题（如“做一份 10 页的新能源车 Q3 种草增长方案”）时，先按咨询顾问结构（MECE / 金字塔原理 / 结论前置 Action Title）自动策划**完整逐页大纲、核心论点、去 AI 腔正文文案、配图方向及原生图表建议**（严禁编造虚构客户战绩，示意框架明确标注口径），并确定每页槽位指纹后再进选版。
+1. **按逻辑单元提炼「槽位指纹」**：通读原稿或 Step 0 大纲，不把 Markdown 章节或 PDF/Word 原页机械当 1 页；逐页拆出 `purpose`（支持逗号多词如 `"执行策略,方法论"`）、`diagramFamily`（`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、`targetImages`（单张账号主页/后台界面按 1 计）、`targetTextSlots`、`targetResults`、`whiteBackground` 及是否需表格/图表；区分用户硬要求与初拟分组弹性。
+2. **1 条命令出多页单选看板（默认自动探活 `feishu` -> `local` 免登录库，纯离线设 `YUANMOU_OFFLINE=1`）**：多页（4～6 页/批）直接写一份 `pages.json` 跑 **`batch-search`**，1 次完成全库打分、按需拉无损原图（临时目录 2 小时自动清理防偷懒）并输出**严格单选、默认不勾选、支持左原稿对照与一键复制**的 Base64 HTML 看板（严禁换字加工冒充原图；候选少时放宽自加弹性条件；“再找一轮”时传 `exclude` 并沿用否定原因；**未获用户确认前严禁重绘或填充**）：
 
 ```bash
 # 多页一条龙：全库双向同构打分 + 拉无损图 + 直出严格单选分节看板

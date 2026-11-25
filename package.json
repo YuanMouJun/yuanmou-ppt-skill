@@ -1,8 +1,11 @@
 {
   "name": "@yuanmou/pptx-kit",
   "version": "0.1.0",
-  "description": "Image/Screenshot/PDF to Editable PPTX Skill & zero-dependency native OOXML engine (图片转可编辑PPT / 截图转PPT / 既有PPTX无损改版)",
+  "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
+    "ppt-generator",
+    "ai-ppt",
+    "presentation-generator",
     "image-to-ppt",
     "image-to-editable-ppt",
     "screenshot-to-pptx",

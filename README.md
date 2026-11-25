@@ -5,9 +5,9 @@
 [![AI Agents](https://img.shields.io/badge/AI%20Agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Antigravity-6366F1)](#快速开始)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-> **Image / Screenshot / PDF to Editable PPTX Skill & Zero-Dependency Native OOXML Engine** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — convert any slide screenshot or PDF 1:1 into real editable PowerPoint (native vector shapes, `<a:alpha>` translucent gradients, embedded `.xlsx` Excel-backed charts) or perform lossless `.pptx` template editing.
+> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **11 automated OOXML & visual QA gates**.
 >
-> **图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与 AI Agent Skill**（支持 Claude Code / Codex / Cursor / Antigravity），专注解决真实提案与汇报场景里「AI 做出来的 PPT 是死图没法改、改旧模板容易走样、图表不能改数据」的问题。
+> **一句话从零策划整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与 AI Agent Skill**（支持 Claude Code / Codex / Cursor / Antigravity）。无论是**只给一句话主题从零策划大纲、去 AI 腔文案、匹配 1.6W+ 真实商业版式库出整套视觉大片**，还是**把任意复杂截图/PDF 1:1 矢量复刻为可编辑 PowerPoint**、**对老旧 `.pptx` 无损换字换图与注入真 Excel 图表**，全链路一条龙交付。
 
 ---
 
@@ -48,14 +48,16 @@ npm run test:m3
 
 装完即可零门槛开箱用；如果想要更全面、更高级的全行业商业版式，可按需接入飞书云盘版式库：
 
-| 对比维度 | **免费版 · 图片转可编辑 PPT（开箱即用）** | **进阶 VIP · 飞书云盘 10W+ 高质量版式库** |
+| 对比维度 | **免费版 · 全能 PPT 制作（开箱即用）** | **进阶 VIP · 飞书云盘 10W+ 高质量版式库** |
 | :--- | :--- | :--- |
 | **上手门槛** | ✅ **0 登录、0 配置、开箱即用**（安装完第一句话就能跑） | 飞书扫码授权 1 次（30 秒），后续自动免登续期 |
-| **图片 / 截图 / PDF 转 PPT** | ✅ 随手丢入小红书、行业报告、PDF 任意排版截图，1:1 复刻为可编辑原生 `.pptx` | ✅ 完全包含（引擎能力一致） |
+| **一句话从零策划整套 PPT** | ✅ **支持从零创意策划**：只给一句话主题 → 咨询级大纲与去 AI 腔文案策划 → 1.6W+ 商业版式库同构选版 → 视觉大片级原生可编辑整套 `.pptx` | ✅ 完全包含，且可从 **10W+ 顶级商业视觉版式** 中挑版，审美上限更高 |
+| **图片 / 截图 / PDF 转 PPT** | ✅ 随手丢入小红书、行业报告、PDF 任意复杂排版（含多层遮罩、半透明玻璃叠层、圆角梯形），经 50% X-Ray 叠图与自动热点 2× 精检 1:1 还原为可编辑 `.pptx` | ✅ 完全包含（同一套 11 门禁矢量引擎） |
 | **既有 `.pptx` 无损改版** | ✅ 支持对自己的 `.pptx` 模板原位换字、保蒙版换图、注入真 Excel 图表 | ✅ 完全包含 |
-| **内置现成商业版式库** | ✅ **开箱免登录自带 1W+ 页高质免费体验库**（含 1,500+ 结构化图示、封面/目录/图表/表格/种草/KFS/公司简介/复盘） | ✅ **享受 10W+ 持续日更高质量无水印商业模板**（覆盖全行业细分赛道、12 类图示家族与精细槽位指纹索引） |
-| **拉图方式与画质** | 自动静默同步索引 + 按需拉取无损高清原图并永久缓存本地 | 本地毫秒级查库 + 按需拉取单张无损高清 PNG 永久缓存 |
-| **适合人群** | 个人学习、日常汇报、想立刻体验「图片转可编辑 PPT + 1W+ 版式选版」的所有用户 | 策划、咨询、品牌市场部、Agency 等高频交付与高审美需求从业者 |
+| **内置现成商业版式库** | ✅ **开箱免登录自带 1.6W+ 页高质免费体验库**（含 1,600+ 结构化图示、封面/目录/图表/表格/种草/KFS/公司简介/复盘） | ✅ **享受 10W+ 持续日更高质量无水印商业模板**（覆盖全行业细分赛道、12 类图示家族与精细槽位指纹索引） |
+| **拉图方式与画质** | 自动静默同步全量索引 + 1 条命令 `batch-search` 按需拉取无损原图（临时目录 2 小时自动清理，防止 AI 偷懒复用旧图） | 本地毫秒级查库 + 按需拉取无损高清 PNG（临时目录 2 小时自动清理） |
+| **质量门禁与验收** | ✅ 内置 **11 道自动代码门禁**（ECMA-376 包结构、禁框中套框、内切宽度防孤字、WCAG 对比度、Anti-Slop、表格合计与 `.xlsx` 图表同步）+ 2.2 秒缓存渲染与 Base64 对比画廊 | ✅ 完全包含 |
+| **适合人群** | 个人学习、日常汇报、从零做商业 PPT / 图片转可编辑 PPT 的所有用户 | 策划、咨询、品牌市场部、Agency 等高频交付与高审美需求从业者 |
 
 > 如需独立的 2026 各赛道行业报告库 / 完整 `.pptx` 策划方案库，或由渊眸团队真人承接方案撰写定制与品牌代运营，可联系 **渊眸策略**。
 
