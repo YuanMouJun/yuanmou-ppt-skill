@@ -14,7 +14,25 @@ import {
   finalizeDeck,
   renderDeckToPngs,
   buildShowcaseGalleryHtml,
+  discoverRenderToolchain,
 } from "../../../packages/pptx-kit/index.mjs";
+
+function assertRequiredRenderDeps() {
+  const tc = discoverRenderToolchain();
+  const missing = [];
+  if (!tc.soffice) missing.push("LibreOffice (soffice)");
+  if (!tc.pdftoppm) missing.push("Poppler (pdftoppm)");
+  if (missing.length > 0) {
+    throw new Error(
+      `[ENV GATE BLOCKED] 缺少必装视觉自检依赖：${missing.join("、")}。\n` +
+        `为防止无视觉核验盲画导致排版瑕疵，必须先安装以下环境：\n` +
+        `  • macOS:   brew install --cask libreoffice && brew install poppler\n` +
+        `  • Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils\n` +
+        `  • Windows: winget install TheDocumentFoundation.LibreOffice (并安装 poppler 加入 PATH)`
+    );
+  }
+  return tc;
+}
 
 function runPythonVision(pyCode, argsJson) {
   const res = spawnSync("python3", ["-c", pyCode, JSON.stringify(argsJson)], {
@@ -233,6 +251,12 @@ async function main() {
   });
 
   const cmd = positionals[0];
+  const toolchain = assertRequiredRenderDeps();
+  if (cmd === "check-env") {
+    console.log(JSON.stringify({ ok: true, node: process.versions.node, toolchain }, null, 2));
+    return;
+  }
+
   if (cmd === "inspect") {
     const { manifest } = await inspectTemplateDeck({
       pptxPath: values.pptx || positionals[1],

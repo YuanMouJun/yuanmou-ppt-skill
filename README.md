@@ -13,18 +13,32 @@
 
 ## 快速开始
 
-环境要求：**Node.js `>= 22.5`**（直接利用原生内置的 `node:sqlite` 与 `node:zlib`，无需 `npm install`）。
+### 必装环境依赖（强制门禁）
+为确保每一页 PPT 在交付前都经过真机渲染与视觉对齐核验（拒绝“盲画交付”），安装与运行前需具备以下环境（**零第三方 npm 依赖**）：
+- **Node.js `>= 22.5`**（内置 `node:sqlite` 与 `node:zlib`，无需 `npm install`）
+- **LibreOffice (`soffice`) + Poppler (`pdftoppm`)**（用于真机渲染 PNG 与视觉自检）：
+  ```bash
+  # macOS
+  brew install --cask libreoffice && brew install poppler
+  # Ubuntu / Debian
+  sudo apt update && sudo apt install -y libreoffice poppler-utils
+  # Windows
+  winget install TheDocumentFoundation.LibreOffice  # 并将 poppler 加入 PATH
+  ```
+
+### 安装与自检
 
 ```bash
 # 方式一：通过 skills.sh 一键安装（推荐，支持 Claude Code / Codex / Cursor / Gemini CLI 等）
 npx skills add YuanMouJun/yuanmou-ppt-skill
 
-# 方式二：克隆仓库本地安装（约 1.1 MB，0 第三方 npm 依赖）
+# 方式二：克隆仓库本地安装（约 1.1 MB，0 第三方 npm 依赖；自动执行必装环境门禁检查）
 git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
 cd yuanmou-ppt-skill
 node scripts/install.mjs --target all
 
-# 3. 运行内置自检测试（验证引擎、五项终检门闸与数据源接口）
+# 3. 运行环境与引擎自检
+node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env
 npm run test:m3
 ```
 
@@ -101,7 +115,7 @@ npm run test:m3
 
 ### 诚实说明：它目前的能力边界
 为了避免不切实际的预期，我们也把目前的边界说明白：
-- **生成与改版 `.pptx` 本身完全零依赖**；但如果希望 AI 在交付前自动把 `.pptx` 渲染成高清图片做视觉自检，本机需要安装 **LibreOffice (`soffice`) + `pdftoppm`**（未安装时依然可以正常生成 `.pptx`，只是跳过视觉渲染自检）。
+- **强制要求安装 LibreOffice (`soffice`) + `pdftoppm`**：虽然生成 `.pptx` 引擎本身零 npm 依赖，但为了守住交付质量底线、防止“盲画走样”，我们把真机渲染自检工具链设为了强制环境门禁。
 - **目前聚焦咨询/策划高频 95% 的版式与图表类型**（柱状/条形/折线/面积/饼/环图、原生合并表、矢量路径、母版换字换图）；极冷门的 3D 图表、双轴组合图或非常规软件生成的畸形旧版 PPTX 仍在持续兼容中。
 
 ---

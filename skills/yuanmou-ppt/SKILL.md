@@ -11,6 +11,8 @@ description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可
 
 ## 一、核心工程铁律（严禁违背）
 
+0. **强制环境门禁（禁止盲画交付）**：
+   - 首次执行前运行 `node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env`，必须确认本机已安装 **Node.js `>=22.5` + LibreOffice (`soffice`) + Poppler (`pdftoppm`)**；若缺失，必须先引导或协助用户安装（macOS：`brew install --cask libreoffice && brew install poppler`），**严禁跳过真机渲染视觉自检直接盲画交付**。
 1. **严禁使用 `python-pptx` 或截图糊弄**：
    - 所有 `.pptx` 构建、模板改版、图表生成与终检必须调用本仓库内置零依赖引擎 `@yuanmou/pptx-kit`（Node.js `>=20` ESM）。
    - 严禁把数据表、流程图或文字渲染成 PNG 整张贴进幻灯片冒充可编辑内容；所有形状、富文本、表格 `<a:tbl>` 与图表 `<c:chart>`（含 `ppt/embeddings/*.xlsx`）必须 100% 原生可双击编辑。

@@ -7,9 +7,31 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
+import { discoverRenderToolchain } from "../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
+
+function assertRequiredEnvironment() {
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  if (major < 22 || (major === 22 && minor < 5)) {
+    throw new Error(`Node.js >= 22.5 is required (current: v${process.versions.node}).`);
+  }
+  const tc = discoverRenderToolchain();
+  const missing = [];
+  if (!tc.soffice) missing.push("LibreOffice (soffice)");
+  if (!tc.pdftoppm) missing.push("Poppler (pdftoppm)");
+  if (missing.length > 0) {
+    throw new Error(
+      `[ENV GATE BLOCKED] 缺少必装视觉自检依赖：${missing.join("、")}。\n` +
+        `为确保每一页 PPT 交付前都能完成真机渲染与视觉对齐核验，本 Skill 将其设为强制依赖，请先安装：\n` +
+        `  • macOS:   brew install --cask libreoffice && brew install poppler\n` +
+        `  • Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils\n` +
+        `  • Windows: winget install TheDocumentFoundation.LibreOffice (并安装 poppler 加入 PATH)`
+    );
+  }
+  return tc;
+}
 
 const AGENT_TARGETS = {
   claude: () => path.join(os.homedir(), ".claude", "skills", "yuanmou-ppt"),
@@ -58,6 +80,8 @@ async function main() {
     },
   });
 
+  const toolchain = assertRequiredEnvironment();
+
   const requested =
     values.target === "all"
       ? Object.keys(AGENT_TARGETS)
@@ -78,7 +102,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ installed: results }, null, 2));
+  console.log(JSON.stringify({ environment: "ok", toolchain, installed: results }, null, 2));
 }
 
 main().catch((err) => {

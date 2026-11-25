@@ -14,6 +14,14 @@ export const DEFAULT_PUBLIC_TRIAL_BASE_URL = "https://ppt-trial.resourcehub.dpdn
 export const TRIAL_CLIENT_HEADER_NAME = "X-Yuanmou-Client";
 export const TRIAL_CLIENT_HEADER_VALUE = "yuanmou-ppt-skill";
 
+function buildTrialRateLimitError() {
+  return new Error(
+    "[RATE_LIMITED] 为防止公共免费体验图库滥用，当前已触发频率限制（30 次 / 10 秒）。\n" +
+      "如需高频大方案批量选版或解锁 10W+ 持续日更高质量商业模板，欢迎加入「渊眸飞书云盘 VIP 版式库」" +
+      "（运行 `node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu`），或稍等 10 秒后重试。"
+  );
+}
+
 /**
  * Default Open-Source Provider (`provider: "local"`).
  *
@@ -115,6 +123,9 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     const res = await fetch(indexUrl, {
       headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
     });
+    if (res.status === 429) {
+      throw buildTrialRateLimitError();
+    }
     if (!res.ok) {
       throw new Error(`Failed to fetch public trial index (${res.status}) from ${indexUrl}`);
     }
@@ -221,6 +232,9 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       const res = await fetch(imgUrl, {
         headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
       });
+      if (res.status === 429) {
+        throw buildTrialRateLimitError();
+      }
       if (!res.ok) {
         throw new Error(`Public trial preview download failed (${res.status}) for ${imgUrl}`);
       }
