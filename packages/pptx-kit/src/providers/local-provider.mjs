@@ -2,6 +2,7 @@
 
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
@@ -9,6 +10,30 @@ import { SlideSourceProvider, defaultCacheRoot, sha256File } from "./base-provid
 import { querySlideIndexDb } from "./sqlite-index.mjs";
 
 const gunzipAsync = promisify(zlib.gunzip);
+const DEFAULT_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours ephemeral preview TTL (prevents stale local bias)
+
+async function pruneExpiredPreviews(dir, ttlMs) {
+  if (!existsSync(dir)) return;
+  try {
+    const now = Date.now();
+    const files = await fs.readdir(dir);
+    await Promise.all(
+      files.map(async (f) => {
+        const full = path.join(dir, f);
+        try {
+          const st = await fs.stat(full);
+          if (st.isFile() && now - st.mtimeMs > ttlMs) {
+            await fs.unlink(full).catch(() => {});
+          }
+        } catch {
+          // ignore race
+        }
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
 
 export const DEFAULT_PUBLIC_TRIAL_BASE_URL = "https://ppt-trial.resourcehub.dpdns.org";
 export const TRIAL_CLIENT_HEADER_NAME = "X-Yuanmou-Client";
@@ -30,7 +55,8 @@ function buildTrialRateLimitError() {
  *    queries that local directory 100% offline.
  * 2) Otherwise (unless `YUANMOU_OFFLINE=1` or `enablePublicTrial: false`), seamlessly syncs the free public
  *    16,000+ slide commercial reference library (`ppt-index-trial.db.gz`) from Cloudflare R2 CDN
- *    into `~/.cache/yuanmou-ppt/trial/` and fetches lossless preview PNGs on demand with permanent local caching.
+ *    into `~/.cache/yuanmou-ppt/trial/` and fetches lossless preview PNGs on demand into an ephemeral
+ *    temp directory (`os.tmpdir()`, auto-pruned after 2 hours so Agents never lazily reuse old local images).
  */
 export class LocalStandaloneProvider extends SlideSourceProvider {
   constructor(options = {}) {
@@ -48,7 +74,10 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
 
     const cacheBase = this.cache?.rootDir || defaultCacheRoot(options.cacheDir);
     this.trialCacheDir = path.join(cacheBase, "trial");
-    this.trialPreviewsDir = path.join(this.trialCacheDir, "previews");
+    this.previewTtlMs = options.previewTtlMs ?? DEFAULT_PREVIEW_TTL_MS;
+    this.trialPreviewsDir = options.cacheDir
+      ? path.join(options.cacheDir, "tmp-trial-previews")
+      : path.join(os.tmpdir(), "yuanmou-ppt-tmp-previews", "trial");
     this.trialIndexDbPath = path.join(this.trialCacheDir, "ppt-index-trial.db");
 
     this.capabilities = {
@@ -215,23 +244,26 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       };
     }
 
-    // Seamless zero-login preview PNG fetch from public Cloudflare R2 trial library
+    // Seamless zero-login preview PNG fetch into ephemeral temp dir (2h auto-prune, no persistent local bias)
     if (
       this.enablePublicTrial &&
       this.trialBaseUrl &&
       (request.kind === "preview" || request.previewFile || request.contentPageId)
     ) {
+      await pruneExpiredPreviews(this.trialPreviewsDir, this.previewTtlMs);
       const fname = path.basename(request.previewFile || `${request.contentPageId}.png`);
       const cachedPath = path.join(this.trialPreviewsDir, fname);
       if (existsSync(cachedPath)) {
         const st = await fs.stat(cachedPath);
-        return {
-          localPath: cachedPath,
-          cached: true,
-          bytes: st.size,
-          sha256: await sha256File(cachedPath),
-          sourceProvider: "local-public-trial-cache",
-        };
+        if (Date.now() - st.mtimeMs <= this.previewTtlMs) {
+          return {
+            localPath: cachedPath,
+            cached: true,
+            bytes: st.size,
+            sha256: await sha256File(cachedPath),
+            sourceProvider: "local-public-trial-tmp",
+          };
+        }
       }
       const imgUrl = `${this.trialBaseUrl}/previews/${encodeURIComponent(fname)}`;
       const res = await fetch(imgUrl, {

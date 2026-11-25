@@ -3,6 +3,7 @@
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
@@ -11,6 +12,30 @@ import { SlideSourceProvider, defaultCacheRoot, sha256File } from "./base-provid
 import { querySlideIndexDb } from "./sqlite-index.mjs";
 
 const gunzipAsync = promisify(zlib.gunzip);
+const DEFAULT_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000;
+
+async function pruneExpiredPreviews(dir, ttlMs) {
+  if (!existsSync(dir)) return;
+  try {
+    const now = Date.now();
+    const files = await fs.readdir(dir);
+    await Promise.all(
+      files.map(async (f) => {
+        const full = path.join(dir, f);
+        try {
+          const st = await fs.stat(full);
+          if (st.isFile() && now - st.mtimeMs > ttlMs) {
+            await fs.unlink(full).catch(() => {});
+          }
+        } catch {
+          // ignore
+        }
+      })
+    );
+  } catch {
+    // ignore
+  }
+}
 
 export const DEFAULT_FEISHU_API_BASE = "https://open.feishu.cn/open-apis";
 export const DEFAULT_FEISHU_CALLBACK_PORT = 38421;
@@ -49,7 +74,10 @@ export class FeishuDriveProvider extends SlideSourceProvider {
     const cacheBase = this.cache?.rootDir || defaultCacheRoot(options.cacheDir);
     this.authFilePath = path.join(cacheBase, "feishu-auth.json");
     this.feishuCacheDir = path.join(cacheBase, "feishu");
-    this.previewsCacheDir = path.join(this.feishuCacheDir, "previews");
+    this.previewTtlMs = options.previewTtlMs ?? DEFAULT_PREVIEW_TTL_MS;
+    this.previewsCacheDir = options.cacheDir
+      ? path.join(options.cacheDir, "tmp-feishu-previews")
+      : path.join(os.tmpdir(), "yuanmou-ppt-tmp-previews", "feishu");
     this.indexDbPath = path.join(this.feishuCacheDir, "ppt-index-dist.db");
 
     this.capabilities = {
@@ -341,6 +369,7 @@ export class FeishuDriveProvider extends SlideSourceProvider {
   }
 
   async fetchAsset(request = {}) {
+    await pruneExpiredPreviews(this.previewsCacheDir, this.previewTtlMs);
     const previewFile =
       request.previewFile ||
       (request.contentPageId ? `${request.contentPageId}.png` : "") ||
@@ -350,13 +379,15 @@ export class FeishuDriveProvider extends SlideSourceProvider {
 
     if (cachedPath && existsSync(cachedPath)) {
       const st = await fs.stat(cachedPath);
-      return {
-        localPath: cachedPath,
-        cached: true,
-        bytes: st.size,
-        sha256: await sha256File(cachedPath),
-        sourceProvider: "feishu",
-      };
+      if (Date.now() - st.mtimeMs <= this.previewTtlMs) {
+        return {
+          localPath: cachedPath,
+          cached: true,
+          bytes: st.size,
+          sha256: await sha256File(cachedPath),
+          sourceProvider: "feishu",
+        };
+      }
     }
 
     const fileToken = request.feishuFileToken || request.fileToken || request.fileId;
