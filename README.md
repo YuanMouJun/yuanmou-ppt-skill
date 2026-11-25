@@ -13,23 +13,18 @@
 
 ---
 
-## 眼见为实：丢入「纯文字 Brief + 任意跨行业参考图」→ 一键重绘原生可编辑 `.pptx`
+## 眼见为实：三大核心实战场景（0 截图作弊 · 100% 原生可编辑 `.pptx`）
 
+> 以下所有成稿均由 `@yuanmou/pptx-kit` 原生生成标准 OOXML 矢量图形、透明渐变、原生表格 `<a:tbl>` 与内嵌真实 `.xlsx` 工作簿的 `<c:chart>`，PowerPoint / WPS 打开即可随意改字、换色、双击弹真 Excel 改源数据！
+
+### 1. 跨行业换血 1:1 重绘（原始纯文字 Brief + 任意参考图 → 全新行业可编辑 `.pptx`）
 ![纯文字 Brief + 跨行业参考图 → 1:1 换血重绘原生可编辑 PPTX](./docs/showcase/hero_cross_industry_transform.jpg)
 
-> 以下所有右侧成稿 **0 截图作弊**，全部由 `@yuanmou/pptx-kit` 原生生成标准 OOXML 矢量图形、透明渐变、原生表格 `<a:tbl>` 与内嵌真实 `.xlsx` 工作簿的 `<c:chart>`，PowerPoint / WPS 打开即可随意改字、换色、双击改 Excel 源数据！
+### 2. 既有 `.pptx` 母本无损外科手术（保留原版骨架 + 原位注入内嵌真 Excel 双图表与合并表）
+![既有 PPTX 母本无损外科手术与原生表图注入](./docs/showcase/showcase_data_upgrade.jpg)
 
-### 1. 咨询级复杂矢量 1:1 复刻（仅 `18 KB` 纯矢量：3D 折角丝带 + 双向透明渐变切角框 + 斜纹底板）
-![BCG 咨询页 1:1 矢量复刻对比](./docs/showcase/showcase_1_bcg_vector_clone.jpg)
-
-### 2. 多系列真图表 1:1 复刻（仅 `25.6 KB`：6 系列折线图 + 双栏 Top-Down 横向条形图，均带独立内嵌 `.xlsx`）
-![多系列原生图表 1:1 复刻对比](./docs/showcase/showcase_2_native_xlsx_charts.jpg)
-
-### 3. 既有 `.pptx` 原版母本无损外科手术（保留巨型渐变三扇环 + 跨 `<a:r>` 拆词保样式换血 + 自动瘦身 97%）
-![既有 PPTX 母本无损外科手术对比](./docs/showcase/showcase_3_pptx_template_surgery.jpg)
-
-### 4. 混合外科手术 Hybrid Mode（保留原版母版左栏骨架 + 原位注入内嵌 `.xlsx` 柱形/环形双图与跨行合并表）
-![混合外科手术与原生表图注入对比](./docs/showcase/showcase_4_hybrid_charts_table.jpg)
+### 3. 零模板离线一键出片（内置 12 套咨询级原生骨架：封面 / 三支柱 / 矢量漏斗 / 双图实证）
+![内置咨询级原生骨架离线一键出片](./docs/showcase/showcase_builtin_skeletons.jpg)
 
 ---
 
