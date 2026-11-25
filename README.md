@@ -13,9 +13,11 @@
 
 ---
 
-## 眼见为实：真机左右同屏验收（左：真实商业报告/母本原图 ｜ 右：`@yuanmou/pptx-kit` 原生可编辑成稿）
+## 眼见为实：丢入「纯文字 Brief + 任意跨行业参考图」→ 一键重绘原生可编辑 `.pptx`
 
-> 以下右侧成稿 **0 截图作弊**，全部由本引擎原生生成标准 OOXML 矢量图形、原生表格 `<a:tbl>` 与内嵌真实 `.xlsx` 工作簿的 `<c:chart>`，PowerPoint / WPS 打开即可随意改字、换色、双击改 Excel 源数据！
+![纯文字 Brief + 跨行业参考图 → 1:1 换血重绘原生可编辑 PPTX](./docs/showcase/hero_cross_industry_transform.jpg)
+
+> 以下所有右侧成稿 **0 截图作弊**，全部由 `@yuanmou/pptx-kit` 原生生成标准 OOXML 矢量图形、透明渐变、原生表格 `<a:tbl>` 与内嵌真实 `.xlsx` 工作簿的 `<c:chart>`，PowerPoint / WPS 打开即可随意改字、换色、双击改 Excel 源数据！
 
 ### 1. 咨询级复杂矢量 1:1 复刻（仅 `18 KB` 纯矢量：3D 折角丝带 + 双向透明渐变切角框 + 斜纹底板）
 ![BCG 咨询页 1:1 矢量复刻对比](./docs/showcase/showcase_1_bcg_vector_clone.jpg)
