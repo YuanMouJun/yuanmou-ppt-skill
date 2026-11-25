@@ -2,12 +2,12 @@
 
 [![Node.js >=22.5](https://img.shields.io/badge/Node.js-%3E%3D22.5-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Dependencies: 0](https://img.shields.io/badge/npm%20dependencies-0-brightgreen)](#快速开始)
-[![AI Agents](https://img.shields.io/badge/AI%20Agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Antigravity-6366F1)](#快速开始)
+[![AI Agents](https://img.shields.io/badge/AI%20Agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Trae%20%7C%20Qoder%20%7C%20CodeBuddy%20%7C%20OpenClaw-6366F1)](#快速开始)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **11 automated OOXML & visual QA gates**.
+> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **Claude Code, OpenAI Codex, Cursor, Antigravity, Trae, Qoder, CodeBuddy, OpenClaw & Qwen/Kimi Agents** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **11 automated OOXML & visual QA gates**.
 >
-> **一句话从零策划整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与 AI Agent Skill**（支持 Claude Code / Codex / Cursor / Antigravity）。无论是**只给一句话主题从零策划大纲、去 AI 腔文案、匹配 1.6W+ 真实商业版式库出整套视觉大片**，还是**把任意复杂截图/PDF 1:1 矢量复刻为可编辑 PowerPoint**、**对老旧 `.pptx` 无损换字换图与注入真 Excel 图表**，全链路一条龙交付。
+> **一句话从零策划整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与全端 AI Agent Skill**（全覆盖海外 **Claude Code / Codex / Cursor / Antigravity** 与国内主流 **Trae / Qoder / CodeBuddy / OpenClaw（龙虾）/ Kimi / Qwen Code**）。无论是**只给一句话主题从零策划大纲、去 AI 腔文案、匹配 1.6W+ 真实商业版式库出整套视觉大片**，还是**把任意复杂截图/PDF 1:1 矢量复刻为可编辑 PowerPoint**、**对老旧 `.pptx` 无损换字换图与注入真 Excel 图表**，全链路一条龙交付。
 
 ---
 
@@ -29,13 +29,14 @@
 ### 安装与自检
 
 ```bash
-# 方式一：通过 skills.sh 一键安装（推荐，支持 Claude Code / Codex / Cursor / Gemini CLI 等）
+# 方式一：通过 skills.sh 一键安装（推荐，自动识别 Claude Code / Codex / Cursor / Trae / Qoder / CodeBuddy / OpenClaw / Gemini CLI 等）
 npx skills add YuanMouJun/yuanmou-ppt-skill
 
 # 方式二：克隆仓库本地安装（约 1.1 MB，0 第三方 npm 依赖；自动执行必装环境门禁检查）
 git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
 cd yuanmou-ppt-skill
 node scripts/install.mjs --target all
+# 或按需指定单个/多个端：--target trae,qoder,codebuddy,openclaw,claude,codex,cursor,antigravity,agents
 
 # 3. 运行环境与引擎自检
 node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env

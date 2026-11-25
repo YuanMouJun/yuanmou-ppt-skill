@@ -38,6 +38,11 @@ const AGENT_TARGETS = {
   codex: () => path.join(os.homedir(), ".codex", "skills", "yuanmou-ppt"),
   cursor: () => path.join(os.homedir(), ".cursor", "skills", "yuanmou-ppt"),
   antigravity: () => path.join(os.homedir(), ".gemini", "antigravity", "skills", "yuanmou-ppt"),
+  trae: () => path.join(os.homedir(), ".trae", "skills", "yuanmou-ppt"),
+  qoder: () => path.join(os.homedir(), ".qoder", "skills", "yuanmou-ppt"),
+  codebuddy: () => path.join(os.homedir(), ".codebuddy", "skills", "yuanmou-ppt"),
+  openclaw: () => path.join(os.homedir(), ".openclaw", "skills", "yuanmou-ppt"),
+  agents: () => path.join(os.homedir(), ".agents", "skills", "yuanmou-ppt"),
 };
 
 async function installToTarget(name, destDir, mode = "symlink") {
