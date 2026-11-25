@@ -5,9 +5,9 @@
 [![AI Agents](https://img.shields.io/badge/AI%20Agents-Claude%20Code%20%7C%20Codex%20%7C%20Cursor%20%7C%20Antigravity-6366F1)](#快速开始)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-> **Zero-dependency native OOXML PowerPoint (`.pptx`) engine & AI Agent Skill** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — built for people who need real editable slides (native vector shapes, embedded `.xlsx` charts, lossless `.pptx` template editing) rather than static images or broken HTML exports.
+> **Image / Screenshot / PDF to Editable PPTX Skill & Zero-Dependency Native OOXML Engine** for **Claude Code, OpenAI Codex, Cursor, and Antigravity** — convert any slide screenshot or PDF 1:1 into real editable PowerPoint (native vector shapes, `<a:alpha>` translucent gradients, embedded `.xlsx` Excel-backed charts) or perform lossless `.pptx` template editing.
 >
-> **一个零第三方依赖的原生可编辑 `.pptx` 引擎与 AI Agent Skill**（支持 Claude Code / Codex / Cursor / Antigravity），专注解决真实提案与汇报场景里「AI 做出来的 PPT 没法二次修改、改旧模板容易走样、图表不能改数据」的问题。
+> **图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与 AI Agent Skill**（支持 Claude Code / Codex / Cursor / Antigravity），专注解决真实提案与汇报场景里「AI 做出来的 PPT 是死图没法改、改旧模板容易走样、图表不能改数据」的问题。
 
 ---
 

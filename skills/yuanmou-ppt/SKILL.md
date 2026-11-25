@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-description: 渊眸策略商业级可编辑 PPT 构建与母本外科手术技能（基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持可插拔数据源（飞书云盘双仓无损纯图库 / Local 本地目录 / 可选云端或外部数据源）、既有 .pptx 无损克隆改版、1:1 矢量贝塞尔复刻、内嵌 .xlsx 可双击编辑真图表、原生比例表格及 5 道原子终检门闸 finalizeDeck。
+description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 商业级原生 PPTX 生成与母本无损改版技能（Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持任意参考图/小红书截图/PDF 1:1 矢量复刻为可编辑 PowerPoint、既有 .pptx 无损换字换图、内嵌 .xlsx 可双击改数真图表、原生比例表格、飞书云盘无水印版式图库及 5 道原子终检门闸。
 ---
 
 # Yuanmou PPT Skill (`yuanmou-ppt` · `@yuanmou/pptx-kit`)

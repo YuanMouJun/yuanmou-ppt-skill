@@ -1,7 +1,20 @@
 {
   "name": "@yuanmou/pptx-kit",
   "version": "0.1.0",
-  "description": "渊眸策略开源商业级可编辑 PPTX 原生 OOXML 建模、无损改版与原子终检引擎",
+  "description": "Image/Screenshot/PDF to Editable PPTX Skill & zero-dependency native OOXML engine (图片转可编辑PPT / 截图转PPT / 既有PPTX无损改版)",
+  "keywords": [
+    "image-to-ppt",
+    "image-to-editable-ppt",
+    "screenshot-to-pptx",
+    "pdf-to-pptx",
+    "editable-pptx",
+    "ppt-skill",
+    "agent-skill",
+    "claude-code",
+    "codex",
+    "ooxml",
+    "powerpoint"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "author": "渊眸策略 (Yuanmou Strategy)",
