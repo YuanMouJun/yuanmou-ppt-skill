@@ -11,7 +11,8 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import {
   Presentation,
-  createPresetPresentation,
+  fixed,
+  fr,
   SlideSourceProvider,
   SLIDE_INDEX_DDL,
   listSourceProviders,
@@ -91,14 +92,26 @@ async function testPluggableProviders() {
   console.log("=== [A] Verifying Pluggable Data Source Provider SPI ===");
   assert.deepEqual(listSourceProviders(), ["local", "zsxq", "yuanmou-cloud"]);
 
-  // A1: `LocalStandaloneProvider` (Open-Source Free Mode)
+  // A1: `LocalStandaloneProvider` (Open-Source Free Mode — empty when no local folder, or queries co-located SQLite DB)
   const local = createSourceProvider("local");
   const localAuth = await local.checkAuth();
   assert.equal(localAuth.authenticated, true);
   assert.equal(localAuth.tier, "free");
-  const localChartPresets = await local.searchSlides({ hasChart: true });
-  assert.ok(localChartPresets.length >= 2, "Expected >=2 chart presets in LocalStandaloneProvider");
-  console.log(`  [PASS] local provider: ${localChartPresets.length} chart skeleton presets matched`);
+  const localEmptySlides = await local.searchSlides({ hasChart: true });
+  assert.deepEqual(localEmptySlides, [], "Expected [] when LocalStandaloneProvider has no YUANMOU_LOCAL_DIR");
+
+  const localDbDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_local_db_"));
+  try {
+    const sampleBuf = await buildSampleIndexDbBuffer(localDbDir);
+    await fs.writeFile(path.join(localDbDir, "yuanmou-slide-index.db"), sampleBuf);
+    const localWithDb = createSourceProvider("local", { localLibraryDir: localDbDir });
+    const localDbCharts = await localWithDb.searchSlides({ hasChart: true });
+    assert.equal(localDbCharts.length, 1);
+    assert.equal(localDbCharts[0].sku, "5011");
+    console.log(`  [PASS] local provider: empty fallback + co-located SQLite query verified`);
+  } finally {
+    await fs.rm(localDbDir, { recursive: true, force: true });
+  }
 
   // A2: `ZsxqPlanetProvider` (V1 Live Auth check — gracefully passes in offline/CI environments too)
   const zsxqCacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_zsxq_cache_"));
@@ -255,17 +268,42 @@ async function testM3Finalizer() {
 
   const publishedDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_m3_finalized_"));
 
-  // Build a fresh self-contained 5-slide consulting deck (with native .xlsx charts + merged <a:tbl>) so `npm run test:m3` works on any clean git clone!
-  const cleanPresetDeck = createPresetPresentation([
-    { presetId: "ym-cover-editorial" },
-    { presetId: "ym-3pillar-insight" },
-    { presetId: "ym-funnel-conversion" },
-    { presetId: "ym-dual-chart-evidence" },
-    { presetId: "ym-budget-roi-sheet" },
-  ]);
-  const cleanOutPath = path.join(publishedDir, "clean_preset_verified.pptx");
+  // Build a fresh self-contained 2-slide deck (native shapes + embedded .xlsx chart + native <a:tbl> with verified sum) so `npm run test:m3` works on any clean git clone.
+  const cleanDeck = Presentation.create({ title: "M3 Clean Verification Deck" });
+  const s1 = cleanDeck.slides.add();
+  s1.shapes.add({
+    name: "slide1-title",
+    position: { left: 60, top: 40, width: 1160, height: 54 },
+    text: "全时段曝光与转化呈双峰结构，晚间档期贡献主要增量",
+    textStyle: { fontSize: 24, bold: true, color: "#1E293B" },
+  });
+  s1.charts.add({
+    position: { left: 60, top: 120, width: 560, height: 480 },
+    type: "bar",
+    title: "季度渠道新增对比",
+    categories: ["Q1", "Q2", "Q3", "Q4"],
+    series: [
+      { name: "内容种草", values: [120, 165, 210, 260], color: "#2563EB" },
+      { name: "搜索承接", values: [85, 110, 140, 175], color: "#0EA5E9" },
+    ],
+  });
+  s1.tables.add({
+    position: { left: 650, top: 140, width: 570, height: 260 },
+    columnWidths: [fixed(210), fr(1), fr(1)],
+    rows: [
+      [
+        { text: "投放阶段", fill: "#1E293B", textStyle: { color: "#FFFFFF", bold: true, fontSize: 13 } },
+        { text: "预算(万)", fill: "#1E293B", textStyle: { color: "#FFFFFF", bold: true, fontSize: 13 } },
+        { text: "占比", fill: "#1E293B", textStyle: { color: "#FFFFFF", bold: true, fontSize: 13 } },
+      ],
+      ["蓄水种草", "120", "40%"],
+      ["大促转化", "180", "60%"],
+      ["合计", "300", "100%"],
+    ],
+  });
+  const cleanOutPath = path.join(publishedDir, "clean_verified.pptx");
   const cleanRes = await finalizeDeck({
-    deck: cleanPresetDeck,
+    deck: cleanDeck,
     outputPath: cleanOutPath,
     antiSlop: "fail",
   });

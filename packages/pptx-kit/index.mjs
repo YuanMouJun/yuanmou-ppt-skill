@@ -65,7 +65,6 @@ export {
   SlideCacheStore,
   SlideSourceProvider,
   LocalStandaloneProvider,
-  BUILTIN_SKELETON_CATALOG,
   ZsxqPlanetProvider,
   YuanmouCloudR2Provider,
   SLIDE_INDEX_DDL,
@@ -75,9 +74,4 @@ export {
   createSourceProvider,
   resolveActiveSourceProvider,
 } from "./src/providers/index.mjs";
-export {
-  DEFAULT_CONSULTING_PALETTE,
-  applyPresetSlide,
-  createPresetPresentation,
-} from "./src/presets.mjs";
 export { readZipBuffer, buildZipBuffer } from "./src/xml.mjs";

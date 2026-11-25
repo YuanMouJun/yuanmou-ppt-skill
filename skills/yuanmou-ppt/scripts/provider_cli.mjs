@@ -67,7 +67,7 @@ async function buildSelectionBoardHtml(candidates, outHtmlPath) {
 </head>
 <body>
   <h1>渊眸策略 · 待排页槽位同构选版看板</h1>
-  <p class="lead">共检索到 ${candidates.length} 个候选版式（支持免费体验星球 77391343 / VIP 方案库 37656012 / 本地内置骨架）。确认版式编号后进入母本外科手术或 1:1 矢量重绘。</p>
+  <p class="lead">共检索到 ${candidates.length} 个候选版式（支持免费体验星球 77391343 / VIP 方案库 37656012 / 本地目录索引库）。确认版式编号后进入母本外科手术或 1:1 矢量重绘。</p>
   ${vipBanner}
   <div class="grid">${rows}</div>
 </body>

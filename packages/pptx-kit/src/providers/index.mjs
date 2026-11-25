@@ -1,7 +1,7 @@
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 
 import { SlideCacheStore, SlideSourceProvider } from "./base-provider.mjs";
-import { LocalStandaloneProvider, BUILTIN_SKELETON_CATALOG } from "./local-provider.mjs";
+import { LocalStandaloneProvider } from "./local-provider.mjs";
 import { ZsxqPlanetProvider } from "./zsxq-provider.mjs";
 import { YuanmouCloudR2Provider } from "./yuanmou-cloud-provider.mjs";
 import { SLIDE_INDEX_DDL, querySlideIndexDb } from "./sqlite-index.mjs";
@@ -80,7 +80,6 @@ export {
   SlideCacheStore,
   SlideSourceProvider,
   LocalStandaloneProvider,
-  BUILTIN_SKELETON_CATALOG,
   ZsxqPlanetProvider,
   YuanmouCloudR2Provider,
   SLIDE_INDEX_DDL,
