@@ -14,93 +14,143 @@ function escapeHtml(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-async function buildSelectionBoardHtml(candidates, outHtmlPath, slideLabel = "当前待排页") {
-  const cardParts = [];
-  for (let i = 0; i < candidates.length; i++) {
-    const c = candidates[i];
-    const cid = c.contentPageId || c.sku;
-    let imgHtml = `<div class="thumb empty">暂无预览图</div>`;
-    if (c.localPreviewPath && existsSync(c.localPreviewPath)) {
-      const buf = await fs.readFile(c.localPreviewPath);
-      const ext = path.extname(c.localPreviewPath).toLowerCase() === ".webp" ? "webp" : "png";
-      const dataUrl = `data:image/${ext};base64,${buf.toString("base64")}`;
-      imgHtml = `<div class="thumb" onclick="openLightbox(this.querySelector('img').src, '${escapeHtml(cid)}')" title="点击放大查看高清原图"><img src="${dataUrl}" alt="${escapeHtml(cid)}" /></div>`;
+function truncateText(str, maxLen = 44) {
+  const s = String(str || "").replace(/\s+/g, " ").trim();
+  return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+}
+
+/**
+ * Renders a self-contained, single-select-per-page, cross-browser compatible HTML selection board.
+ * `sections`: Array of `{ pageId, pageBadge, pageTitle, brief, candidates }`.
+ */
+async function buildMultiPageSelectionBoardHtml(sections, outHtmlPath) {
+  const sectionHtmlList = [];
+
+  for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+    const sec = sections[sIdx];
+    const pageId = sec.pageId || `p${sIdx + 1}`;
+    const pageBadge = sec.pageBadge || `P${sIdx + 1}`;
+    const pageTitle = sec.pageTitle || `第 ${sIdx + 1} 页`;
+    const brief = sec.brief || "";
+    const candidates = sec.candidates || [];
+
+    const cards = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const c = candidates[i];
+      const cid = c.contentPageId || c.sku;
+      let imgHtml = `<div class="thumb empty">暂无预览图</div>`;
+      if (c.localPreviewPath && existsSync(c.localPreviewPath)) {
+        const buf = await fs.readFile(c.localPreviewPath);
+        const ext = path.extname(c.localPreviewPath).toLowerCase() === ".webp" ? "webp" : "png";
+        const dataUrl = `data:image/${ext};base64,${buf.toString("base64")}`;
+        imgHtml = `<div class="thumb" data-cap="${escapeHtml(pageBadge)} · ${escapeHtml(cid)}" onclick="openLightboxFromEl(this)" title="点击放大"><img src="${dataUrl}" alt="${escapeHtml(cid)}" /></div>`;
+      }
+      const famTag = c.diagramFamily ? `<span class="chip fam">${escapeHtml(c.diagramFamily)}</span>` : "";
+      const briefLine = truncateText(c.layoutSummary || c.deckTitle || "", 46);
+      const slotLine = `图 ${c.imageCount ?? 0} · 文 ${c.textSlots ?? "-"} · 成果 ${c.resultCount ?? 0}${c.hasChart ? " · 图表" : ""}${c.hasTable ? " · 表格" : ""}`;
+
+      cards.push(`
+        <div class="card" data-page="${escapeHtml(pageId)}" data-cid="${escapeHtml(cid)}" data-note="${escapeHtml(truncateText(c.deckTitle || cid, 24))}">
+          ${imgHtml}
+          <div class="card-body">
+            <div class="meta-row">
+              <span class="chip idx">#${i + 1}</span>
+              <span class="chip cid">${escapeHtml(cid)}</span>
+              ${famTag}
+            </div>
+            <p class="brief">${escapeHtml(briefLine)}</p>
+            <div class="slot-line">${escapeHtml(slotLine)}</div>
+            <button class="pick-btn" type="button" onclick="toggleSelectFromBtn(this)">选此版式</button>
+          </div>
+        </div>`);
     }
-    const famBadge = c.diagramFamily
-      ? `<span class="fam">${escapeHtml(c.diagramFamily)}${c.diagramLabels ? ` · ${escapeHtml(c.diagramLabels)}` : ""}</span>`
-      : "";
-    const scoreBadge = c.matchScore !== undefined ? `<span class="score">匹配分 ${c.matchScore}</span>` : "";
-    cardParts.push(`
-      <div class="card" data-cid="${escapeHtml(cid)}" data-title="${escapeHtml(c.deckTitle || cid)}">
-        ${imgHtml}
-        <div class="meta">
-          <span class="tag">#${i + 1}</span>
-          <span class="sku">${escapeHtml(cid)}</span>
-          <span class="purpose">${escapeHtml(c.purpose)}</span>
-          ${famBadge}
-          ${scoreBadge}
+
+    sectionHtmlList.push(`
+      <section class="page-section" id="sec-${escapeHtml(pageId)}" data-page="${escapeHtml(pageId)}" data-label="${escapeHtml(pageBadge)} ${escapeHtml(pageTitle)}">
+        <div class="sec-header">
+          <div class="sec-left">
+            <span class="page-badge">${escapeHtml(pageBadge)}</span>
+            <div>
+              <h2 class="sec-title">${escapeHtml(pageTitle)}</h2>
+              ${brief ? `<p class="sec-brief">${escapeHtml(truncateText(brief, 90))}</p>` : ""}
+            </div>
+          </div>
+          <span class="sec-status" id="st-${escapeHtml(pageId)}">未选（单选）</span>
         </div>
-        <h3>${escapeHtml(c.deckTitle || cid)}</h3>
-        <p class="summary">${escapeHtml(c.layoutSummary || "")}</p>
-        <div class="slots">
-          <span>图槽: ${c.imageCount ?? 0}</span>
-          <span>文槽: ${c.textSlots ?? "-"}</span>
-          <span>成果: ${c.resultCount ?? 0}</span>
-          <span>表格: ${c.hasTable ? "有" : "无"}</span>
-          <span>图表: ${c.hasChart ? "有" : "无"}</span>
-        </div>
-        <button class="pick-btn" type="button" onclick="toggleSelect(this.closest('.card'))">选择此版式（单选）</button>
-      </div>`);
+        <div class="grid">${cards.join("\n")}</div>
+      </section>`);
   }
 
   const html = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>渊眸 PPT Skill · 交互式单选选版看板</title>
   <style>
     * { box-sizing: border-box; }
-    body { background: #0F172A; color: #F8FAFC; font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; padding: 28px 32px 96px; margin: 0; }
-    h1 { font-size: 22px; margin: 0 0 6px; }
-    p.lead { color: #94A3B8; font-size: 13.5px; margin: 0 0 22px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 18px; }
-    .card { background: #1E293B; border: 2px solid #334155; border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; transition: border-color .15s, box-shadow .15s; }
-    .card.selected { border-color: #38BDF8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25); background: #172554; }
-    .thumb { width: 100%; aspect-ratio: 16/9; background: #0B1220; border-radius: 8px; overflow: hidden; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; cursor: zoom-in; }
-    .thumb.empty { cursor: default; color: #64748B; font-size: 13px; }
-    .thumb img { width: 100%; height: 100%; object-fit: contain; }
-    .meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11.5px; margin-bottom: 8px; }
-    .tag { background: #064E3B; color: #6EE7B7; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
-    .sku { background: #1E3A8A; color: #93C5FD; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, monospace; }
-    .purpose { background: #334155; color: #E2E8F0; padding: 2px 8px; border-radius: 4px; }
-    .fam { background: #4C1D95; color: #DDD6FE; padding: 2px 8px; border-radius: 4px; }
-    .score { background: #78350F; color: #FDE68A; padding: 2px 8px; border-radius: 4px; }
-    h3 { font-size: 15px; margin: 0 0 6px; color: #F1F5F9; }
-    .summary { font-size: 12.5px; color: #CBD5E1; margin: 0 0 12px; line-height: 1.5; flex: 1; }
-    .slots { display: flex; gap: 12px; font-size: 12px; color: #94A3B8; border-top: 1px solid #334155; padding-top: 10px; margin-bottom: 12px; }
-    .pick-btn { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid #475569; background: #0F172A; color: #E2E8F0; font-size: 13px; font-weight: 600; cursor: pointer; }
+    body { background: #0B1220; color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; padding: 24px 28px 104px; margin: 0; line-height: 1.45; }
+    .top-bar { max-width: 1440px; margin: 0 auto 24px; }
+    h1 { font-size: 21px; margin: 0 0 6px; font-weight: 700; }
+    p.lead { color: #94A3B8; font-size: 13px; margin: 0; }
+    .page-section { max-width: 1440px; margin: 0 auto 30px; background: #111C30; border: 1px solid #24324A; border-top: 4px solid #38BDF8; border-radius: 12px; padding: 18px 20px 22px; }
+    .sec-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid #1E2D45; padding-bottom: 14px; margin-bottom: 16px; }
+    .sec-left { display: flex; align-items: center; gap: 12px; }
+    .page-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 46px; height: 34px; padding: 0 10px; border-radius: 8px; background: #0284C7; color: #FFFFFF; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+    .sec-title { font-size: 17px; margin: 0; color: #F8FAFC; font-weight: 700; }
+    .sec-brief { font-size: 12.5px; color: #94A3B8; margin: 3px 0 0; }
+    .sec-status { font-size: 12.5px; padding: 5px 12px; border-radius: 999px; background: #1E293B; color: #94A3B8; border: 1px solid #334155; font-weight: 600; }
+    .sec-status.picked { background: #0C4A6E; color: #7DD3FC; border-color: #38BDF8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .card { background: #18253C; border: 2px solid #2A3A55; border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; transition: border-color .15s, background .15s; }
+    .card.selected { border-color: #38BDF8; background: #162E52; }
+    .thumb { width: 100%; aspect-ratio: 16/9; background: #080E1A; display: flex; align-items: center; justify-content: center; cursor: zoom-in; border-bottom: 1px solid #24324A; }
+    .thumb.empty { cursor: default; color: #64748B; font-size: 12.5px; }
+    .thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .card-body { padding: 11px 13px 13px; display: flex; flex-direction: column; flex: 1; }
+    .meta-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .chip { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+    .chip.idx { background: #064E3B; color: #6EE7B7; }
+    .chip.cid { background: #1E3A8A; color: #93C5FD; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .chip.fam { background: #4C1D95; color: #DDD6FE; }
+    .brief { font-size: 12.5px; color: #E2E8F0; margin: 0 0 8px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 36px; }
+    .slot-line { font-size: 11.5px; color: #94A3B8; margin: 0 0 10px; }
+    .pick-btn { margin-top: auto; width: 100%; padding: 8px 10px; border-radius: 7px; border: 1px solid #475569; background: #0F172A; color: #E2E8F0; font-size: 13px; font-weight: 600; cursor: pointer; }
     .card.selected .pick-btn { background: #0284C7; border-color: #38BDF8; color: #FFFFFF; }
-    .footer-bar { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.96); border-top: 1px solid #334155; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; backdrop-filter: blur(8px); }
-    .status-text { font-size: 13.5px; color: #CBD5E1; }
+    .footer-bar { position: fixed; left: 0; right: 0; bottom: 0; background: #0F172A; border-top: 1px solid #2A3A55; padding: 13px 28px; display: flex; align-items: center; justify-content: space-between; gap: 16px; z-index: 50; }
+    .status-text { font-size: 13px; color: #CBD5E1; }
     .status-text strong { color: #38BDF8; }
-    .copy-btn { padding: 10px 20px; border-radius: 8px; border: none; background: #2563EB; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .copy-btn { padding: 9px 18px; border-radius: 8px; border: none; background: #2563EB; color: #FFFFFF; font-size: 13.5px; font-weight: 600; cursor: pointer; }
     .copy-btn:hover { background: #1D4ED8; }
-    .lightbox { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.92); display: none; align-items: center; justify-content: center; flex-direction: column; padding: 24px; z-index: 999; cursor: zoom-out; }
+    .lightbox { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.94); display: none; align-items: center; justify-content: center; flex-direction: column; padding: 24px; z-index: 999; cursor: zoom-out; }
     .lightbox.open { display: flex; }
-    .lightbox img { max-width: 94vw; max-height: 84vh; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.6); }
-    .lightbox .cap { margin-top: 12px; color: #CBD5E1; font-family: ui-monospace, monospace; font-size: 13px; }
+    .lightbox img { max-width: 94vw; max-height: 84vh; border-radius: 6px; }
+    .lightbox .cap { margin-top: 10px; color: #CBD5E1; font-family: ui-monospace, monospace; font-size: 13px; }
+    #fallbackBox { position: fixed; right: 28px; bottom: 68px; width: 380px; max-width: 90vw; background: #1E293B; border: 1px solid #38BDF8; border-radius: 8px; padding: 10px; display: none; z-index: 100; }
+    #fallbackBox textarea { width: 100%; height: 110px; background: #0F172A; color: #F8FAFC; border: 1px solid #334155; border-radius: 6px; padding: 8px; font-size: 12px; }
   </style>
 </head>
 <body>
-  <h1>渊眸策略 · 待排页槽位同构选版看板（${escapeHtml(slideLabel)}）</h1>
-  <p class="lead">共检索到 ${candidates.length} 个候选版式（点击图片可放大查看高清原图；默认不勾选，严格单选，再次点击可取消）。选完后点击底部「一键复制确认回复」发给 Agent。</p>
-  <div class="grid">${cardParts.join("\n")}</div>
+  <div class="top-bar">
+    <h1>渊眸策略 · 待排页选版看板（共 ${sections.length} 页）</h1>
+    <p class="lead">点击图片可放大原图；每页严格单选（默认不选，再次点击取消）。选完后点右下角「一键复制确认回复」发给 Agent。</p>
+  </div>
+  ${sectionHtmlList.join("\n")}
+
+  <div id="fallbackBox">
+    <div style="font-size:12px;color:#93C5FD;margin-bottom:6px;display:flex;justify-content:space-between;">
+      <span>已生成确认文本（按 Ctrl/Cmd+C 复制）</span>
+      <span style="cursor:pointer;color:#94A3B8;" onclick="document.getElementById('fallbackBox').style.display='none'">关闭</span>
+    </div>
+    <textarea id="fallbackText" readonly></textarea>
+  </div>
 
   <div class="footer-bar">
-    <div class="status-text" id="statusText">当前选择：<strong>未选（再找一批）</strong></div>
+    <div class="status-text" id="statusText">已选 <strong>0 / ${sections.length}</strong> 页</div>
     <button class="copy-btn" type="button" id="copyBtn" onclick="copySelection()">一键复制确认回复</button>
   </div>
 
@@ -110,47 +160,91 @@ async function buildSelectionBoardHtml(candidates, outHtmlPath, slideLabel = "�
   </div>
 
   <script>
-    let selectedCard = null;
-    function toggleSelect(card) {
-      if (selectedCard === card) {
-        card.classList.remove("selected");
-        card.querySelector(".pick-btn").textContent = "选择此版式（单选）";
-        selectedCard = null;
-      } else {
-        // Strict single-select: clear any previously selected card
-        document.querySelectorAll(".card.selected").forEach((el) => {
-          el.classList.remove("selected");
-          el.querySelector(".pick-btn").textContent = "选择此版式（单选）";
-        });
-        card.classList.add("selected");
-        card.querySelector(".pick-btn").textContent = "✓ 已选中（再次点击可取消）";
-        selectedCard = card;
+    var selections = {};
+    function findParentByClass(el, cls) {
+      var cur = el;
+      while (cur && cur.nodeType === 1) {
+        if (cur.classList && cur.classList.contains(cls)) return cur;
+        cur = cur.parentNode;
       }
-      updateStatus();
+      return null;
     }
-    function updateStatus() {
-      const st = document.getElementById("statusText");
-      if (!selectedCard) {
-        st.innerHTML = '当前选择：<strong>未选（再找一批）</strong>';
-      } else {
-        const cid = selectedCard.dataset.cid;
-        const title = selectedCard.dataset.title;
-        st.innerHTML = '当前选择：<strong>' + cid + '</strong>（' + title + '）';
+    function toggleSelectFromBtn(btn) {
+      var card = findParentByClass(btn, "card");
+      if (!card) return;
+      var pageId = card.getAttribute("data-page");
+      toggleSelect(pageId, card);
+    }
+    function toggleSelect(pageId, card) {
+      var sec = document.getElementById("sec-" + pageId);
+      var stEl = document.getElementById("st-" + pageId);
+      var already = card.classList.contains("selected");
+      var allCards = sec.querySelectorAll(".card");
+      for (var i = 0; i < allCards.length; i++) {
+        allCards[i].classList.remove("selected");
+        allCards[i].querySelector(".pick-btn").textContent = "选此版式";
       }
+      if (already) {
+        delete selections[pageId];
+        stEl.textContent = "未选（单选）";
+        stEl.classList.remove("picked");
+      } else {
+        card.classList.add("selected");
+        card.querySelector(".pick-btn").textContent = "✓ 已选（再点取消）";
+        selections[pageId] = { cid: card.getAttribute("data-cid"), note: card.getAttribute("data-note") };
+        stEl.textContent = "✓ 已选 " + selections[pageId].cid;
+        stEl.classList.add("picked");
+      }
+      updateFooter();
+    }
+    function updateFooter() {
+      var total = document.querySelectorAll(".page-section").length;
+      var count = Object.keys(selections).length;
+      document.getElementById("statusText").innerHTML = "已选 <strong>" + count + " / " + total + "</strong> 页";
+    }
+    function buildReplyText() {
+      var lines = ["【选版确认】"];
+      var secs = document.querySelectorAll(".page-section");
+      for (var i = 0; i < secs.length; i++) {
+        var pid = secs[i].getAttribute("data-page");
+        var label = secs[i].getAttribute("data-label");
+        var pick = selections[pid];
+        lines.push((i + 1) + ". " + label + "：" + (pick ? (pick.cid + "（" + pick.note + "）") : "未选（再找一批）"));
+      }
+      return lines.join("\\n");
     }
     function copySelection() {
-      const text = selectedCard
-        ? "【选版确认】\\n${escapeHtml(slideLabel)}：" + selectedCard.dataset.cid + "（" + selectedCard.dataset.title + "）"
-        : "【选版确认】\\n${escapeHtml(slideLabel)}：未选（再找一批）";
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById("copyBtn");
-        btn.textContent = "✓ 已复制到剪贴板";
-        setTimeout(() => { btn.textContent = "一键复制确认回复"; }, 1800);
-      });
+      var text = buildReplyText();
+      var btn = document.getElementById("copyBtn");
+      var done = function() {
+        btn.textContent = "✓ 已复制";
+        setTimeout(function() { btn.textContent = "一键复制确认回复"; }, 1800);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function() { fallbackCopy(text, done); });
+      } else {
+        fallbackCopy(text, done);
+      }
+    }
+    function fallbackCopy(text, onDone) {
+      var box = document.getElementById("fallbackBox");
+      var ta = document.getElementById("fallbackText");
+      ta.value = text;
+      box.style.display = "block";
+      ta.focus();
+      ta.select();
+      try {
+        if (document.execCommand("copy")) onDone();
+      } catch (e) {}
+    }
+    function openLightboxFromEl(el) {
+      var img = el.querySelector("img");
+      if (!img) return;
+      openLightbox(img.src, el.getAttribute("data-cap") || "");
     }
     function openLightbox(src, cap) {
       document.getElementById("lbImg").src = src;
-      document.getElementById("lbCap").textContent = cap + "（点击空白处关闭）";
+      document.getElementById("lbCap").textContent = cap + "（点击空白关闭）";
       document.getElementById("lightbox").classList.add("open");
     }
     function closeLightbox() {
@@ -164,6 +258,13 @@ async function buildSelectionBoardHtml(candidates, outHtmlPath, slideLabel = "�
   await fs.mkdir(path.dirname(abs), { recursive: true });
   await fs.writeFile(abs, html, "utf8");
   return abs;
+}
+
+async function buildSelectionBoardHtml(candidates, outHtmlPath, slideLabel = "当前待排页") {
+  return buildMultiPageSelectionBoardHtml(
+    [{ pageId: "p1", pageBadge: "P1", pageTitle: slideLabel, brief: "", candidates }],
+    outHtmlPath
+  );
 }
 
 async function main() {
@@ -188,6 +289,7 @@ async function main() {
       "has-chart": { type: "boolean" },
       "fetch-previews": { type: "boolean" },
       "slide-label": { type: "string" },
+      plan: { type: "string" },
       sku: { type: "string" },
       cid: { type: "string" },
       kind: { type: "string" },
@@ -302,7 +404,36 @@ async function main() {
     return;
   }
 
-  throw new Error(`Unknown subcommand "${cmd}". Expected: connect | status | sync-index | search-slides | search-reports | fetch-asset`);
+  if (cmd === "build-board") {
+    if (!values.plan || !values.out) {
+      throw new Error("build-board requires --plan <board_plan.json> --out <selection_board.html>");
+    }
+    const raw = JSON.parse(await fs.readFile(path.resolve(values.plan), "utf8"));
+    const sections = Array.isArray(raw) ? raw : (raw.sections || []);
+    if (values["fetch-previews"]) {
+      for (const sec of sections) {
+        for (const item of sec.candidates || []) {
+          if (item.localPreviewPath && existsSync(item.localPreviewPath)) continue;
+          try {
+            const asset = await provider.fetchAsset({
+              kind: "preview",
+              contentPageId: item.contentPageId,
+              previewFile: item.previewFile,
+              feishuFileToken: item.feishuFileToken,
+            });
+            item.localPreviewPath = asset.localPath;
+          } catch {
+            // Keep placeholder if preview unavailable
+          }
+        }
+      }
+    }
+    const boardPath = await buildMultiPageSelectionBoardHtml(sections, values.out);
+    console.log(JSON.stringify({ mode, sections: sections.length, selectionBoardHtml: boardPath }, null, 2));
+    return;
+  }
+
+  throw new Error(`Unknown subcommand "${cmd}". Expected: connect | status | sync-index | search-slides | build-board | search-reports | fetch-asset`);
 }
 
 main().catch((err) => {
