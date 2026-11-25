@@ -3,22 +3,49 @@
 import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { SlideSourceProvider, sha256File } from "./base-provider.mjs";
+import zlib from "node:zlib";
+import { promisify } from "node:util";
+import { SlideSourceProvider, defaultCacheRoot, sha256File } from "./base-provider.mjs";
 import { querySlideIndexDb } from "./sqlite-index.mjs";
 
+const gunzipAsync = promisify(zlib.gunzip);
+
+export const DEFAULT_PUBLIC_TRIAL_BASE_URL = "https://ppt-trial.resourcehub.dpdns.org";
+
 /**
- * Route 1 Free / Offline Provider (`provider: "local"`).
- * Works out-of-the-box with zero cloud credentials using the user's own local folder (`YUANMOU_LOCAL_DIR`)
- * containing `.pptx` templates, `.pdf` reports, and an optional co-located `yuanmou-slide-index.db`.
+ * Default Open-Source Provider (`provider: "local"`).
+ *
+ * Works with ZERO login and ZERO configuration:
+ * 1) If `YUANMOU_LOCAL_DIR` is set and contains a local SQLite index (`ppt-index-dist.db` / `ppt-index-lite.db` / etc.),
+ *    queries that local directory 100% offline.
+ * 2) Otherwise (unless `YUANMOU_OFFLINE=1` or `enablePublicTrial: false`), seamlessly syncs the free public
+ *    2,000-slide commercial reference library (`ppt-index-trial.db.gz`, ~740 KB) from Cloudflare R2 CDN
+ *    into `~/.cache/yuanmou-ppt/trial/` and fetches lossless preview PNGs on demand with permanent local caching.
  */
 export class LocalStandaloneProvider extends SlideSourceProvider {
   constructor(options = {}) {
-    super("local", "Local Standalone Folder", options);
+    super("local", "Local & Zero-Login Public Trial Library (2,000 Slides)", options);
     this.localLibraryDir = options.localLibraryDir || process.env.YUANMOU_LOCAL_DIR || "";
+    this.trialBaseUrl = (
+      options.trialBaseUrl ||
+      process.env.YUANMOU_TRIAL_URL ||
+      DEFAULT_PUBLIC_TRIAL_BASE_URL
+    ).replace(/\/+$/, "");
+    this.enablePublicTrial =
+      options.enablePublicTrial !== undefined
+        ? Boolean(options.enablePublicTrial)
+        : process.env.YUANMOU_OFFLINE !== "1";
+
+    const cacheBase = this.cache?.rootDir || defaultCacheRoot(options.cacheDir);
+    this.trialCacheDir = path.join(cacheBase, "trial");
+    this.trialPreviewsDir = path.join(this.trialCacheDir, "previews");
+    this.trialIndexDbPath = path.join(this.trialCacheDir, "ppt-index-trial.db");
+
     this.capabilities = {
-      slideIndex: Boolean(this.localLibraryDir),
+      slideIndex: Boolean(this.localLibraryDir || this.enablePublicTrial),
       pptxTemplates: Boolean(this.localLibraryDir),
       pdfReports: Boolean(this.localLibraryDir),
+      pureImagePreviews: Boolean(this.localLibraryDir || this.enablePublicTrial),
       presignedDirectDownload: false,
     };
   }
@@ -27,8 +54,10 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     return {
       authenticated: true,
       tier: "free",
-      identity: "standalone-local",
+      identity: this.localLibraryDir ? "standalone-local-dir" : "zero-login-public-trial",
       localLibraryDir: this.localLibraryDir || null,
+      trialBaseUrl: this.enablePublicTrial ? this.trialBaseUrl : null,
+      trialIndexCached: existsSync(this.trialIndexDbPath),
     };
   }
 
@@ -48,20 +77,59 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     return "";
   }
 
-  async syncSlideIndex() {
+  async syncSlideIndex(options = {}) {
     const colocatedDb = this._findColocatedDb();
     if (colocatedDb) {
       return {
         synced: true,
+        cached: true,
         dbPath: colocatedDb,
         source: "local-colocated-db",
       };
     }
+
+    if (!this.enablePublicTrial || !this.trialBaseUrl) {
+      return {
+        synced: true,
+        dbPath: null,
+        slideCount: 0,
+        source: "local-no-index",
+      };
+    }
+
+    const force = Boolean(options.force);
+    if (!force && existsSync(this.trialIndexDbPath)) {
+      const st = await fs.stat(this.trialIndexDbPath);
+      return {
+        synced: true,
+        cached: true,
+        dbPath: this.trialIndexDbPath,
+        bytes: st.size,
+        source: "public-trial-cache",
+      };
+    }
+
+    const indexUrl = `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
+    const res = await fetch(indexUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch public trial index (${res.status}) from ${indexUrl}`);
+    }
+    const rawBuf = Buffer.from(await res.arrayBuffer());
+    const isGzip = rawBuf.length >= 2 && rawBuf[0] === 0x1f && rawBuf[1] === 0x8b;
+    const dbBuf = isGzip ? await gunzipAsync(rawBuf) : rawBuf;
+
+    await fs.mkdir(this.trialCacheDir, { recursive: true });
+    const tmpPath = `${this.trialIndexDbPath}.tmp`;
+    await fs.writeFile(tmpPath, dbBuf);
+    await fs.rename(tmpPath, this.trialIndexDbPath);
+
     return {
       synced: true,
-      dbPath: null,
-      slideCount: 0,
-      source: "local-no-index",
+      cached: false,
+      dbPath: this.trialIndexDbPath,
+      bytes: dbBuf.length,
+      sha256: await sha256File(this.trialIndexDbPath),
+      source: "public-trial-r2",
     };
   }
 
@@ -70,7 +138,17 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     if (colocatedDb) {
       return querySlideIndexDb(colocatedDb, filter, "local");
     }
-    return [];
+    if (!this.enablePublicTrial) {
+      return [];
+    }
+    if (!existsSync(this.trialIndexDbPath)) {
+      try {
+        await this.syncSlideIndex();
+      } catch {
+        return [];
+      }
+    }
+    return querySlideIndexDb(this.trialIndexDbPath, filter, "local");
   }
 
   async searchReports(query = {}) {
@@ -116,8 +194,46 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
         sourceProvider: "local",
       };
     }
+
+    // Seamless zero-login preview PNG fetch from public Cloudflare R2 trial library
+    if (
+      this.enablePublicTrial &&
+      this.trialBaseUrl &&
+      (request.kind === "preview" || request.previewFile || request.contentPageId)
+    ) {
+      const fname = path.basename(request.previewFile || `${request.contentPageId}.png`);
+      const cachedPath = path.join(this.trialPreviewsDir, fname);
+      if (existsSync(cachedPath)) {
+        const st = await fs.stat(cachedPath);
+        return {
+          localPath: cachedPath,
+          cached: true,
+          bytes: st.size,
+          sha256: await sha256File(cachedPath),
+          sourceProvider: "local-public-trial-cache",
+        };
+      }
+      const imgUrl = `${this.trialBaseUrl}/previews/${encodeURIComponent(fname)}`;
+      const res = await fetch(imgUrl);
+      if (!res.ok) {
+        throw new Error(`Public trial preview download failed (${res.status}) for ${imgUrl}`);
+      }
+      const buf = Buffer.from(await res.arrayBuffer());
+      await fs.mkdir(this.trialPreviewsDir, { recursive: true });
+      const tmpPath = `${cachedPath}.tmp`;
+      await fs.writeFile(tmpPath, buf);
+      await fs.rename(tmpPath, cachedPath);
+      return {
+        localPath: cachedPath,
+        cached: false,
+        bytes: buf.length,
+        sha256: await sha256File(cachedPath),
+        sourceProvider: "local-public-trial-r2",
+      };
+    }
+
     throw new Error(
-      `LocalStandaloneProvider cannot fetch remote SKU "${request.sku || ""}". Configure ZsxqPlanetProvider (zsxq-cli) or YuanmouCloudR2Provider (YUANMOU_API_KEY).`
+      `LocalStandaloneProvider cannot fetch remote asset "${request.sku || request.contentPageId || ""}".`
     );
   }
 }

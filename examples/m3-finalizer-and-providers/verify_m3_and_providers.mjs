@@ -93,13 +93,13 @@ async function testPluggableProviders() {
   console.log("=== [A] Verifying Pluggable Data Source Provider SPI ===");
   assert.deepEqual(listSourceProviders(), ["local", "feishu", "zsxq", "yuanmou-cloud"]);
 
-  // A1: `LocalStandaloneProvider` (Open-Source Free Mode — empty when no local folder, or queries co-located SQLite DB)
-  const local = createSourceProvider("local");
+  // A1: `LocalStandaloneProvider` (Offline fallback + co-located SQLite DB + Zero-Login Public R2 Trial auto-sync)
+  const local = createSourceProvider("local", { enablePublicTrial: false });
   const localAuth = await local.checkAuth();
   assert.equal(localAuth.authenticated, true);
   assert.equal(localAuth.tier, "free");
   const localEmptySlides = await local.searchSlides({ hasChart: true });
-  assert.deepEqual(localEmptySlides, [], "Expected [] when LocalStandaloneProvider has no YUANMOU_LOCAL_DIR");
+  assert.deepEqual(localEmptySlides, [], "Expected [] when offline LocalStandaloneProvider has no YUANMOU_LOCAL_DIR");
 
   const localDbDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_local_db_"));
   try {
