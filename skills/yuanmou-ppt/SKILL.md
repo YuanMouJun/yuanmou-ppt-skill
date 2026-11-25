@@ -8,15 +8,16 @@ description: 图片转 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可
 ## 1. 强制门禁与工程铁律
 
 1. **环境门禁（禁止盲画）**：首次执行先跑 `node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env`，确认已装 **Node.js `>=22.5` + LibreOffice (`soffice`) + Poppler (`pdftoppm`)**；缺项时先协助用户安装，严禁跳过渲染自检直接交付。
-2. **纯原生 OOXML**：所有构建、改版、图表与终检均调用 `@yuanmou/pptx-kit`；严禁 `python-pptx`，严禁把表格/流程图/文字渲染成 PNG 贴图。图表必须内嵌 `ppt/embeddings/*.xlsx` 可双击改数。
+2. **纯原生 OOXML（禁止简化或贴图）**：所有构建、改版、图表与终检均调用 `@yuanmou/pptx-kit`；严禁 `python-pptx`，严禁简化/合并省略结构，严禁用整页背景图、截图碎片或扁平 PNG 冒充表格/流程图/可编辑重绘。图表必须内嵌 `ppt/embeddings/*.xlsx` 可双击改数。
 3. **单图形承载底色与富文本（严禁框中套框）**：圆角矩形、色带、圆形、箭头等带底色/描边节点必须在同一个 `<p:sp>` 上直接设置 `fill / line / text / textStyle`（多字号/多色用富文本 `runs`）；**严禁在图形内另套内框、覆盖透明文本框或用编组冒充图形自身承载文字**，表格文字直接写入单元格。项目符号必须用 `makeBulletList()`，禁手敲 `"• "`；局部透明渐变描边用 `buildPolylineStrokeCommands()` + `<a:gradFill>`。
+4. **只读保护与交付边界**：区分「内容源」与「版式参考」（仅用户指定或确认的参考页决定版式）；用户要求源文件不动时严格只读并在副本制作，核对物理页码、隐藏页与交付份数（独立交付按单页独立文件输出）。
 
 ## 2. 内容解构 → 双向同构选版（Step 1）
 
 **严禁不读内容直接乱搜或硬套版式**，无现成指定参考图时必须按以下两步走：
 
-1. **先理解内容，逐页提炼「槽位指纹」**：通读用户文稿/Brief，拆出每一页的 **页型**（封面/目录/正文/封底）、**业务目的**（`purpose`）、**逻辑关系/图示家族**（`diagram_family`：`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、**图槽数**（`--target-images`）、**文槽数**（`--target-text-slots`）、**实绩槽数**（`--target-results`）以及**是否需表格/图表**。
-2. **双向同构打分选版 + 单选看板确认**：按每页指纹调用统一 CLI 检索并拉取无损原图（默认自动探活：`feishu` -> `yuanmou-cloud` -> `zsxq` -> `local` 免登录体验库，纯离线设 `YUANMOU_OFFLINE=1`），生成**严格单选、默认不勾选、支持点击放大与一键复制**的 Base64 选版看板（多页按 4～6 页/批；右侧必须展示原图，严禁换字加工冒充原图；**未获用户确认前严禁开始重绘或填充**；用户已指定版式/仅调色/局部修形时直接跳过海选进入对应环节）：
+1. **先理解内容，按逻辑单元提炼「槽位指纹」**：通读用户文稿/Brief，**按逻辑单元规划页面**（不把 Markdown 章节或 PDF/Word 原页机械等同于 1 页 PPT），逐页拆出 **页型**（封面/目录/正文/封底）、**业务目的**（`purpose`）、**逻辑关系/图示家族**（`diagram_family`：`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、**图槽数**（`--target-images`，单张账号主页/后台/长图界面按 1 张独立截图计）、**文槽数**（`--target-text-slots`）、**实绩槽数**（`--target-results`）以及**是否需表格/图表**；同时区分「用户硬要求」与「初拟分组弹性」。
+2. **双向同构打分选版 + 单选看板确认**：按每页指纹调用 `provider_cli.mjs` 检索并拉取无损原图（**严禁手搓裸 SQL 绕过同构打分，不得按行业文件名盲翻**；默认自动探活：`feishu` -> `yuanmou-cloud` -> `zsxq` -> `local` 免登录体验库，纯离线设 `YUANMOU_OFFLINE=1`）。每页实看至少 3 张候选原图（通常给 3 个方向；候选少时先放宽自加弹性条件，不因凑不齐 3 张卡住；用户要求“再找一轮”时沿用已明确否定原因），生成**严格单选、默认不勾选、支持点击放大与一键复制**的 Base64 选版看板（多页按 4～6 页/批；保留原稿原文/原页图不先改写，右侧展示原图严禁换字或 AI 加工冒充；**未获用户确认前严禁开始重绘或填充**；用户已指定版式/仅调色/局部修形/兼容修复时直接跳至对应环节）：
 
 ```bash
 node skills/yuanmou-ppt/scripts/provider_cli.mjs search-slides \
@@ -47,17 +48,18 @@ node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu
 - **L2（常规卡片 / 表格 / 图表 / 时间轴）**：单步成稿 + 1 次全页并排审图。
 - **L3（半透明玻璃叠层 / 弧边锥体 / 渐窄箭头 / 圆角倒梯形 / 复杂流程图）**：
   1. **采色测透**：`node skills/yuanmou-ppt/scripts/deck_cli.mjs inspect-ref --ref ./ref.png --out ./work/inspect --crops "zone:x,y,w,h"`，确认透底（`<a:alpha>` 渐变）、最深墨色与字号（`pt ≈ h_px × 0.80`）；
-  2. **骨架叠图校准**：先拼装 `structure` 骨架（单图形底色+富文本、`buildRoundedTrapezoidPath`），再跑 `deck_cli.mjs diff --ref ./ref.png --gen ./work/s1.png --out ./work/diff --crops "..." --pptx ./work/out.pptx --gallery ./work/gallery.html`，审阅 `overlay_3panel.png` 与 `zoom_*_2x.png`（最多 1~2 轮收敛）；
-  3. **锁死样式灌入正文**：壳子通过后切换 `final` 模式，锁死几何/透明/字号/字色，原位替换用户图文。
+  2. **骨架叠图校准**：先拼装 `structure` 骨架（单图形底色+富文本、`buildRoundedTrapezoidPath`），再跑 `deck_cli.mjs diff --ref ./ref.png --gen ./work/s1.png --out ./work/diff --crops "..." --pptx ./work/out.pptx --gallery ./work/gallery.html`，审阅 `overlay_3panel.png` 与 `zoom_*_2x.png`（最多 1~2 轮收敛；自检通过即继续，不另向用户请求重绘确认）；
+  3. **锁死样式灌入正文**：壳子通过后切换 `final` 模式，锁死几何/透明/字号/字色，再优化文案并原位替换用户图文（有源 PPT 时优先提取内嵌原图，保留关键数字、账号身份与咨询入口）。
+- **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标并复核可见层次；**横竖重排**保持逻辑与文字正常阅读方向，严禁旋转整张截图或倒转文字。
 
 ## 4. 文案保真与去 AI 腔铁律（Anti-Slop）
 
-- **数据与口径红线**：严禁编造数据、严禁把策略建议/目标/Demo 示意数字改写成已实现成果，严格保留原稿指标名称、数值与统计周期。
+- **数据与口径红线**：严禁编造数据、严禁把策略建议/目标/Demo 示意数字改写成已实现成果，严格保留原稿指标名称、数值与统计周期；缺少量化成果时仅呈现已有执行产出与定性成果，**待补数据与核查项放交付说明，严禁直接把 `[待补充]` 写进面向客户的页内**（除非用户要求）。
 - **封杀 AI 水词**：严禁 `不是X而是Y`、`深度赋能`、`核心抓手`、`生态闭环`、`打出组合拳`、`底层逻辑重构`、`开启新篇章`；禁单段滥用 `——` 或行内假圆点 `A • B • C`。
-- **结论前置与字号底线**：内容页主标题必须结论前置（Action Title）；正文不低于 `12pt`，挤不下先删废话，不强缩字号。
+- **结论前置与字号底线**：结构自检通过后再优化文案；内容页主标题必须结论前置（Action Title）；正文不低于 `12pt`，挤不下先删废话，不强缩字号。
 
 ## 5. 终检门禁与视觉验收（Step 5 ～ Step 6）
 
 交付前必须跑通 `finalizeDeck({ deck, outputPath, antiSlop: "fail" })` 与 `renderDeckToPngs(outputPath, { outDir, dpi: 220 })`：
 1. **原生对象与并排 Diff 双重自检**：交付前必须同时通过两项核验——① **原生对象归属**：确认带底色节点文字归属同一 `<p:sp>`（零内框/零覆盖透明文本框/零背景文字分离），表格文字归属单元格、图表内嵌 `.xlsx`；② **视觉并排 Diff**：有参考图/母本时，必须生成「左原图 vs 右成稿」并排图亲自审图，核对标题/正文视觉字号偏差 ≤15%、相邻区块接触拓扑（半压/贴边/留白）、圆角梯形/渐变/描边边缘及图片区尺寸节奏。不达标必须返工；
-2. **交付附带对比画廊**：用 `buildShowcaseGalleryHtml()` 输出 Base64 内联 HTML 画廊（禁止外部相对路径防裂图）。
+2. **交付附带对比画廊与诚实验证说明**：用 `buildShowcaseGalleryHtml()` 输出 Base64 内联 HTML 画廊（禁止外部相对路径防裂图）；交付说明如实写明所用渲染器、字体替换、适配决定与验证范围（仅实际用 PowerPoint/WPS 打开查看过才标实机通过）。
