@@ -1,6 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.1.2",
+  "version": "0.1.3",
+  "latestHighlights": "新增国内直连新版本提醒与 SHA-256 增量一键更新、修复 npx skills add 独立运行、支持有机水墨笔刷与无孔洞蒙版",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",
@@ -36,6 +37,7 @@
     "node": ">=22.5.0"
   },
   "scripts": {
+    "sync:manifest": "node scripts/sync_skill_manifest.mjs",
     "install:skill": "node scripts/install.mjs --target all",
     "pack:zip": "node scripts/pack_zip.mjs",
     "pack:workbuddy": "node scripts/pack_workbuddy_marketplace.mjs",

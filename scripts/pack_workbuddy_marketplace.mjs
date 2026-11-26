@@ -143,13 +143,14 @@ async function main() {
     await fs.mkdir(bundleDir, { recursive: true });
 
     // 1) Strictly copy ONLY WorkBuddy-documented directories: SKILL.md, scripts/, references/
-    await fs.writeFile(path.join(bundleDir, "SKILL.md"), WORKBUDDY_SKILL_MD, "utf8");
+    const renderedWbSkillMd = WORKBUDDY_SKILL_MD.replace(/^version:\s*.+$/m, `version: ${pkg.version}`);
+    await fs.writeFile(path.join(bundleDir, "SKILL.md"), renderedWbSkillMd, "utf8");
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt", "references"), path.join(bundleDir, "references"));
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt", "scripts"), path.join(bundleDir, "scripts"));
 
     // 2) Flatten zero-dep `pptx-kit` directly into `scripts/` so the zip strictly satisfies
     // WorkBuddy's 2-level directory depth limit (`yuanmou-ppt/{scripts,references}/<file>`).
-    const kitSrcRoot = path.join(REPO_ROOT, "packages", "pptx-kit");
+    const kitSrcRoot = path.join(REPO_ROOT, "skills", "yuanmou-ppt", "packages", "pptx-kit");
     const scriptsDir = path.join(bundleDir, "scripts");
 
     const fileMap = new Map(); // posix relPath from kitSrcRoot -> flat filename in scripts/
@@ -183,10 +184,23 @@ async function main() {
       const src = await fs.readFile(p, "utf8");
       await fs.writeFile(
         p,
-        src.replace("../../../packages/pptx-kit/index.mjs", "./kit-index.mjs"),
+        src.replace("../packages/pptx-kit/index.mjs", "./kit-index.mjs"),
         "utf8"
       );
     }
+
+    // 3b) Replace `kit-updater.mjs` with a pure offline stub so marketplace builds contain
+    // zero external CDN/GitHub update URLs and delegate version upgrades strictly to WorkBuddy Marketplace.
+    await fs.writeFile(
+      path.join(scriptsDir, "kit-updater.mjs"),
+      `// Pure offline WorkBuddy Marketplace version stub\n` +
+        `export const KIT_VERSION = ${JSON.stringify(pkg.version)};\n` +
+        `export const GITHUB_REPO = "";\n` +
+        `export function compareSemver() { return 0; }\n` +
+        `export async function checkSkillUpdate() { return null; }\n` +
+        `export async function selfUpdateSkill() { return { ok: false, updated: false, reason: "marketplace_managed" }; }\n`,
+      "utf8"
+    );
 
     // 4) Switch embedded `kit-provider-local-provider.mjs` to pure offline local mode
     const lpPath = path.join(scriptsDir, "kit-provider-local-provider.mjs");
@@ -246,13 +260,12 @@ async function main() {
     }
 
     const st = await fs.stat(outZip);
-    const wbVersion = WORKBUDDY_SKILL_MD.match(/^version:\s*(.+)$/m)?.[1]?.trim() || pkg.version;
     console.log(
       JSON.stringify(
         {
           ok: true,
           variant: "workbuddy-marketplace-pure-offline",
-          version: wbVersion,
+          version: pkg.version,
           zipPath: outZip,
           bytes: st.size,
           kb: Number((st.size / 1024).toFixed(1)),

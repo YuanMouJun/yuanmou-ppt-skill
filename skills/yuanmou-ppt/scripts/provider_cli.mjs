@@ -7,7 +7,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
-import { createSourceProvider, resolveActiveSourceProvider } from "../../../packages/pptx-kit/index.mjs";
+import { createSourceProvider, resolveActiveSourceProvider } from "../packages/pptx-kit/index.mjs";
 
 function escapeHtml(str) {
   return String(str || "")

@@ -1,16 +1,18 @@
 ---
 name: yuanmou-ppt
+version: 0.1.3
 description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库 / 10W+ 飞书云盘版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
 ---
 
 # Yuanmou PPT Skill (`@yuanmou/pptx-kit`)
 
-> `<SKILL_DIR>` 指本 `SKILL.md` 所在目录。一律通过 `<SKILL_DIR>/scripts/{provider_cli,deck_cli,kit}.mjs` 调用，严禁写死相对仓库路径，**严禁修改技能目录本体脚本**。
+> `<SKILL_DIR>` 指本 `SKILL.md` 所在目录。一律通过 `<SKILL_DIR>/scripts/{provider_cli,deck_cli,kit}.mjs` 调用，严禁写死相对仓库路径；**制作 PPT 时严禁篡改技能目录本体脚本**（仅当用户明确要求“更新/升级技能”时执行 `node "<SKILL_DIR>/scripts/deck_cli.mjs" update`）。
 
 ## 0. 任务分流路由（先定路线再动手）
 
 | 用户需求 | 唯一正确路线 |
 | :--- | :--- |
+| **检查更新 / 升级本技能**（如“更新技能 / 检查新版本”） | 运行 `node "<SKILL_DIR>/scripts/deck_cli.mjs" check-update` 或 `update`（国内直连镜像 + SHA-256 增量校验） |
 | **只要 Markdown（`.md`）/ 纯文本逐页大纲与要点**（未要求生成 `.pptx`） | 直接按咨询结构（MECE / 结论前置）与第 4 节 Anti-Slop 写出最终 `.md` 到目标目录（如 `./output/`），**不启动 `.pptx` 构建与渲染** |
 | **既有 `.pptx` 母本原位改版** | 走 **通道 A**（`inspectTemplateDeck → prepareStarterDeck → 原位换字换图 → auditTemplateFidelity`），严禁新建空白页重画 |
 | **已指定参考图 / 截图 / PDF 1:1 复刻**（或仅调色/局部修形） | 跳过选版海选，直接走 **通道 B（4 类视觉页型分流 + 原生复刻）** |
@@ -60,9 +62,11 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,
 - 封杀 AI 水词（`不是X而是Y`、`深度赋能`、`核心抓手`、`生态闭环`、`打出组合拳`、`底层逻辑重构`、`开启新篇章`）、单段滥用 `——`、行内假圆点 `A • B • C`。
 - 内容页主标题结论前置；**正文与表格 `>=12pt`**（`<9pt` 门禁 `fail`，`9–11.9pt` 触发 `warn`），挤不下先精简废话，不强缩字号。
 
-## 5. 一条龙终检与多页左右对照验收
+## 5. 环境探活、版本提醒与一条龙终检验收
 
-1 条命令跑完 **6 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、越界、碰撞、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步）并原子落盘 `--final`；有渲染依赖时自动出 `compare_batch_*.jpg` + 多页对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
+开工前可先跑 `node "<SKILL_DIR>/scripts/deck_cli.mjs" check-env` 探活渲染环境与版本状态（内置 24h 缓存与 1.5s 超时静默兜底，断网不报错；若返回 `update.available === true`，**不中断当前任务**，仅在最终交付末尾顺带提醒一句发现新版本 `vX.Y.Z` 及更新亮点，用户确认后再跑 `deck_cli.mjs update`）。
+
+`verify` 1 条命令跑完 **6 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、越界、碰撞、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步）并原子落盘 `--final`；有渲染依赖时自动出 `compare_batch_*.jpg` + 多页对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
 
 ```bash
 # 多页参考图/PDF 复刻（--ref-dir 自动输出逐页左原模板 vs 右成稿对照 PDF 与 4 页一组高清审图批）

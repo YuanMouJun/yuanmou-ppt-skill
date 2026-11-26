@@ -8,7 +8,9 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
+import { fileURLToPath } from "node:url";
 import {
+  KIT_VERSION,
   inspectTemplateDeck,
   validateTemplatePlan,
   prepareStarterDeck,
@@ -20,7 +22,11 @@ import {
   discoverRenderToolchain,
   createBrushPng,
   applyAlphaMaskToImage,
-} from "../../../packages/pptx-kit/index.mjs";
+  checkSkillUpdate,
+  selfUpdateSkill,
+} from "../packages/pptx-kit/index.mjs";
+
+const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const INSTALL_RENDER_HINT = [
   "macOS:   brew install --cask libreoffice && brew install poppler",
@@ -506,6 +512,9 @@ async function main() {
       "left-depth": { type: "string" },
       "right-depth": { type: "string" },
       "flip-y": { type: "boolean" },
+      "dry-run": { type: "boolean" },
+      force: { type: "boolean" },
+      "no-update-check": { type: "boolean" },
     },
   });
 
@@ -568,20 +577,48 @@ async function main() {
   const depInfo = inspectRenderDeps();
   const toolchain = depInfo.toolchain;
   if (cmd === "check-env") {
+    const updateInfo = values["no-update-check"]
+      ? null
+      : await checkSkillUpdate({ force: false, skillDir: SKILL_DIR }).catch(() => null);
     console.log(
       JSON.stringify(
         {
           ok: true,
+          version: KIT_VERSION,
           node: process.versions.node,
           mode: depInfo.canRender ? "full-visual" : "code-gates-only",
           toolchain,
           missingRenderDeps: depInfo.missing,
           installHint: depInfo.missing.length > 0 ? depInfo.installHint : null,
+          update: updateInfo?.available ? updateInfo : null,
         },
         null,
         2
       )
     );
+    return;
+  }
+
+  if (cmd === "check-update") {
+    const res = await checkSkillUpdate({ force: true, skillDir: SKILL_DIR });
+    console.log(
+      JSON.stringify(
+        res || { available: false, currentVersion: KIT_VERSION, reason: "disabled_or_offline" },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
+  if (cmd === "update" || cmd === "self-update") {
+    const res = await selfUpdateSkill({
+      skillDir: SKILL_DIR,
+      force: Boolean(values.force),
+      dryRun: Boolean(values["dry-run"]),
+    });
+    console.log(JSON.stringify(res, null, 2));
+    if (res && res.ok === false) process.exit(1);
     return;
   }
 
@@ -928,7 +965,7 @@ async function main() {
   }
 
   throw new Error(
-    `Unknown command "${cmd}". Expected: check-env | verify | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
+    `Unknown command "${cmd}". Expected: check-env | check-update | update | verify | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
   );
 }
 

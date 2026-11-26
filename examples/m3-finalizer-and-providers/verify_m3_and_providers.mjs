@@ -24,6 +24,10 @@ import {
   finalizeDeck,
   buildZipBuffer,
   readZipBuffer,
+  KIT_VERSION,
+  compareSemver,
+  checkSkillUpdate,
+  selfUpdateSkill,
 } from "../../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -670,10 +674,155 @@ async function testM3Finalizer() {
   await fs.rm(publishedDir, { recursive: true, force: true });
 }
 
+async function testSkillUpdater() {
+  console.log("=== [3/3] Testing China-Direct Version Check & SHA-256 Incremental Self-Update ===");
+  assert.equal(compareSemver("0.1.3", "0.1.2"), 1);
+  assert.equal(compareSemver("v0.1.3", "0.1.3"), 0);
+  assert.equal(compareSemver("0.1.2", "0.2.0"), -1);
+
+  const pkg = JSON.parse(await fs.readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
+  const repoManifest = JSON.parse(
+    await fs.readFile(path.join(REPO_ROOT, "skills", "yuanmou-ppt", "skill-manifest.json"), "utf8")
+  );
+  assert.equal(KIT_VERSION, pkg.version, "KIT_VERSION must match package.json.version");
+  assert.equal(repoManifest.version, pkg.version, "skill-manifest.json version must match package.json.version");
+  assert.ok(Object.keys(repoManifest.files).length >= 25, "skill-manifest.json must index all skill files");
+
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ym_updater_test_"));
+  const pluginDir = path.join(tmpRoot, "plugin");
+  const mockSkillDir = path.join(pluginDir, "skills", "yuanmou-ppt");
+  const cacheDir = path.join(tmpRoot, "cache");
+  await fs.mkdir(path.join(mockSkillDir, "scripts"), { recursive: true });
+  await fs.writeFile(path.join(pluginDir, "plugin.json"), JSON.stringify({ name: "yuanmou-ppt", version: "0.1.0" }));
+  await fs.writeFile(path.join(mockSkillDir, "SKILL.md"), "---\nname: yuanmou-ppt\nversion: 0.1.0\n---\nOld skill\n");
+  await fs.writeFile(path.join(mockSkillDir, "scripts", "legacy.mjs"), "// obsolete file\n");
+  await fs.writeFile(
+    path.join(mockSkillDir, "skill-manifest.json"),
+    JSON.stringify({
+      name: "yuanmou-ppt",
+      version: "0.1.0",
+      files: {
+        "SKILL.md": sha256(Buffer.from("---\nname: yuanmou-ppt\nversion: 0.1.0\n---\nOld skill\n")),
+        "scripts/legacy.mjs": sha256(Buffer.from("// obsolete file\n")),
+      },
+    })
+  );
+
+  const newSkillMd = Buffer.from("---\nname: yuanmou-ppt\nversion: 9.9.9\n---\nUpdated skill content!\n");
+  const newToolMjs = Buffer.from("export const NEW_FEATURE = true;\n");
+  let tamperMode = false;
+
+  const remoteManifest = {
+    name: "yuanmou-ppt",
+    version: "9.9.9",
+    highlights: "单元测试增量热更新验证",
+    files: {
+      "SKILL.md": sha256(newSkillMd),
+      "scripts/new_tool.mjs": sha256(newToolMjs),
+    },
+  };
+
+  const server = http.createServer((req, res) => {
+    const u = req.url.split("?")[0];
+    if (u.endsWith("/skills/yuanmou-ppt/skill-manifest.json")) {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(remoteManifest));
+      return;
+    }
+    if (u.endsWith("/skills/yuanmou-ppt/SKILL.md")) {
+      res.writeHead(200, { "Content-Type": "text/markdown" });
+      res.end(tamperMode ? Buffer.from("TAMPERED CORRUPT CONTENT") : newSkillMd);
+      return;
+    }
+    if (u.endsWith("/skills/yuanmou-ppt/scripts/new_tool.mjs")) {
+      res.writeHead(200, { "Content-Type": "text/javascript" });
+      res.end(newToolMjs);
+      return;
+    }
+    res.writeHead(404);
+    res.end("not found");
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const port = server.address().port;
+  const mirrorUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1) Passive check + 24h local cache hit
+    const chk1 = await checkSkillUpdate({
+      currentVersion: "0.1.0",
+      skillDir: mockSkillDir,
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+    });
+    assert.equal(chk1.available, true);
+    assert.equal(chk1.latestVersion, "9.9.9");
+
+    const chkCached = await checkSkillUpdate({
+      currentVersion: "0.1.0",
+      skillDir: mockSkillDir,
+      cacheDir,
+      baseUrlOverride: "http://127.0.0.1:1", // unreachable port proves 24h cache is used!
+    });
+    assert.equal(chkCached.available, true);
+    assert.equal(chkCached.source, "local-cache");
+
+    // 2) Dry run leaves disk untouched
+    const dry = await selfUpdateSkill({
+      skillDir: mockSkillDir,
+      currentVersion: "0.1.0",
+      dryRun: true,
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+    });
+    assert.equal(dry.dryRun, true);
+    assert.equal(dry.willUpdateCount, 2);
+    assert.deepEqual(dry.willRemoveFiles, ["scripts/legacy.mjs"]);
+
+    // 3) SHA-256 tamper rejection leaves existing installation 100% untouched
+    tamperMode = true;
+    await assert.rejects(
+      () =>
+        selfUpdateSkill({
+          skillDir: mockSkillDir,
+          currentVersion: "0.1.0",
+          cacheDir,
+          baseUrlOverride: mirrorUrl,
+        }),
+      /SHA-256 mismatch/
+    );
+    const untouchedMd = await fs.readFile(path.join(mockSkillDir, "SKILL.md"), "utf8");
+    assert.ok(untouchedMd.includes("Old skill"), "Tampered update must never overwrite local files");
+
+    // 4) Clean verified incremental update + obsolete file cleanup + colocated plugin.json sync
+    tamperMode = false;
+    const upd = await selfUpdateSkill({
+      skillDir: mockSkillDir,
+      currentVersion: "0.1.0",
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+    });
+    assert.equal(upd.ok, true);
+    assert.equal(upd.updated, true);
+    assert.equal(upd.toVersion, "9.9.9");
+    assert.equal((await fs.readFile(path.join(mockSkillDir, "SKILL.md"), "utf8")).includes("Updated skill content!"), true);
+    assert.equal(await fs.stat(path.join(mockSkillDir, "scripts", "new_tool.mjs")).then(() => true, () => false), true);
+    assert.equal(await fs.stat(path.join(mockSkillDir, "scripts", "legacy.mjs")).then(() => true, () => false), false);
+    const updatedPlugin = JSON.parse(await fs.readFile(path.join(pluginDir, "plugin.json"), "utf8"));
+    assert.equal(updatedPlugin.version, "9.9.9");
+
+    console.log("  [PASS] Passive 24h cached update check, dry-run, SHA-256 tamper rejection & incremental update verified!");
+  } finally {
+    server.close();
+    await fs.rm(tmpRoot, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER TESTS PASSED!");
+  await testSkillUpdater();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER TESTS PASSED!");
 }
 
 main().catch((err) => {

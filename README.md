@@ -44,6 +44,10 @@ node scripts/install.mjs --target all
 # 3. 运行环境与引擎自检
 node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env
 npm run test:m3
+
+# 4. 后续版本升级（内置国内直连镜像检测 + SHA-256 增量校验一键更新，或直接跟 Agent 说“更新 yuanmou-ppt 技能”）
+node <SKILL_DIR>/scripts/deck_cli.mjs check-update
+node <SKILL_DIR>/scripts/deck_cli.mjs update
 ```
 
 ---
@@ -140,9 +144,9 @@ npm run test:m3
 
 ```text
 yuanmou-ppt-skill/
-├── packages/pptx-kit/          # 零依赖原生 OOXML 引擎（图形/表格/内嵌.xlsx图表/水墨蒙版/母本改版/6组15项终检/SPI）
-├── skills/yuanmou-ppt/         # Agent Skill 定义（SKILL.md + 结构还原规范 + provider_cli / deck_cli）
-├── scripts/install.mjs         # Claude Code / Codex / Cursor / Antigravity 一键安装脚本
+├── skills/yuanmou-ppt/         # 100% 自包含 Agent Skill（SKILL.md + 原生 OOXML 引擎 + provider_cli / deck_cli + 增量更新清单）
+├── packages/pptx-kit/          # 顶层包导出兼容层（供 npm/workspace 与示例脚本直接引用）
+├── scripts/                    # 多端安装、更新清单生成与 ZIP 打包脚本
 ├── examples/                   # 自包含验证与示例脚本
 ├── docs/showcase/              # README 实战展示图
 ├── LICENSE                     # Apache License 2.0（允许个人与企业商业项目免费使用）

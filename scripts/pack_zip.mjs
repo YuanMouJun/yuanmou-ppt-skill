@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 // Builds a self-contained `dist/yuanmou-ppt-skill.zip` for one-click drag-and-drop import into
-// Tencent WorkBuddy, OpenClaw, ClawHub, Trae, Qoder, CodeBuddy, Claude Code, Codex, and Cursor.
+// OpenClaw, ClawHub, Trae, Qoder, CodeBuddy, Claude Code, Codex, and Cursor.
 
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { generateSkillManifest } from "./sync_skill_manifest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -23,6 +24,7 @@ async function copyClean(src, dest) {
 }
 
 async function main() {
+  await generateSkillManifest();
   const pkg = JSON.parse(await fs.readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
   const distDir = path.join(REPO_ROOT, "dist");
   await fs.mkdir(distDir, { recursive: true });
@@ -31,20 +33,7 @@ async function main() {
   const stageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "ym_pack_zip_"));
   const bundleDir = path.join(stageRoot, "yuanmou-ppt");
   try {
-    await fs.mkdir(bundleDir, { recursive: true });
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), bundleDir);
-    await copyClean(path.join(REPO_ROOT, "packages", "pptx-kit"), path.join(bundleDir, "packages", "pptx-kit"));
-
-    // Rewrite relative imports inside copied scripts so the unzipped folder runs standalone anywhere
-    for (const cliFile of ["kit.mjs", "provider_cli.mjs", "deck_cli.mjs"]) {
-      const p = path.join(bundleDir, "scripts", cliFile);
-      const src = await fs.readFile(p, "utf8");
-      await fs.writeFile(
-        p,
-        src.replace("../../../packages/pptx-kit/index.mjs", "../packages/pptx-kit/index.mjs"),
-        "utf8"
-      );
-    }
 
     await fs.rm(outZip, { force: true });
     const zipRes = spawnSync("zip", ["-rq", outZip, "yuanmou-ppt"], {

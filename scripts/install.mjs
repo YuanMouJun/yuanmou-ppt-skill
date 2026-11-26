@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { discoverRenderToolchain } from "../packages/pptx-kit/index.mjs";
+import { KIT_VERSION, discoverRenderToolchain } from "../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -52,26 +52,15 @@ async function installToTarget(name, destDir, mode = "symlink") {
   await fs.rm(destDir, { recursive: true, force: true });
 
   if (mode === "copy") {
-    // Copy self-contained bundle (`SKILL.md` + `scripts/` + `packages/pptx-kit/`)
-    await fs.mkdir(destDir, { recursive: true });
-    await fs.cp(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, { recursive: true });
-    await fs.cp(
-      path.join(REPO_ROOT, "packages", "pptx-kit"),
-      path.join(destDir, "packages", "pptx-kit"),
-      { recursive: true }
-    );
-    // Rewrite relative import in copied scripts (`kit.mjs`, `provider_cli.mjs`, `deck_cli.mjs`) -> `../packages/pptx-kit`
-    for (const cliFile of ["kit.mjs", "provider_cli.mjs", "deck_cli.mjs"]) {
-      const p = path.join(destDir, "scripts", cliFile);
-      const src = await fs.readFile(p, "utf8");
-      await fs.writeFile(
-        p,
-        src.replace("../../../packages/pptx-kit/index.mjs", "../packages/pptx-kit/index.mjs"),
-        "utf8"
-      );
-    }
+    // `skills/yuanmou-ppt` is already 100% self-contained (`SKILL.md` + `scripts/` + `packages/pptx-kit/`)
+    await fs.cp(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, {
+      recursive: true,
+      filter: (p) => {
+        const base = path.basename(p);
+        return base !== ".DS_Store" && base !== "__pycache__" && !base.endsWith(".pyc");
+      },
+    });
   } else {
-    // Symlink repo's `skills/yuanmou-ppt` so `../../../packages/pptx-kit` resolves directly!
     await fs.symlink(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, "dir");
   }
 
@@ -83,7 +72,7 @@ async function installToTarget(name, destDir, mode = "symlink") {
       displayName: "渊眸 PPT 全能生成与复刻",
       description:
         "一句话从零策划生成整套商业 PPT / 16,200+ 免登录商业版式库同构选版 / 图片、截图与 PDF 1:1 复刻（含水墨笔刷与无孔洞蒙版） / 既有 PPTX 母本无损改版（6 组 15 项门禁）。",
-      version: "0.1.2",
+      version: KIT_VERSION,
       author: "渊眸策略 (Yuanmou Strategy)",
       suggestedPrompts: [
         "帮我策划并生成一份 10 页的品牌 Q3 营销增长方案 PPT，先出大纲和选版看板",
