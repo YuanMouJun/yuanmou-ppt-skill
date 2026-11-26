@@ -8,7 +8,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
 import { spawn } from "node:child_process";
-import { SlideSourceProvider, defaultCacheRoot, sha256File } from "./base-provider.mjs";
+import { SlideSourceProvider, atomicReplaceFile, defaultCacheRoot, sha256File } from "./base-provider.mjs";
 import { querySlideIndexDb } from "./sqlite-index.mjs";
 
 const gunzipAsync = promisify(zlib.gunzip);
@@ -159,7 +159,7 @@ export class FeishuDriveProvider extends SlideSourceProvider {
     const saved = await this._readSavedAuth();
     if (!saved?.access_token) {
       throw new Error(
-        "Feishu Drive not connected. Run `node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu` to sign in via QR code."
+        "Feishu Drive not connected. Run `node <SKILL_DIR>/scripts/provider_cli.mjs connect --provider feishu` to sign in via QR code."
       );
     }
     const nowSec = Math.floor(Date.now() / 1000);
@@ -345,7 +345,7 @@ export class FeishuDriveProvider extends SlideSourceProvider {
     await fs.mkdir(this.feishuCacheDir, { recursive: true });
     const tmpPath = `${this.indexDbPath}.tmp`;
     await fs.writeFile(tmpPath, dbBuf);
-    await fs.rename(tmpPath, this.indexDbPath);
+    await atomicReplaceFile(tmpPath, this.indexDbPath);
 
     return {
       synced: true,
@@ -402,7 +402,7 @@ export class FeishuDriveProvider extends SlideSourceProvider {
     const outPath = cachedPath || path.join(this.previewsCacheDir, `${fileToken}.png`);
     const tmpPath = `${outPath}.tmp`;
     await fs.writeFile(tmpPath, buf);
-    await fs.rename(tmpPath, outPath);
+    await atomicReplaceFile(tmpPath, outPath);
 
     return {
       localPath: outPath,

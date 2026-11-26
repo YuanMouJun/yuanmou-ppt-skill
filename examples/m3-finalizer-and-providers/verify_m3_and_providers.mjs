@@ -635,7 +635,34 @@ async function testM3Finalizer() {
   assert.ok(ergSlideXml.includes(`x="${80 * 9525}"`) && ergSlideXml.includes(`y="${90 * 9525}"`), "Shape flat left/top failed");
   assert.ok(ergSlideXml.includes('sz="1800"') && ergSlideXml.includes('b="1"') && ergSlideXml.includes('val="0F3A7D"'), "Shape flat text object style failed");
   assert.ok(ergChartXml.includes("单参数图表验证") && ergChartXml.includes("2563EB") && ergChartXml.includes("<c:v>240</c:v>"), "Single-arg charts.add or series.color failed");
-  console.log("  [PASS] Unit consistency (pt/px), flat run/text styles, flat coords, single-arg charts.add, Presentation.toPptxBuffer(), and tiny font gates verified!");
+
+  // Verify `"donut"` chart alias + `ImportedPresentation.save()` + Channel A connector & `text.set(makeBulletList(...))` + overwrite-twice `finalizeDeck`
+  es.charts.add("donut", {
+    left: 640,
+    top: 200,
+    width: 480,
+    height: 320,
+    title: "环形占比",
+    categories: ["A", "B"],
+    series: [{ name: "份额", values: [60, 40] }],
+  });
+  const donutZip = readZipBuffer(ergDeck.toPptxBuffer());
+  assert.ok(donutZip.get("ppt/charts/chart2.xml").toString("utf8").includes("<c:doughnutChart>"), '"donut" alias did not map to <c:doughnutChart>');
+
+  const impTestPath = path.join(publishedDir, "imp_parity.pptx");
+  await ergDeck.save(impTestPath);
+  const impLoaded = await Presentation.load(impTestPath);
+  const impSlide = impLoaded.slides.getItem(0);
+  const targetShape = impSlide.shapes.items.find((x) => x.name === "flat-pos-shape");
+  targetShape.text.set([{ runs: [{ text: "第一行" }] }, { runs: [{ text: "第二行" }] }]);
+  assert.ok(!targetShape.text.toPlainString().includes("[object Object]"), "Channel A text.set produced [object Object]");
+  const boxB = impSlide.shapes.add({ name: "box-b", left: 80, top: 560, width: 200, height: 48, text: "节点B" });
+  const conn = impSlide.shapes.add({ geometry: "connector", kind: "straight", from: "flat-pos-shape", to: boxB.id });
+  assert.equal(conn.kind, "connector");
+  await impLoaded.save(impTestPath); // ImportedPresentation.save() overwrite!
+  await finalizeDeck({ candidatePptxPath: impTestPath, outputPath: cleanOutPath, antiSlop: "fail" }); // Overwrite existing cleanOutPath!
+
+  console.log("  [PASS] Unit consistency (pt/px), flat run/text styles, flat coords, single-arg/donut charts, Channel A parity, Presentation/ImportedPresentation.save(), and tiny font gates verified!");
 
   console.log(
     `  [PASS] Negative sabotage test caught all ${codes.size} defect types across all 5 gates & blocked atomic publish!`

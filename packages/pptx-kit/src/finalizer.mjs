@@ -1318,7 +1318,12 @@ export async function finalizeDeck({
   await fs.mkdir(path.dirname(absOut), { recursive: true });
   const tmpPublish = path.join(path.dirname(absOut), `.${stem}.${randomUUID().slice(0, 8)}.tmp.pptx`);
   await fs.writeFile(tmpPublish, buf);
-  await fs.rename(tmpPublish, absOut);
+  try {
+    await fs.rename(tmpPublish, absOut);
+  } catch {
+    await fs.rm(absOut, { force: true });
+    await fs.rename(tmpPublish, absOut);
+  }
 
   return {
     outputPath: absOut,

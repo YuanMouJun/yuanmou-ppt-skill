@@ -25,6 +25,15 @@ export function defaultCacheRoot(customDir) {
   );
 }
 
+export async function atomicReplaceFile(tmpPath, targetPath) {
+  try {
+    await fs.rename(tmpPath, targetPath);
+  } catch {
+    await fs.rm(targetPath, { force: true });
+    await fs.rename(tmpPath, targetPath);
+  }
+}
+
 export function sha256Buffer(buf) {
   return createHash("sha256").update(buf).digest("hex");
 }
@@ -69,7 +78,7 @@ export class SlideCacheStore {
     await this.ensureDirs();
     const tmp = `${this.manifestPath}.${randomUUID().slice(0, 6)}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(manifest, null, 2) + "\n", "utf8");
-    await fs.rename(tmp, this.manifestPath);
+    await atomicReplaceFile(tmp, this.manifestPath);
   }
 
   resolveAssetTargetPath({ kind = "pptx", sku = "", filename = "" }) {
@@ -108,7 +117,7 @@ export class SlideCacheStore {
 
     const tmpPath = `${targetPath}.${randomUUID().slice(0, 8)}.tmp`;
     await fs.writeFile(tmpPath, buffer);
-    await fs.rename(tmpPath, targetPath);
+    await atomicReplaceFile(tmpPath, targetPath);
 
     const manifest = await this.readManifest();
     const record = {

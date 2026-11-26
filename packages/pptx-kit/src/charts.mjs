@@ -151,11 +151,18 @@ export function buildChartWorkbookBuffer(categories, seriesList) {
   ]);
 }
 
+const CHART_TYPE_ALIASES = Object.freeze({
+  donut: "doughnut",
+  hbar: "horizontalBar",
+  "horizontal-bar": "horizontalBar",
+});
+
 export class ChartElement {
   constructor(slide, ooxmlId, chartType, config = {}) {
     const isObjArg = chartType && typeof chartType === "object";
     const cfg = isObjArg ? chartType : config || {};
-    const resolvedChartType = isObjArg ? cfg.type || cfg.chartType || "bar" : chartType || cfg.type || "bar";
+    const rawType = isObjArg ? cfg.type || cfg.chartType || "bar" : chartType || cfg.type || "bar";
+    const resolvedChartType = CHART_TYPE_ALIASES[rawType] || rawType;
     this.slide = slide;
     this.kind = "chart";
     this.ooxmlId = ooxmlId;

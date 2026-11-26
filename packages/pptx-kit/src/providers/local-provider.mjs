@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
-import { SlideSourceProvider, defaultCacheRoot, sha256File } from "./base-provider.mjs";
+import { SlideSourceProvider, atomicReplaceFile, defaultCacheRoot, sha256File } from "./base-provider.mjs";
 import { querySlideIndexDb } from "./sqlite-index.mjs";
 
 const gunzipAsync = promisify(zlib.gunzip);
@@ -43,7 +43,7 @@ function buildTrialRateLimitError() {
   return new Error(
     "[RATE_LIMITED] 为防止公共免费体验图库滥用，当前已触发频率限制（30 次 / 10 秒）。\n" +
       "如需高频大方案批量选版或解锁 10W+ 持续日更高质量商业模板，欢迎加入「渊眸飞书云盘 VIP 版式库」" +
-      "（运行 `node skills/yuanmou-ppt/scripts/provider_cli.mjs connect --provider feishu`），或稍等 10 秒后重试。"
+      "（运行 `node <SKILL_DIR>/scripts/provider_cli.mjs connect --provider feishu`），或稍等 10 秒后重试。"
   );
 }
 
@@ -60,7 +60,7 @@ function buildTrialRateLimitError() {
  */
 export class LocalStandaloneProvider extends SlideSourceProvider {
   constructor(options = {}) {
-    super("local", "Local & Zero-Login Public Trial Library (10,000+ Slides)", options);
+    super("local", "Local & Zero-Login Public Trial Library (16,000+ Slides)", options);
     this.localLibraryDir = options.localLibraryDir || process.env.YUANMOU_LOCAL_DIR || "";
     this.trialBaseUrl = (
       options.trialBaseUrl ||
@@ -170,7 +170,7 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     await fs.mkdir(this.trialCacheDir, { recursive: true });
     const tmpPath = `${this.trialIndexDbPath}.tmp`;
     await fs.writeFile(tmpPath, dbBuf);
-    await fs.rename(tmpPath, this.trialIndexDbPath);
+    await atomicReplaceFile(tmpPath, this.trialIndexDbPath);
 
     return {
       synced: true,
@@ -279,7 +279,7 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       await fs.mkdir(this.trialPreviewsDir, { recursive: true });
       const tmpPath = `${cachedPath}.tmp`;
       await fs.writeFile(tmpPath, buf);
-      await fs.rename(tmpPath, cachedPath);
+      await atomicReplaceFile(tmpPath, cachedPath);
       return {
         localPath: cachedPath,
         cached: false,

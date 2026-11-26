@@ -8,6 +8,7 @@ import { computeImagePlacementAndCrop, resolveImageSource } from "./media.mjs";
 import { ShapeElement, ConnectorElement, ImageElement } from "./slide.mjs";
 import { TableElement } from "./tables.mjs";
 import { ChartElement } from "./charts.mjs";
+import { normalizeParagraphs } from "./richtext.mjs";
 import { composeIntoSlide } from "./compose.mjs";
 import {
   buildZipBuffer,
@@ -309,6 +310,16 @@ function resolvePosixPart(basePart, relTarget) {
   return path.posix.normalize(path.posix.join(dir, relTarget));
 }
 
+function coerceSurgicalPlainText(val) {
+  if (val === undefined || val === null) return "";
+  if (typeof val === "string" || typeof val === "number") return String(val);
+  if (Array.isArray(val) && val.every((x) => typeof x === "string" || typeof x === "number")) {
+    return val.map(String).join("\n");
+  }
+  const paras = normalizeParagraphs(val);
+  return paras.map((p) => (p.runs || []).map((r) => r.run || "").join("")).join("\n");
+}
+
 class ImportedElementFacade {
   constructor(slide, meta) {
     this.slide = slide;
@@ -333,7 +344,7 @@ class ImportedElementFacade {
         return this.toPlainString();
       },
       set(val) {
-        const str = Array.isArray(val) ? val.join("\n") : String(val ?? "");
+        const str = coerceSurgicalPlainText(val);
         const nextXml = rewriteFullShapeTextPreservingTemplateStyle(self._rawXml, str);
         self.slide._applyElementXmlMutation(self._pathKey, self._rawXml, nextXml);
         self._rawXml = nextXml;
@@ -362,7 +373,7 @@ class ImportedElementFacade {
             const nextRowBody = trBody.replace(/<a:tc\b([^>]*)>([\s\S]*?)<\/a:tc>/g, (fullTc) => {
               curCol++;
               if (curCol !== colIdx) return fullTc;
-              return rewriteFullShapeTextPreservingTemplateStyle(fullTc, String(newVal ?? ""));
+              return rewriteFullShapeTextPreservingTemplateStyle(fullTc, coerceSurgicalPlainText(newVal));
             });
             return `<a:tr${trA}>${nextRowBody}</a:tr>`;
           });
@@ -509,11 +520,27 @@ export class ImportedSlide {
         ];
       },
       add(config = {}) {
+        if (config.geometry === "connector") {
+          const fromShape = self._resolveShapeRef(config.from);
+          const toShape = self._resolveShapeRef(config.to);
+          const el = new ConnectorElement(self, self.presentation._nextOoxmlId(), {
+            ...config,
+            fromShape,
+            toShape,
+          });
+          self._injectedElements.push(el);
+          return el;
+        }
         const el = new ShapeElement(self, self.presentation._nextOoxmlId(), config);
         self._injectedElements.push(el);
         return el;
       },
-      connect(fromShape, toShape, options = {}) {
+      connect(fromRef, toRef, options = {}) {
+        const fromShape = self._resolveShapeRef(fromRef);
+        const toShape = self._resolveShapeRef(toRef);
+        if (!fromShape || !toShape) {
+          throw new Error("slide.shapes.connect requires valid source and target shapes");
+        }
         const el = new ConnectorElement(self, self.presentation._nextOoxmlId(), {
           ...options,
           fromShape,
@@ -559,12 +586,30 @@ export class ImportedSlide {
           ...self._injectedElements.filter((e) => e instanceof ChartElement),
         ];
       },
-      add(chartType = "bar", options = {}) {
-        const el = new ChartElement(self, self.presentation._nextOoxmlId(), chartType, options);
+      add(chartTypeOrOptions = "bar", options = {}) {
+        const isObjFirst = chartTypeOrOptions && typeof chartTypeOrOptions === "object";
+        const resolvedType = isObjFirst
+          ? chartTypeOrOptions.type || chartTypeOrOptions.chartType || "bar"
+          : chartTypeOrOptions || "bar";
+        const resolvedOpts = isObjFirst ? chartTypeOrOptions : options;
+        const el = new ChartElement(self, self.presentation._nextOoxmlId(), resolvedType, resolvedOpts);
         self._injectedElements.push(el);
         return el;
       },
     };
+  }
+
+  _resolveShapeRef(ref) {
+    if (!ref) return null;
+    if (typeof ref === "object" && ref.ooxmlId) return ref;
+    if (typeof ref === "string") {
+      return (
+        this._elements.find((e) => e.id === ref || e.name === ref) ||
+        this._injectedElements.find((e) => e.id === ref || e.name === ref) ||
+        null
+      );
+    }
+    return null;
   }
 
   compose(nodeTree, options = {}) {
@@ -1025,6 +1070,13 @@ export class ImportedPresentation {
       orderedEntries.push({ name, data });
     }
     return buildZipBuffer(orderedEntries);
+  }
+
+  async save(outputPath) {
+    const abs = path.resolve(outputPath);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, this.toPptxBuffer());
+    return abs;
   }
 }
 

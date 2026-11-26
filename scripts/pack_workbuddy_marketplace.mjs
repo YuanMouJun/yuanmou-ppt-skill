@@ -201,7 +201,7 @@ async function main() {
         "false"
       )
       .replace(
-        '"Local & Zero-Login Public Trial Library (10,000+ Slides)"',
+        '"Local & Zero-Login Public Trial Library (16,000+ Slides)"',
         '"Local Standalone Native OOXML Engine (Offline)"'
       );
     await fs.writeFile(lpPath, lpSrc, "utf8");

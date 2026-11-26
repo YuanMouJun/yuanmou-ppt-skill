@@ -113,9 +113,11 @@ export function inspectImageBytes(buf, hintExt = ".png") {
       ? "image/jpeg"
       : ext === ".gif"
         ? "image/gif"
-        : ext === ".svg"
-          ? "image/svg+xml"
-          : "image/png";
+        : ext === ".webp"
+          ? "image/webp"
+          : ext === ".svg"
+            ? "image/svg+xml"
+            : "image/png";
   return { width: 1280, height: 720, ext, contentType: mime, bytes: b };
 }
 

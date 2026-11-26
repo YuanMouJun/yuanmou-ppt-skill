@@ -292,7 +292,7 @@ export class ConnectorElement extends BaseSlideElement {
   constructor(slide, ooxmlId, config = {}) {
     super(slide, "connector", ooxmlId, "sh");
     this.name = config.name || `connector-${ooxmlId}`;
-    this.kind = config.kind || "elbow";
+    this.connectorKind = config.kind || "elbow";
     this.fromShape = config.fromShape || null;
     this.toShape = config.toShape || null;
     this.fromSide = config.fromSide;
@@ -341,7 +341,7 @@ export class ConnectorElement extends BaseSlideElement {
       flipH: flipH ? "1" : undefined,
       flipV: flipV ? "1" : undefined,
     })}><a:off x="${pxToEmu(left)}" y="${pxToEmu(top)}"/><a:ext cx="${pxToEmu(width)}" cy="${pxToEmu(height)}"/></a:xfrm>`;
-    const prst = mapConnectorKindToPreset(this.kind);
+    const prst = mapConnectorKindToPreset(this.connectorKind);
     const lineXml = renderLineXml(this.line, {
       head: this.head,
       tail: this.tail,

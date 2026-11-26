@@ -351,7 +351,21 @@ async function buildSelectionBoardHtml(candidates, outHtmlPath, slideLabel = "å½
 }
 
 async function main() {
+  const rawArgs = process.argv.slice(2);
+  const normalizedArgs = [];
+  for (let i = 0; i < rawArgs.length; i++) {
+    const cur = rawArgs[i];
+    const next = rawArgs[i + 1];
+    if (cur.startsWith("--") && !cur.includes("=") && next !== undefined && /^-\d+(\.\d+)?$/.test(next)) {
+      normalizedArgs.push(`${cur}=${next}`);
+      i++;
+    } else {
+      normalizedArgs.push(cur);
+    }
+  }
+
   const { values, positionals } = parseArgs({
+    args: normalizedArgs,
     allowPositionals: true,
     options: {
       provider: { type: "string" },
