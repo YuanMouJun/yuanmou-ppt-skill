@@ -153,55 +153,58 @@ export function buildChartWorkbookBuffer(categories, seriesList) {
 
 export class ChartElement {
   constructor(slide, ooxmlId, chartType, config = {}) {
+    const isObjArg = chartType && typeof chartType === "object";
+    const cfg = isObjArg ? chartType : config || {};
+    const resolvedChartType = isObjArg ? cfg.type || cfg.chartType || "bar" : chartType || cfg.type || "bar";
     this.slide = slide;
     this.kind = "chart";
     this.ooxmlId = ooxmlId;
     this.id = makeChartAnchorId(slide.id, ooxmlId);
-    this.chartType = chartType || "bar";
-    this.name = config.name || `${this.chartType}-chart-${ooxmlId}`;
+    this.chartType = resolvedChartType;
+    this.name = cfg.name || `${this.chartType}-chart-${ooxmlId}`;
 
     this.position = {
-      left: config.position?.left ?? config.left ?? 80,
-      top: config.position?.top ?? config.top ?? 150,
-      width: config.position?.width ?? config.width ?? 540,
-      height: config.position?.height ?? config.height ?? 340,
+      left: cfg.position?.left ?? cfg.left ?? 80,
+      top: cfg.position?.top ?? cfg.top ?? 150,
+      width: cfg.position?.width ?? cfg.width ?? 540,
+      height: cfg.position?.height ?? cfg.height ?? 340,
     };
 
-    this.title = config.title || "";
-    this.titleTextStyle = config.titleTextStyle || { fontSize: 16, bold: true, color: "#0F172A" };
-    this.categories = Array.isArray(config.categories) ? [...config.categories] : ["Q1", "Q2", "Q3", "Q4"];
-    const rawSeries = Array.isArray(config.series) ? config.series : [];
+    this.title = cfg.title || "";
+    this.titleTextStyle = cfg.titleTextStyle || { fontSize: 16, bold: true, color: "#0F172A" };
+    this.categories = Array.isArray(cfg.categories) ? [...cfg.categories] : ["Q1", "Q2", "Q3", "Q4"];
+    const rawSeries = Array.isArray(cfg.series) ? cfg.series : [];
     this._series = rawSeries.map((s, idx) => ({
       name: s.name || `系列 ${idx + 1}`,
       values: Array.isArray(s.values) ? [...s.values] : [],
-      fill: s.fill || DEFAULT_SERIES_PALETTE[idx % DEFAULT_SERIES_PALETTE.length],
+      fill: s.fill || s.color || DEFAULT_SERIES_PALETTE[idx % DEFAULT_SERIES_PALETTE.length],
       pointFills: Array.isArray(s.pointFills) ? s.pointFills : null,
       lineWidth: s.lineWidth ?? 2.5,
     }));
 
-    this.hasLegend = config.hasLegend !== undefined ? Boolean(config.hasLegend) : this._series.length > 1;
-    this.legend = { position: "t", textStyle: { fontSize: 12, color: "#475569" }, ...(config.legend || {}) };
+    this.hasLegend = cfg.hasLegend !== undefined ? Boolean(cfg.hasLegend) : this._series.length > 1;
+    this.legend = { position: "t", textStyle: { fontSize: 12, color: "#475569" }, ...(cfg.legend || {}) };
     this.dataLabels = {
-      showValue: config.dataLabels?.showValue ?? true,
-      showPercent: Boolean(config.dataLabels?.showPercent),
-      position: config.dataLabels?.position,
-      numberFormatCode: config.dataLabels?.numberFormatCode,
-      textStyle: { fontSize: 11.5, bold: true, color: "#334155", ...(config.dataLabels?.textStyle || {}) },
+      showValue: cfg.dataLabels?.showValue ?? true,
+      showPercent: Boolean(cfg.dataLabels?.showPercent),
+      position: cfg.dataLabels?.position,
+      numberFormatCode: cfg.dataLabels?.numberFormatCode,
+      textStyle: { fontSize: 11.5, bold: true, color: "#334155", ...(cfg.dataLabels?.textStyle || {}) },
     };
-    this.barOptions = config.barOptions || {};
-    this.lineOptions = config.lineOptions || {};
-    this.pieOptions = config.pieOptions || {};
-    this.doughnutOptions = config.doughnutOptions || { holeSize: 58 };
-    this.xAxis = { textStyle: { fontSize: 12, color: "#475569" }, ...(config.xAxis || {}) };
+    this.barOptions = cfg.barOptions || {};
+    this.lineOptions = cfg.lineOptions || {};
+    this.pieOptions = cfg.pieOptions || {};
+    this.doughnutOptions = cfg.doughnutOptions || { holeSize: 58 };
+    this.xAxis = { textStyle: { fontSize: 12, color: "#475569" }, ...(cfg.xAxis || {}) };
     this.yAxis = {
       textStyle: { fontSize: 11.5, color: "#64748B" },
       majorGridlines: { style: "solid", fill: "#E2E8F0", width: 1 },
-      ...(config.yAxis || {}),
+      ...(cfg.yAxis || {}),
     };
-    this.chartFill = config.chartFill || "none";
-    this.chartLine = config.chartLine || { style: "solid", fill: "none", width: 0 };
-    this.plotAreaFill = config.plotAreaFill || "none";
-    this.fontFamily = config.fontFamily || null;
+    this.chartFill = cfg.chartFill || "none";
+    this.chartLine = cfg.chartLine || { style: "solid", fill: "none", width: 0 };
+    this.plotAreaFill = cfg.plotAreaFill || "none";
+    this.fontFamily = cfg.fontFamily || null;
 
     const self = this;
     this.series = {

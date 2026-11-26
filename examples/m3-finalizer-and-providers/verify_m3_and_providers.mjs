@@ -602,7 +602,34 @@ async function testM3Finalizer() {
   assert.equal(failReport.passed, false, "<9pt text must hard fail");
   assert.ok(failReport.issues.some((i) => i.code === "tiny_body_font_size" && i.severity === "fail"));
   assert.ok(failReport.issues.some((i) => i.code === "tiny_table_font_size" && i.severity === "fail"));
-  console.log("  [PASS] Unit consistency (pt/px), flat run styles, Presentation.toPptxBuffer(), and tiny font gates verified!");
+  // Verify single-arg `charts.add({ type, ... })` + `series.color` + flat `left/top/width/height` on shapes & images + flat `text: { text, bold, fontSize, color }`
+  const ergDeck = Presentation.create({ title: "API Ergonomics Test" });
+  const es = ergDeck.slides.add({ background: "#FFFFFF" });
+  es.shapes.add({
+    name: "flat-pos-shape",
+    left: 80,
+    top: 90,
+    width: 360,
+    height: 60,
+    text: { text: "平层坐标与对象样式验证", bold: true, fontSize: 18, color: "#0F3A7D" },
+  });
+  es.charts.add({
+    left: 80,
+    top: 200,
+    width: 520,
+    height: 320,
+    type: "bar",
+    title: "单参数图表验证",
+    categories: ["Q1", "Q2"],
+    series: [{ name: "营收", values: [120, 240], color: "#2563EB" }],
+  });
+  const ergZip = readZipBuffer(ergDeck.toPptxBuffer());
+  const ergSlideXml = ergZip.get("ppt/slides/slide1.xml").toString("utf8");
+  const ergChartXml = ergZip.get("ppt/charts/chart1.xml").toString("utf8");
+  assert.ok(ergSlideXml.includes(`x="${80 * 9525}"`) && ergSlideXml.includes(`y="${90 * 9525}"`), "Shape flat left/top failed");
+  assert.ok(ergSlideXml.includes('sz="1800"') && ergSlideXml.includes('b="1"') && ergSlideXml.includes('val="0F3A7D"'), "Shape flat text object style failed");
+  assert.ok(ergChartXml.includes("单参数图表验证") && ergChartXml.includes("2563EB") && ergChartXml.includes("<c:v>240</c:v>"), "Single-arg charts.add or series.color failed");
+  console.log("  [PASS] Unit consistency (pt/px), flat run/text styles, flat coords, single-arg charts.add, Presentation.toPptxBuffer(), and tiny font gates verified!");
 
   console.log(
     `  [PASS] Negative sabotage test caught all ${codes.size} defect types across all 5 gates & blocked atomic publish!`

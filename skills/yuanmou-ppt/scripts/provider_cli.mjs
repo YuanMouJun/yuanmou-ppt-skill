@@ -110,7 +110,8 @@ async function buildMultiPageSelectionBoardHtml(sections, outHtmlPath) {
       let imgHtml = `<div class="thumb empty">暂无预览图</div>`;
       if (c.localPreviewPath && existsSync(c.localPreviewPath)) {
         const buf = await fs.readFile(c.localPreviewPath);
-        const ext = path.extname(c.localPreviewPath).toLowerCase() === ".webp" ? "webp" : "png";
+        const rawExt = path.extname(c.localPreviewPath).toLowerCase();
+        const ext = rawExt === ".webp" ? "webp" : rawExt === ".jpg" || rawExt === ".jpeg" ? "jpeg" : "png";
         const dataUrl = `data:image/${ext};base64,${buf.toString("base64")}`;
         imgHtml = `<div class="thumb" data-cap="${escapeHtml(pageBadge)} · ${escapeHtml(cid)}" onclick="openLightboxFromEl(this)" title="点击放大"><img src="${dataUrl}" alt="${escapeHtml(cid)}" /></div>`;
       }

@@ -154,10 +154,10 @@ export class ShapeElement extends BaseSlideElement {
     this.geometry = inferredGeom;
     this.name = config.name || `${this.geometry}-${ooxmlId}`;
     this.position = {
-      left: config.position?.left ?? 0,
-      top: config.position?.top ?? 0,
-      width: config.position?.width ?? 200,
-      height: config.position?.height ?? 80,
+      left: config.position?.left ?? config.left ?? 0,
+      top: config.position?.top ?? config.top ?? 0,
+      width: config.position?.width ?? config.width ?? 200,
+      height: config.position?.height ?? config.height ?? 80,
       rotation: config.rotation ?? config.rotate ?? config.position?.rotation ?? config.position?.rotate ?? 0,
       horizontalFlip: Boolean(config.horizontalFlip ?? config.flipHorizontal ?? config.position?.horizontalFlip),
       verticalFlip: Boolean(config.verticalFlip ?? config.flipVertical ?? config.position?.verticalFlip),
@@ -193,7 +193,32 @@ export class ShapeElement extends BaseSlideElement {
         "text" in config.text
       ) {
         initText = config.text.text;
-        initTextStyle = mergeTextStyle(initTextStyle, config.text.style || {});
+        const flatTextObjStyle = {};
+        for (const k of [
+          "fontSize",
+          "fontFamily",
+          "typeface",
+          "color",
+          "bold",
+          "italic",
+          "underline",
+          "letterSpacing",
+          "outline",
+          "alignment",
+          "verticalAlignment",
+          "lineSpacing",
+          "insets",
+        ]) {
+          if (config.text[k] !== undefined) flatTextObjStyle[k] = config.text[k];
+        }
+        initTextStyle = mergeTextStyle(initTextStyle, {
+          ...flatTextObjStyle,
+          ...(typeof config.text.style === "object" ? config.text.style : {}),
+          ...(typeof config.text.textStyle === "object" ? config.text.textStyle : {}),
+        });
+        if (typeof config.text.style === "string") {
+          initTextStyle = mergeTextStyle(initTextStyle, config.text.style);
+        }
       } else {
         initText = config.text;
       }
@@ -355,13 +380,13 @@ export class ImageElement extends BaseSlideElement {
     this.flipVertical = Boolean(options.flipVertical ?? options.verticalFlip ?? options.position?.verticalFlip);
     this.lockAspectRatio = options.lockAspectRatio !== false;
 
-    const inputFrame = options.position || options.frame || {
-      left: 0,
-      top: 0,
-      width: src.width,
-      height: src.height,
+    const baseFrame = options.position || options.frame || {};
+    this._frame = {
+      left: baseFrame.left ?? options.left ?? 0,
+      top: baseFrame.top ?? options.top ?? 0,
+      width: baseFrame.width ?? options.width ?? src.width,
+      height: baseFrame.height ?? options.height ?? src.height,
     };
-    this._frame = { ...inputFrame };
   }
 
   get frame() {
@@ -515,8 +540,13 @@ export class Slide {
       get items() {
         return self._elements.filter((e) => e instanceof ChartElement);
       },
-      add(chartType = "bar", options = {}) {
-        const el = new ChartElement(self, self.presentation._nextOoxmlId(), chartType, options);
+      add(chartTypeOrOptions = "bar", options = {}) {
+        const isObjFirst = chartTypeOrOptions && typeof chartTypeOrOptions === "object";
+        const resolvedType = isObjFirst
+          ? chartTypeOrOptions.type || chartTypeOrOptions.chartType || "bar"
+          : chartTypeOrOptions || "bar";
+        const resolvedOpts = isObjFirst ? chartTypeOrOptions : options;
+        const el = new ChartElement(self, self.presentation._nextOoxmlId(), resolvedType, resolvedOpts);
         self._elements.push(el);
         return el;
       },
