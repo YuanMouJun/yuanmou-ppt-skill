@@ -302,6 +302,92 @@ canvas.save(out_png, quality=92)
 print(json.dumps({"qaSheetPng": out_png, "slideCount": n, "grid": [rows, cols]}))
 `;
 
+const PY_MULTI_COMPARE = `
+import json, math, os, sys
+from PIL import Image, ImageChops, ImageStat
+
+cfg = json.loads(sys.argv[1])
+refs = cfg["refs"]
+gens = cfg["gens"]
+out_dir = cfg["outDir"]
+batch_size = int(cfg.get("batchSize", 4))
+pairs_dir = os.path.join(out_dir, "compare_pairs")
+os.makedirs(pairs_dir, exist_ok=True)
+
+pair_items = []
+n = min(len(refs), len(gens))
+pw, ph = 700, 394
+gap = 12
+
+for i in range(n):
+    ri = Image.open(refs[i]).convert("RGB").resize((pw, ph), Image.Resampling.LANCZOS)
+    gi = Image.open(gens[i]).convert("RGB").resize((pw, ph), Image.Resampling.LANCZOS)
+    diff = ImageChops.difference(ri, gi)
+    mae = sum(ImageStat.Stat(diff).mean) / 3.0
+    sim = round(max(0.0, 100.0 * (1.0 - mae / 255.0)), 1)
+    pair = Image.new("RGB", (pw * 2 + gap * 3, ph + gap * 2), (15, 23, 42))
+    pair.paste(ri, (gap, gap))
+    pair.paste(gi, (pw + gap * 2, gap))
+    out_jpg = os.path.join(pairs_dir, f"pair_{i+1:02d}.jpg")
+    pair.save(out_jpg, format="JPEG", quality=84, optimize=True)
+    pair_items.append({
+        "slide": i + 1,
+        "refName": os.path.basename(refs[i]),
+        "genName": os.path.basename(gens[i]),
+        "similarityPct": sim,
+        "mae": round(mae, 2),
+        "pairJpg": out_jpg,
+    })
+
+batches = []
+bw, bh = 640, 360
+for b_idx in range(0, n, batch_size):
+    chunk = pair_items[b_idx:b_idx + batch_size]
+    sheet = Image.new("RGB", (bw * 2 + 24, len(chunk) * (bh + 12) + 12), (15, 23, 42))
+    for r, item in enumerate(chunk):
+        ri = Image.open(refs[item["slide"] - 1]).convert("RGB").resize((bw, bh), Image.Resampling.LANCZOS)
+        gi = Image.open(gens[item["slide"] - 1]).convert("RGB").resize((bw, bh), Image.Resampling.LANCZOS)
+        y = 12 + r * (bh + 12)
+        sheet.paste(ri, (8, y))
+        sheet.paste(gi, (bw + 16, y))
+    bp = os.path.join(out_dir, f"compare_batch_{len(batches) + 1}.jpg")
+    sheet.save(bp, format="JPEG", quality=86, optimize=True)
+    batches.append({
+        "batch": len(batches) + 1,
+        "slides": f"P{chunk[0]['slide']}-P{chunk[-1]['slide']}",
+        "path": bp,
+    })
+
+print(json.dumps({"pairs": pair_items, "compareBatches": batches}, ensure_ascii=False))
+`;
+
+const PY_COMPRESS_FOR_GALLERY = `
+import json, os, sys
+from PIL import Image
+
+cfg = json.loads(sys.argv[1])
+pngs = cfg["pngs"]
+out_dir = cfg["outDir"]
+os.makedirs(out_dir, exist_ok=True)
+out = []
+for i, p in enumerate(pngs, 1):
+    im = Image.open(p).convert("RGB")
+    if im.width > 1280:
+        im = im.resize((1280, int(im.height * 1280 / im.width)), Image.Resampling.LANCZOS)
+    dst = os.path.join(out_dir, f"gal_{i:02d}.jpg")
+    im.save(dst, format="JPEG", quality=84, optimize=True)
+    out.append(dst)
+print(json.dumps({"jpgs": out}))
+`;
+
+function numericSortPaths(paths) {
+  const key = (p) => {
+    const m = path.basename(p, path.extname(p)).match(/\d+/g);
+    return m ? Number.parseInt(m[m.length - 1], 10) : 0;
+  };
+  return [...paths].sort((a, b) => key(a) - key(b) || path.basename(a).localeCompare(path.basename(b)));
+}
+
 async function main() {
   const { values, positionals } = parseArgs({
     allowPositionals: true,
@@ -319,6 +405,7 @@ async function main() {
       "font-policy": { type: "string" },
       "allow-full-bg-pic": { type: "boolean" },
       ref: { type: "string" },
+      "ref-dir": { type: "string" },
       gen: { type: "string" },
       crops: { type: "string" },
       gallery: { type: "string" },
@@ -513,11 +600,53 @@ async function main() {
       });
     }
 
-    // 5) Optional reference diff + auto hotspots + Base64 HTML gallery
+    // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + compact JPEG Base64 HTML gallery
     let diffRes = null;
+    let compareBatches = [];
     let galleryHtml = null;
     const galleryOut = values.gallery ? path.resolve(values.gallery) : path.join(outDir, "qa_gallery.html");
-    if (values.ref && renderedPngs.length > 0) {
+    if (values["ref-dir"] && renderedPngs.length > 0) {
+      const refDirAbs = path.resolve(values["ref-dir"]);
+      const refFiles = numericSortPaths(
+        (await fs.readdir(refDirAbs))
+          .filter((f) => /\.(png|jpe?g|webp)$/i.test(f))
+          .map((f) => path.join(refDirAbs, f))
+      );
+      const genFiles = numericSortPaths(renderedPngs);
+      if (refFiles.length === 0) {
+        throw new Error(`--ref-dir "${refDirAbs}" contains no image files (.png/.jpg/.webp)`);
+      }
+      const multi = runPythonVision(PY_MULTI_COMPARE, {
+        refs: refFiles,
+        gens: genFiles,
+        outDir,
+        batchSize: 4,
+      });
+      diffRes = {
+        mode: "multi-page",
+        pairCount: multi.pairs.length,
+        avgSimilarityPct: Number(
+          (multi.pairs.reduce((acc, x) => acc + x.similarityPct, 0) / Math.max(1, multi.pairs.length)).toFixed(1)
+        ),
+        lowestPages: [...multi.pairs]
+          .sort((a, b) => a.similarityPct - b.similarityPct)
+          .slice(0, 5)
+          .map((x) => ({ slide: x.slide, ref: x.refName, similarityPct: x.similarityPct })),
+      };
+      compareBatches = multi.compareBatches;
+      galleryHtml = await buildShowcaseGalleryHtml({
+        title: values.title || "渊眸 PPT 引擎 · 原模板 vs 成稿逐页左右对比画廊",
+        subtitle: "左：原模板参考页 ｜ 右：@yuanmou/pptx-kit 零依赖原生可编辑成稿（点击图片可放大）",
+        pptxPath: targetPptx,
+        slides: multi.pairs.map((p) => ({
+          title: `Slide ${p.slide}（对照 ${p.refName}）`,
+          caption: `整页像素相似度 ${p.similarityPct}%（MAE=${p.mae}）· 左原模板 / 右成稿`,
+          pngPath: p.pairJpg,
+          weapons: ["左原模板 vs 右成稿", "轻量 JPEG Base64"],
+        })),
+        outHtmlPath: galleryOut,
+      });
+    } else if (values.ref && renderedPngs.length > 0) {
       const pageNo = values.page ? Number(values.page) : 1;
       const refPng = await ensureReferenceImagePath(values.ref, outDir, pageNo, toolchain.pdftoppm);
       const genPng = renderedPngs[Math.min(Math.max(0, pageNo - 1), renderedPngs.length - 1)];
@@ -552,11 +681,16 @@ async function main() {
         outHtmlPath: galleryOut,
       });
     } else if (renderedPngs.length > 0) {
+      const compressed = runPythonVision(PY_COMPRESS_FOR_GALLERY, {
+        pngs: numericSortPaths(renderedPngs),
+        outDir: path.join(outDir, "gallery_jpgs"),
+      });
+      const galleryImgs = compressed?.jpgs || numericSortPaths(renderedPngs);
       galleryHtml = await buildShowcaseGalleryHtml({
         title: values.title || "渊眸 PPT 引擎 · 成稿视觉验收画廊",
         subtitle: "@yuanmou/pptx-kit 零依赖原生可编辑成稿（点击可放大）",
         pptxPath: targetPptx,
-        slides: renderedPngs.map((p, idx) => ({
+        slides: galleryImgs.map((p, idx) => ({
           title: `Slide ${idx + 1}`,
           caption: `已通过全部自动门禁（fail=0, warn=${validation.warnCount}）`,
           pngPath: p,
@@ -577,6 +711,7 @@ async function main() {
           sourceIntegrity,
           renderedSlides: renderedPngs,
           qaSheetPng: qaSheet?.qaSheetPng || null,
+          compareBatches,
           diff: diffRes,
           galleryHtml,
         },

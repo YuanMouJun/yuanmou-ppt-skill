@@ -121,14 +121,23 @@ export function resolveColorSpec(input, fallbackHex = "0F172A") {
 
   if (typeof input === "object") {
     const t = input.transform || {};
-    const opacity = t.opacity !== undefined ? parseUnitRatio(t.opacity) : undefined;
-    const lighten = t.lighten !== undefined ? parseUnitRatio(t.lighten) : undefined;
-    const darken = t.darken !== undefined ? parseUnitRatio(t.darken) : undefined;
-    if (input.type === "theme" && input.value) {
-      const scheme = THEME_COLOR_ALIASES[input.value] || input.value;
+    const rawOpacity =
+      t.opacity !== undefined
+        ? t.opacity
+        : input.opacity !== undefined
+          ? input.opacity
+          : input.alpha;
+    const opacity = rawOpacity !== undefined ? parseUnitRatio(rawOpacity) : undefined;
+    const rawLighten = t.lighten !== undefined ? t.lighten : input.lighten;
+    const rawDarken = t.darken !== undefined ? t.darken : input.darken;
+    const lighten = rawLighten !== undefined ? parseUnitRatio(rawLighten) : undefined;
+    const darken = rawDarken !== undefined ? parseUnitRatio(rawDarken) : undefined;
+    const baseVal = input.value ?? input.color;
+    if (input.type === "theme" && baseVal) {
+      const scheme = THEME_COLOR_ALIASES[baseVal] || baseVal;
       return buildColorNode({ kind: "scheme", val: scheme }, { opacity, lighten, darken });
     }
-    const base = resolveColorSpec(input.value || fallbackHex, fallbackHex);
+    const base = resolveColorSpec(baseVal || fallbackHex, fallbackHex);
     return buildColorNode(base, { opacity, lighten, darken });
   }
 
@@ -325,8 +334,16 @@ export function renderFillXml(fillConfig) {
       const bg = renderColorXml(fillConfig.bgColor || "#F7F7F7");
       return `<a:pattFill prst="${fillConfig.pattern}"><a:fgClr>${fg}</a:fgClr><a:bgClr>${bg}</a:bgClr></a:pattFill>`;
     }
-    if (fillConfig.type === "solid" || (!fillConfig.type && fillConfig.color)) {
-      const colorXml = renderColorXml(fillConfig.color);
+    if (fillConfig.type === "solid" || (!fillConfig.type && (fillConfig.color || fillConfig.value))) {
+      const hasAlpha = fillConfig.opacity !== undefined || fillConfig.alpha !== undefined || fillConfig.transform;
+      const colorInput = hasAlpha
+        ? {
+            value: fillConfig.color ?? fillConfig.value,
+            opacity: fillConfig.opacity ?? fillConfig.alpha,
+            transform: fillConfig.transform,
+          }
+        : (fillConfig.color ?? fillConfig.value);
+      const colorXml = renderColorXml(colorInput);
       return colorXml ? `<a:solidFill>${colorXml}</a:solidFill>` : "<a:noFill/>";
     }
     const isGradObj =
@@ -352,7 +369,11 @@ export function renderFillXml(fillConfig) {
           let rawOff = rawVal * scale;
           if (rawOff > 0 && rawOff <= 1 && fillConfig.offsetScale !== 100000) rawOff *= 100000;
           const pos = Math.max(0, Math.min(100000, Math.round(rawOff)));
-          return `<a:gs pos="${pos}">${renderColorXml(st.color)}</a:gs>`;
+          const stopColorInput =
+            st.opacity !== undefined || st.alpha !== undefined
+              ? { value: st.color, opacity: st.opacity ?? st.alpha }
+              : st.color;
+          return `<a:gs pos="${pos}">${renderColorXml(stopColorInput)}</a:gs>`;
         })
         .join("");
 
@@ -406,7 +427,11 @@ export function renderLineXml(lineConfig, { head, tail, cap, join } = {}) {
   const capAttr = cap && ["flat", "rnd", "sq", "round", "square"].includes(cap)
     ? cap === "round" ? "rnd" : cap === "square" ? "sq" : cap
     : undefined;
-  const fillXml = !fillVal || fillVal === "none" ? "<a:noFill/>" : renderFillXml(fillVal);
+  const lineFillInput =
+    fillVal && fillVal !== "none" && (cfg.opacity !== undefined || cfg.alpha !== undefined) && typeof fillVal === "string"
+      ? { color: fillVal, opacity: cfg.opacity ?? cfg.alpha }
+      : fillVal;
+  const fillXml = !lineFillInput || lineFillInput === "none" ? "<a:noFill/>" : renderFillXml(lineFillInput);
   const dashVal = DASH_MAP[cfg.style] || "solid";
   const dashXml = `<a:prstDash val="${dashVal}"/>`;
 

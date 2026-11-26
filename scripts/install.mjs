@@ -37,7 +37,7 @@ const AGENT_TARGETS = {
   claude: () => path.join(os.homedir(), ".claude", "skills", "yuanmou-ppt"),
   codex: () => path.join(os.homedir(), ".codex", "skills", "yuanmou-ppt"),
   cursor: () => path.join(os.homedir(), ".cursor", "skills", "yuanmou-ppt"),
-  antigravity: () => path.join(os.homedir(), ".gemini", "antigravity", "skills", "yuanmou-ppt"),
+  antigravity: () => path.join(os.homedir(), ".gemini", "config", "plugins", "yuanmou-ppt", "skills", "yuanmou-ppt"),
   trae: () => path.join(os.homedir(), ".trae", "skills", "yuanmou-ppt"),
   qoder: () => path.join(os.homedir(), ".qoder", "skills", "yuanmou-ppt"),
   codebuddy: () => path.join(os.homedir(), ".codebuddy", "skills", "yuanmou-ppt"),
@@ -72,6 +72,25 @@ async function installToTarget(name, destDir, mode = "symlink") {
   } else {
     // Symlink repo's `skills/yuanmou-ppt` so `../../../packages/pptx-kit` resolves directly!
     await fs.symlink(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, "dir");
+  }
+
+  if (name === "antigravity") {
+    const pluginRoot = path.resolve(destDir, "..", "..");
+    const pluginJsonPath = path.join(pluginRoot, "plugin.json");
+    const pluginManifest = {
+      name: "yuanmou-ppt",
+      displayName: "渊眸 PPT 全能生成与复刻",
+      description:
+        "一句话从零策划生成整套商业 PPT / 16,200+ 免登录商业版式库同构选版 / 图片、截图与 PDF 1:1 矢量复刻为可编辑 PPTX / 既有 PPTX 母本无损改版。",
+      version: "0.1.0",
+      author: "渊眸策略 (Yuanmou Strategy)",
+      suggestedPrompts: [
+        "帮我策划并生成一份 10 页的品牌 Q3 营销增长方案 PPT，先出大纲和选版看板",
+        "把这张参考图/PDF 1:1 复刻成可编辑的原生 PPTX，并替换成我的项目文案",
+        "保留这份 PPTX 母本样式不动，原位无损替换第 3～5 页的数据与图表",
+      ],
+    };
+    await fs.writeFile(pluginJsonPath, `${JSON.stringify(pluginManifest, null, 2)}\n`, "utf8");
   }
 
   return { agent: name, path: destDir, mode };

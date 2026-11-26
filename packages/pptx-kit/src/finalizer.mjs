@@ -634,15 +634,21 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Inscribed horizontal width overflow / orphan wrap check (triangle, trapezoid, ellipse/pill, single-line painted labels)
+      // Inscribed horizontal width overflow / orphan wrap check (diamond, triangle, trapezoid, ellipse/pill, single-line painted labels)
       if (checkTextOverflow && it.tag === "p:sp" && it.plainText && it.width >= 30 && it.height >= 16) {
         const isNarrowGeom =
+          it.prst === "diamond" ||
           it.prst === "triangle" ||
           it.prst === "trapezoid" ||
           it.prst === "ellipse" ||
           (it.prst === "roundRect" && it.adjVal >= 35000);
         let inscribedW;
-        if (it.prst === "triangle") {
+        if (it.prst === "diamond") {
+          // Per ECMA-376 presetShapeDefinitions.xml, diamond's native text rect is [w/4..3w/4, h/4..3h/4] = 0.50*w x 0.50*h
+          inscribedW = it.noWrap
+            ? it.width * 0.72
+            : it.width * 0.50 - it.insets.l - it.insets.r;
+        } else if (it.prst === "triangle") {
           inscribedW = it.width * (it.noWrap ? 0.85 : 0.48);
         } else if (it.prst === "trapezoid") {
           inscribedW = it.width * (it.noWrap ? 0.9 : 0.68);
@@ -651,7 +657,7 @@ function runGates2And4GeometryAndText(
         } else {
           inscribedW = it.noWrap ? it.width * 0.98 : it.width - it.insets.l - it.insets.r;
         }
-        const effW = Math.max(16, inscribedW);
+        const effW = Math.max(12, inscribedW);
         const nonEmptyParas = it.paras.filter((p) => p.text.trim().length > 0);
         if (nonEmptyParas.length === 1 && (it.noWrap || it.hasVisibleFillOrBorder)) {
           const p0 = nonEmptyParas[0];
@@ -660,14 +666,20 @@ function runGates2And4GeometryAndText(
           const ratio = lineW / effW;
           const wrappedLines = it.noWrap ? 1 : Math.max(1, Math.ceil(lineW / effW));
           const inscribedH =
-            it.prst === "triangle"
-              ? it.height * 0.62
-              : it.prst === "ellipse"
-                ? Math.max(12, it.height * 0.78 - it.insets.t - it.insets.b)
-                : Math.max(12, it.height - it.insets.t - it.insets.b);
+            it.prst === "diamond"
+              ? Math.max(12, it.height * 0.50 - it.insets.t - it.insets.b)
+              : it.prst === "triangle"
+                ? it.height * 0.62
+                : it.prst === "ellipse"
+                  ? Math.max(12, it.height * 0.78 - it.insets.t - it.insets.b)
+                  : Math.max(12, it.height - it.insets.t - it.insets.b);
           const estHInscribed = wrappedLines * fontPx * p0.lineMult;
 
-          if ((it.noWrap && ratio > 1.38) || (isNarrowGeom && estHInscribed > inscribedH * 1.25)) {
+          if (
+            (it.noWrap && ratio > 1.38) ||
+            (it.prst === "diamond" && (ratio > 1.25 || estHInscribed > inscribedH * 1.15)) ||
+            (isNarrowGeom && estHInscribed > inscribedH * 1.25)
+          ) {
             issues.push({
               gate: "text_overflow",
               severity: "fail",
@@ -678,7 +690,7 @@ function runGates2And4GeometryAndText(
             });
           } else if (
             (it.noWrap && ratio > 1.15) ||
-            (isNarrowGeom && ratio > 1.15) ||
+            (isNarrowGeom && ratio > 1.12) ||
             (it.hasVisibleFillOrBorder && it.height <= fontPx * 2.1 && ratio > 1.15)
           ) {
             issues.push({
@@ -688,6 +700,100 @@ function runGates2And4GeometryAndText(
               slide: slideNo,
               element: it.name,
               message: `Slide ${slideNo} "${it.name}" (${it.prst}) label width (~${Math.round(lineW)}px) is tight for inscribed box (${Math.round(effW)}px) — risk of orphan wrap across fonts`,
+            });
+          }
+        } else if (nonEmptyParas.length > 1 && (it.prst === "diamond" || it.prst === "triangle")) {
+          // Multi-paragraph text inside diamond/triangle tapers sharply toward top/bottom tips
+          const multiEffW = Math.max(16, it.width * 0.50 - it.insets.l - it.insets.r);
+          const multiEffH = Math.max(16, it.height * 0.56 - it.insets.t - it.insets.b);
+          let totalH = 0;
+          let maxRatio = 0;
+          let worstLine = "";
+          for (const p of nonEmptyParas) {
+            const fontPx = p.fontPt / 0.75;
+            const lw = measureLinePx(p.text.trim(), fontPx);
+            const r = lw / multiEffW;
+            if (r > maxRatio) {
+              maxRatio = r;
+              worstLine = p.text.trim();
+            }
+            const lines = Math.max(1, Math.ceil(lw / multiEffW));
+            totalH += lines * fontPx * p.lineMult;
+          }
+          if (totalH > multiEffH * 1.15 || maxRatio > 1.35) {
+            issues.push({
+              gate: "text_overflow",
+              severity: "fail",
+              code: "inscribed_width_overflow",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" (${it.prst}, ${Math.round(it.width)}x${Math.round(it.height)}px) multi-line text clips narrow diamond/triangle tips (estH ~${Math.round(totalH)}px vs ${Math.round(multiEffH)}px, line "${worstLine.slice(0, 20)}") — shorten text or enlarge diamond`,
+            });
+          } else if (maxRatio > 1.08) {
+            issues.push({
+              gate: "text_overflow",
+              severity: "warn",
+              code: "inscribed_width_overflow",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" (${it.prst}) multi-line text ("${worstLine.slice(0, 20)}") risks orphan wrap near diamond/triangle edge`,
+            });
+          }
+        }
+      }
+
+      // Dirty system emoji/symbol bullet hacks & fake-form bracket strings
+      if (it.tag === "p:sp" && it.plainText) {
+        const fakeFormM = it.plainText.match(/\[\s*[\u4e00-\u9fffA-Za-z0-9\s/]{2,18}\s*\]\s*[|｜]\s*\[\s*[\u4e00-\u9fffA-Za-z0-9\s/]{2,18}\s*\]/);
+        if (fakeFormM) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: "fail",
+            code: "fake_form_brackets",
+            slide: slideNo,
+            element: it.name,
+            message: `Slide ${slideNo} "${it.name}" uses plain-text bracket strings ("${fakeFormM[0].slice(0, 32)}") to fake a form UI — build real separate input box shapes and submit button instead`,
+          });
+        }
+        const emojiM = it.plainText.match(/[☀☁☂▶◀▸◂►◄👉👇🔥✨💡📱📺🎬🎉🏆✅❌]/u);
+        if (emojiM) {
+          const isLeadPrefix = /^\s*[▶▸►☀🔥✨💡👉]/u.test(it.plainText);
+          issues.push({
+            gate: "layout_geometry",
+            severity: isLeadPrefix ? "fail" : "warn",
+            code: "dirty_emoji_symbol",
+            slide: slideNo,
+            element: it.name,
+            message: `Slide ${slideNo} "${it.name}" contains system emoji/symbol "${emojiM[0]}" which renders as an ugly monochrome/gray box in LibreOffice/WPS — draw a native vector shape or use makeBulletList()`,
+          });
+        }
+        // Unmatched Chinese guillemet `《` used as fake crescent-moon/arrow icon (e.g. "DAY 50 《 标题")
+        if (it.plainText.includes("《") && !it.plainText.includes("》")) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: "fail",
+            code: "dirty_emoji_symbol",
+            slide: slideNo,
+            element: it.name,
+            message: `Slide ${slideNo} "${it.name}" uses unmatched "《" as a fake decorative icon ("${it.plainText.slice(0, 28)}") — draw a native vector shape instead`,
+          });
+        }
+        // Tiny non-footer body text (<11pt) check
+        const isEdgeFooterOrHeader = it.top <= 48 || it.top + it.height >= slideH - 36;
+        if (!isEdgeFooterOrHeader && it.plainText.length >= 10) {
+          const minRunPt = Math.min(
+            ...it.paras
+              .filter((p) => p.text.trim().length > 0)
+              .map((p) => p.fontPt || 18)
+          );
+          if (minRunPt < 11) {
+            issues.push({
+              gate: "layout_geometry",
+              severity: "warn",
+              code: "tiny_body_font_size",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" uses tiny ${minRunPt}pt body text ("${it.plainText.slice(0, 24)}") — keep slide body text >=12pt`,
             });
           }
         }
@@ -765,13 +871,18 @@ function runGates2And4GeometryAndText(
       }
     }
 
-    // 3) Full-bleed bitmap imposter check (严禁整页贴图冒充可编辑重绘)
+    // 3) Full-bleed bitmap imposter check (严禁整页贴图冒充可编辑重绘，允许“全出血氛围底图 + 半透明罩 + 真实可编辑标题”封面/过渡页)
     if (!allowFullBgPic) {
       const slideArea = slideW * slideH;
       const fullPics = items.filter((x) => x.isPic && x.width * x.height >= slideArea * 0.88);
-      const editableTextCount = items.filter((x) => x.tag === "p:sp" && x.plainText.length >= 2).length;
+      const editableTextShapes = items.filter((x) => x.tag === "p:sp" && x.plainText.length >= 2);
+      const totalEditableChars = editableTextShapes.reduce((acc, x) => acc + x.plainText.trim().length, 0);
       const dataObjCount = items.filter((x) => x.isTable || x.isChart).length;
-      if (fullPics.length > 0 && editableTextCount <= 1 && dataObjCount === 0) {
+      if (
+        fullPics.length > 0 &&
+        dataObjCount === 0 &&
+        (editableTextShapes.length === 0 || (editableTextShapes.length === 1 && totalEditableChars <= 6))
+      ) {
         issues.push({
           gate: "layout_geometry",
           severity: "fail",
@@ -780,6 +891,44 @@ function runGates2And4GeometryAndText(
           element: fullPics[0].name,
           message: `Slide ${slideNo} contains a full-bleed bitmap "${fullPics[0].name}" with almost no native editable shapes/text — rebuild natively instead of pasting a flat slide image`,
         });
+      }
+    }
+
+    // 3b) Opaque solid shape covering a large underlying background image (严禁100%不透明色块把全出血底图完全遮死)
+    {
+      const slideArea = slideW * slideH;
+      for (let pi = 0; pi < items.length; pi++) {
+        const pic = items[pi];
+        if (!pic.isPic) continue;
+        const picArea = pic.width * pic.height;
+        if (picArea < slideArea * 0.45) continue;
+        for (let si = pi + 1; si < items.length; si++) {
+          const sp = items[si];
+          if (sp.tag !== "p:sp" || !sp.solidFillHex) continue; // solidFillHex is non-null ONLY when 100% opaque (no <a:alpha>)
+          const ix = Math.max(0, Math.min(pic.left + pic.width, sp.left + sp.width) - Math.max(pic.left, sp.left));
+          const iy = Math.max(0, Math.min(pic.top + pic.height, sp.top + sp.height) - Math.max(pic.top, sp.top));
+          if (ix <= 4 || iy <= 4) continue;
+          const covRatio = (ix * iy) / picArea;
+          if (covRatio >= 0.65) {
+            issues.push({
+              gate: "layout_geometry",
+              severity: "fail",
+              code: "opaque_overlay_hides_bg_image",
+              slide: slideNo,
+              elements: [pic.name, sp.name],
+              message: `Slide ${slideNo} 100% opaque shape "${sp.name}" (#${sp.solidFillHex}, no <a:alpha>) buries ${Math.round(covRatio * 100)}% of background image "${pic.name}" — use semi-transparent fill (e.g. "#${sp.solidFillHex}/65%" or { color, opacity: 0.65 }) or fill: "none"`,
+            });
+          } else if (covRatio >= 0.35 && sp.width * sp.height >= slideArea * 0.25 && sp.plainText.length > 0) {
+            issues.push({
+              gate: "layout_geometry",
+              severity: "warn",
+              code: "opaque_overlay_hides_bg_image",
+              slide: slideNo,
+              elements: [pic.name, sp.name],
+              message: `Slide ${slideNo} opaque box "${sp.name}" (#${sp.solidFillHex}) blocks ${Math.round(covRatio * 100)}% of background photo "${pic.name}" — consider fill: "none" or translucent fill for glass/frame overlays`,
+            });
+          }
+        }
       }
     }
 

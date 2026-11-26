@@ -199,7 +199,9 @@ export async function buildShowcaseGalleryHtml({
   const cardsHtml = await Promise.all(
     slides.map(async (item, idx) => {
       const imgBuf = await fs.readFile(item.pngPath);
-      const dataUri = `data:image/png;base64,${imgBuf.toString("base64")}`;
+      const ext = path.extname(item.pngPath || "").toLowerCase();
+      const mime = ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" : ext === ".webp" ? "image/webp" : "image/png";
+      const dataUri = `data:${mime};base64,${imgBuf.toString("base64")}`;
       const tags = (item.weapons || [])
         .map((w) => `<span class="badge">${w}</span>`)
         .join("");
@@ -212,7 +214,7 @@ export async function buildShowcaseGalleryHtml({
           </div>
           <div class="badges">${tags}</div>
         </div>
-        <p class="desc">${item.description || ""}</p>
+        <p class="desc">${item.description || item.caption || ""}</p>
         <div class="img-wrap" onclick="openLightbox(this.querySelector('img').src)">
           <img src="${dataUri}" alt="Slide ${idx + 1}" />
         </div>

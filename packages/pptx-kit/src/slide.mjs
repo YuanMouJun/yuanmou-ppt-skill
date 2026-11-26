@@ -158,9 +158,9 @@ export class ShapeElement extends BaseSlideElement {
       top: config.position?.top ?? 0,
       width: config.position?.width ?? 200,
       height: config.position?.height ?? 80,
-      rotation: config.position?.rotation ?? 0,
-      horizontalFlip: Boolean(config.position?.horizontalFlip),
-      verticalFlip: Boolean(config.position?.verticalFlip),
+      rotation: config.rotation ?? config.rotate ?? config.position?.rotation ?? config.position?.rotate ?? 0,
+      horizontalFlip: Boolean(config.horizontalFlip ?? config.flipHorizontal ?? config.position?.horizontalFlip),
+      verticalFlip: Boolean(config.verticalFlip ?? config.flipVertical ?? config.position?.verticalFlip),
     };
     this.fill =
       config.fill !== undefined
@@ -343,12 +343,16 @@ export class ImageElement extends BaseSlideElement {
     this.crop = options.crop || null;
     this.geometry = options.geometry || "rect";
     this.borderRadius = options.borderRadius;
+    this.adjustmentList = options.adjustmentList;
+    this.customPaths = options.customPaths;
+    this.svgPath = options.svgPath;
+    this.viewBox = options.viewBox;
     this.shadow = options.shadow;
     this.line = options.line;
     this.hyperlink = options.hyperlink;
-    this.rotation = options.rotation ?? options.position?.rotation ?? 0;
-    this.flipHorizontal = Boolean(options.flipHorizontal ?? options.position?.horizontalFlip);
-    this.flipVertical = Boolean(options.flipVertical ?? options.position?.verticalFlip);
+    this.rotation = options.rotation ?? options.rotate ?? options.position?.rotation ?? options.position?.rotate ?? 0;
+    this.flipHorizontal = Boolean(options.flipHorizontal ?? options.horizontalFlip ?? options.position?.horizontalFlip);
+    this.flipVertical = Boolean(options.flipVertical ?? options.verticalFlip ?? options.position?.verticalFlip);
     this.lockAspectRatio = options.lockAspectRatio !== false;
 
     const inputFrame = options.position || options.frame || {
@@ -424,6 +428,10 @@ export class ImageElement extends BaseSlideElement {
       width: drawPos.width,
       height: drawPos.height,
       borderRadius: this.borderRadius,
+      adjustmentList: this.adjustmentList,
+      customPaths: this.customPaths,
+      svgPath: this.svgPath,
+      viewBox: this.viewBox,
     });
     const lineXml = this.line ? renderLineXml(this.line) : "";
     const effectsXml = renderEffectsXml({ shadow: this.shadow });
