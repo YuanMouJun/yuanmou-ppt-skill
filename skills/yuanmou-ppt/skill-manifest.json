@@ -1,10 +1,10 @@
 {
   "name": "yuanmou-ppt",
-  "version": "0.1.4",
-  "highlights": "加固更新器用户仓库隔离、全路径CDN同步刷新与跨平台无依赖ZIP构建",
+  "version": "0.1.5",
+  "highlights": "修复国内Git克隆多轮CDN升级状态锁、Windows免权限安装与未跟踪文件隐私门禁",
   "fileCount": 31,
   "files": {
-    "SKILL.md": "21d560ec87ea13392d7755c03329c8100249abc329efb040b7e2e415bb723652",
+    "SKILL.md": "3a3e130baf762e088c7f7fa3859bdcb510966b0661b91a995711468d785327f5",
     "agents/openai.yaml": "7ba1487c19fc86ed00a67b37db870294bf76ca2cca9e54d32ce96d09aff48e59",
     "packages/pptx-kit/index.mjs": "7ca2fe6daeb27d32052d5992992d6f30394eb45304568c240d3ec2425c9afaa2",
     "packages/pptx-kit/src/brush-mask.mjs": "649154dcfefc1f1ac8b507b61b3ba98c640cecb13d88865e937a4fe5f7d45e63",
@@ -29,7 +29,7 @@
     "packages/pptx-kit/src/tables.mjs": "29a7f16c3324d296fcce0572f14b2db610c87fdb39dc0315201ece3efa0428d6",
     "packages/pptx-kit/src/tokens.mjs": "a87559c8f9d1117676573407f5a310a06b5ff543aa01b397dc09ea99a1c50073",
     "packages/pptx-kit/src/units.mjs": "7aba5619a8858e27c7cbdbd89468d42a8590663adfa50b85668563986f8bafa9",
-    "packages/pptx-kit/src/updater.mjs": "e5e3ea4568844d025f2ce8b2614dae6e0a84a4c9929233351a3fdfa1a57ad806",
+    "packages/pptx-kit/src/updater.mjs": "4a4af0cd3b7b4b1fc5e5c570fb6815ef9a80f3e1c4e5ae8aa8f774ee3aacba84",
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
     "references/structure-and-text.md": "100e521ce3806d2ca30bbf59467a554ef5d741f54fd00079f931fb5e3901fee0",
     "scripts/deck_cli.mjs": "4e7389511c0305063481cbe05ae70ee7f35efcda5ee64b3c882aafda93691ac7",

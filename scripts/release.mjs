@@ -48,7 +48,16 @@ function runChecked(cmd, args, opts = {}) {
 async function runPrivacyGate() {
   const res = spawnSync(
     "git",
-    ["grep", "-n", "-iE", "gdrive|google.?drive|Nelson-zhou|/Users/", "--", ".", ":(exclude)scripts/release.mjs"],
+    [
+      "grep",
+      "--untracked",
+      "-n",
+      "-iE",
+      "gdrive|google.?drive|Nelson-zhou|/Users/",
+      "--",
+      ".",
+      ":(exclude)scripts/release.mjs",
+    ],
     { cwd: REPO_ROOT, encoding: "utf8" }
   );
   if (res.status === 0 && res.stdout.trim()) {
@@ -357,6 +366,8 @@ async function main() {
         universalZipPath,
         "--repo",
         "YuanMouJun/yuanmou-ppt-skill",
+        "--target",
+        "main",
         "--title",
         `${tag} — ${pkg.latestHighlights || "Release"}`,
         "--notes",

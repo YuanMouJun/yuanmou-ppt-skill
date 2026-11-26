@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -823,12 +824,61 @@ async function testSkillUpdater() {
       currentVersion: "0.1.0",
       cacheDir,
       baseUrlOverride: mirrorUrl,
+      testGitRepoCheck: true,
     });
     assert.equal(userAppUpd.ok, true);
     assert.equal(userAppUpd.method, "cdn-incremental");
     assert.equal(userAppUpd.toVersion, "9.9.9");
 
-    console.log("  [PASS] Passive 24h cached update check, dry-run, SHA-256 tamper rejection, user-repo isolation & incremental update verified!");
+    // 6) Multi-round China Git-clone CDN fallback (`git pull` blocked -> Round 1 CDN sync -> Round 2 CDN sync succeeds -> manual edit protected!)
+    const cloneRoot = path.join(tmpRoot, "china-git-clone");
+    const cloneSkill = path.join(cloneRoot, "skills", "yuanmou-ppt");
+    await fs.mkdir(cloneSkill, { recursive: true });
+    await fs.writeFile(path.join(cloneRoot, "package.json"), JSON.stringify({ name: "@yuanmou/pptx-kit", version: "0.1.0" }));
+    await fs.writeFile(path.join(cloneSkill, "SKILL.md"), "---\nname: yuanmou-ppt\nversion: 0.1.0\n---\nInit\n");
+    spawnSync("git", ["init"], { cwd: cloneRoot });
+    spawnSync("git", ["config", "user.email", "test@example.com"], { cwd: cloneRoot });
+    spawnSync("git", ["config", "user.name", "Test"], { cwd: cloneRoot });
+    spawnSync("git", ["remote", "add", "origin", "http://127.0.0.1:1/unreachable.git"], { cwd: cloneRoot });
+    spawnSync("git", ["add", "-A"], { cwd: cloneRoot });
+    spawnSync("git", ["commit", "-m", "init"], { cwd: cloneRoot });
+
+    // Round 1: `git pull` fails -> falls back to CDN sync (`9.9.9`)
+    const r1 = await selfUpdateSkill({
+      skillDir: cloneSkill,
+      currentVersion: "0.1.0",
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+      testGitRepoCheck: true,
+    });
+    assert.equal(r1.ok, true);
+    assert.equal(r1.method, "cdn-incremental");
+
+    // Round 2: Remote advances to `10.0.0` -> even though git worktree has Round 1's CDN files, `isDirtyOnlyFromPriorCdnSync` allows Round 2!
+    remoteManifest.version = "10.0.0";
+    const r2 = await selfUpdateSkill({
+      skillDir: cloneSkill,
+      currentVersion: "9.9.9",
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+      testGitRepoCheck: true,
+    });
+    assert.equal(r2.ok, true);
+    assert.equal(r2.toVersion, "10.0.0");
+
+    // Round 3: Developer manually edits `SKILL.md` -> MUST block with `dirty_git_worktree`!
+    await fs.appendFile(path.join(cloneSkill, "SKILL.md"), "\n// developer local uncommitted edit\n");
+    const r3 = await selfUpdateSkill({
+      skillDir: cloneSkill,
+      currentVersion: "10.0.0",
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+      testGitRepoCheck: true,
+    });
+    assert.equal(r3.ok, false);
+    assert.equal(r3.reason, "dirty_git_worktree");
+
+    console.log("  [PASS] Passive 24h cached update check, dry-run, SHA-256 tamper rejection, user-repo isolation & multi-round China git-clone fallback verified!");
   } finally {
     server.close();
     await fs.rm(tmpRoot, { recursive: true, force: true });

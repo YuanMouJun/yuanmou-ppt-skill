@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { atomicReplaceFile, defaultCacheRoot } from "./providers/base-provider.mjs";
 
-export const KIT_VERSION = "0.1.4";
+export const KIT_VERSION = "0.1.5";
 export const GITHUB_REPO = "YuanMouJun/yuanmou-ppt-skill";
 
 // Flipped to `true` automatically by `pack_workbuddy_marketplace.mjs` so platform-hosted packages
@@ -39,7 +39,7 @@ async function sha256FileOrEmpty(filePath) {
 
 export function compareSemver(a, b) {
   const parse = (v) => {
-    const clean = String(v || "").trim().replace(/^[vV]/, "");
+    const clean = String(v || "").trim().replace(/^[vV]/, "").split("+", 1)[0];
     const [core, pre = ""] = clean.split("-", 2);
     const nums = core.split(".").map((n) => Number.parseInt(n, 10) || 0);
     return { major: nums[0] || 0, minor: nums[1] || 0, patch: nums[2] || 0, pre };
@@ -384,6 +384,51 @@ async function isYuanmouSkillGitClone(maybeRepoRoot) {
 }
 
 /**
+ * Checks whether a dirty git worktree in `yuanmou-ppt-skill` was caused SOLELY by a prior
+ * China-CDN fallback update (all modified/untracked files reside inside `skills/yuanmou-ppt/`
+ * and every file matches local `skill-manifest.json` SHA-256), rather than manual user edits.
+ */
+async function isDirtyOnlyFromPriorCdnSync(maybeRepoRoot, realSkillDir, porcelainOutput) {
+  const localManifestPath = path.join(realSkillDir, "skill-manifest.json");
+  if (!existsSync(localManifestPath)) return false;
+  let localManifest;
+  try {
+    localManifest = JSON.parse(await fs.readFile(localManifestPath, "utf8"));
+  } catch {
+    return false;
+  }
+  const manifestFiles = localManifest?.files;
+  if (!manifestFiles || typeof manifestFiles !== "object") return false;
+
+  const lines = String(porcelainOutput || "")
+    .split(/\r?\n/)
+    .map((l) => l.trimEnd())
+    .filter(Boolean);
+  if (lines.length === 0) return false;
+
+  for (const line of lines) {
+    // Porcelain v1 format: `XY path` or `XY orig -> renamed`
+    const rawPath = line.slice(3).split(" -> ").pop()?.trim().replace(/^"|"$/g, "");
+    if (!rawPath || !rawPath.startsWith("skills/yuanmou-ppt/")) {
+      return false;
+    }
+    const relToSkill = rawPath.slice("skills/yuanmou-ppt/".length);
+    if (!relToSkill || relToSkill === "skill-manifest.json") continue;
+    const fullPath = path.join(realSkillDir, ...relToSkill.split("/"));
+    if (!existsSync(fullPath)) {
+      // Deleted file is ok ONLY if it is no longer listed in local `skill-manifest.json`
+      if (Object.hasOwn(manifestFiles, relToSkill)) return false;
+      continue;
+    }
+    const expectedSha = manifestFiles[relToSkill];
+    if (!expectedSha) return false;
+    const actualSha = await sha256FileOrEmpty(fullPath);
+    if (actualSha !== expectedSha) return false;
+  }
+  return true;
+}
+
+/**
  * Explicit user-triggered one-click skill updater:
  * 1) Uses `git pull --ff-only` if installed via clean Git clone of `yuanmou-ppt-skill` (falling back to China CDN if GitHub is unreachable).
  * 2) Otherwise performs SHA-256 verified incremental file sync from China-accessible jsDelivr/GitHub mirrors,
@@ -419,15 +464,20 @@ export async function selfUpdateSkill(options = {}) {
   // Never misidentify a user's own project repo (`<user-project>/skills/yuanmou-ppt`)!
   const maybeRepoRoot = path.resolve(realSkillDir, "..", "..");
   const isGitRepo =
-    !baseUrlOverride && !options.cdnOnly && (await isYuanmouSkillGitClone(maybeRepoRoot));
+    (!baseUrlOverride || options.testGitRepoCheck) &&
+    !options.cdnOnly &&
+    (await isYuanmouSkillGitClone(maybeRepoRoot));
   if (isGitRepo) {
-    const statusRes = spawnSync("git", ["status", "--porcelain"], {
+    const statusRes = spawnSync("git", ["status", "--porcelain", "-uall"], {
       cwd: maybeRepoRoot,
       encoding: "utf8",
       timeout: 5000,
     });
     const isDirty = statusRes.status === 0 && Boolean(statusRes.stdout.trim());
-    if (isDirty && !force && !dryRun) {
+    const priorCdnSyncedOnly = isDirty
+      ? await isDirtyOnlyFromPriorCdnSync(maybeRepoRoot, realSkillDir, statusRes.stdout)
+      : false;
+    if (isDirty && !priorCdnSyncedOnly && !force && !dryRun) {
       return {
         ok: false,
         updated: false,

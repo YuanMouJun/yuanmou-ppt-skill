@@ -51,8 +51,7 @@ async function installToTarget(name, destDir, mode = "symlink") {
   await fs.mkdir(path.dirname(destDir), { recursive: true });
   await fs.rm(destDir, { recursive: true, force: true });
 
-  if (mode === "copy") {
-    // `skills/yuanmou-ppt` is already 100% self-contained (`SKILL.md` + `scripts/` + `packages/pptx-kit/`)
+  const copySelfContained = async () => {
     await fs.cp(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, {
       recursive: true,
       filter: (p) => {
@@ -60,8 +59,22 @@ async function installToTarget(name, destDir, mode = "symlink") {
         return base !== ".DS_Store" && base !== "__pycache__" && !base.endsWith(".pyc");
       },
     });
+  };
+
+  let effectiveMode = mode;
+  if (mode === "copy") {
+    // `skills/yuanmou-ppt` is already 100% self-contained (`SKILL.md` + `scripts/` + `packages/pptx-kit/`)
+    await copySelfContained();
   } else {
-    await fs.symlink(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, "dir");
+    // Use `"junction"` on Windows (works without Administrator / Developer Mode privileges),
+    // falling back seamlessly to `"copy"` if symlinks/junctions are restricted by OS policy.
+    const symlinkType = process.platform === "win32" ? "junction" : "dir";
+    try {
+      await fs.symlink(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), destDir, symlinkType);
+    } catch {
+      effectiveMode = "copy";
+      await copySelfContained();
+    }
   }
 
   if (name === "antigravity") {
@@ -83,7 +96,7 @@ async function installToTarget(name, destDir, mode = "symlink") {
     await fs.writeFile(pluginJsonPath, `${JSON.stringify(pluginManifest, null, 2)}\n`, "utf8");
   }
 
-  return { agent: name, path: destDir, mode };
+  return { agent: name, path: destDir, mode: effectiveMode };
 }
 
 async function main() {

@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.1.4",
-  "latestHighlights": "加固更新器用户仓库隔离、全路径CDN同步刷新与跨平台无依赖ZIP构建",
+  "version": "0.1.5",
+  "latestHighlights": "修复国内Git克隆多轮CDN升级状态锁、Windows免权限安装与未跟踪文件隐私门禁",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",
