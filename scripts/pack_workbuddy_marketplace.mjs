@@ -133,23 +133,48 @@ async function main() {
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt", "references"), path.join(bundleDir, "references"));
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt", "scripts"), path.join(bundleDir, "scripts"));
 
-    // 2) Embed zero-dep `pptx-kit` cleanly inside `scripts/pptx-kit/` so top-level stays strictly WorkBuddy-compliant
-    const embeddedKitDir = path.join(bundleDir, "scripts", "pptx-kit");
-    await copyClean(path.join(REPO_ROOT, "packages", "pptx-kit"), embeddedKitDir);
+    // 2) Flatten zero-dep `pptx-kit` directly into `scripts/` so the zip strictly satisfies
+    // WorkBuddy's 2-level directory depth limit (`yuanmou-ppt/{scripts,references}/<file>`).
+    const kitSrcRoot = path.join(REPO_ROOT, "packages", "pptx-kit");
+    const scriptsDir = path.join(bundleDir, "scripts");
 
-    // 3) Rewrite imports in `scripts/{kit,provider_cli,deck_cli}.mjs` -> `./pptx-kit/index.mjs`
+    const fileMap = new Map(); // posix relPath from kitSrcRoot -> flat filename in scripts/
+    fileMap.set("index.mjs", "kit-index.mjs");
+    for (const f of await fs.readdir(path.join(kitSrcRoot, "src"))) {
+      if (f.endsWith(".mjs")) fileMap.set(`src/${f}`, `kit-${f}`);
+    }
+    for (const f of await fs.readdir(path.join(kitSrcRoot, "src", "providers"))) {
+      if (f.endsWith(".mjs")) fileMap.set(`src/providers/${f}`, `kit-provider-${f}`);
+    }
+
+    for (const [relPosix, flatName] of fileMap.entries()) {
+      const srcPath = path.join(kitSrcRoot, ...relPosix.split("/"));
+      let src = await fs.readFile(srcPath, "utf8");
+      const origDir = path.posix.dirname(relPosix);
+      src = src.replace(/(from\s+["'])(\.\.?\/[^"']+)(["'])/g, (full, pre, spec, post) => {
+        const resolved = path.posix.normalize(origDir === "." ? spec : path.posix.join(origDir, spec));
+        const mapped = fileMap.get(resolved);
+        if (!mapped) {
+          throw new Error(`Unmapped relative import ${spec} (resolved: ${resolved}) in ${relPosix}`);
+        }
+        return `${pre}./${mapped}${post}`;
+      });
+      await fs.writeFile(path.join(scriptsDir, flatName), src, "utf8");
+    }
+
+    // 3) Rewrite imports in `scripts/{kit,provider_cli,deck_cli}.mjs` -> `./kit-index.mjs`
     for (const cliFile of ["kit.mjs", "provider_cli.mjs", "deck_cli.mjs"]) {
-      const p = path.join(bundleDir, "scripts", cliFile);
+      const p = path.join(scriptsDir, cliFile);
       const src = await fs.readFile(p, "utf8");
       await fs.writeFile(
         p,
-        src.replace("../../../packages/pptx-kit/index.mjs", "./pptx-kit/index.mjs"),
+        src.replace("../../../packages/pptx-kit/index.mjs", "./kit-index.mjs"),
         "utf8"
       );
     }
 
-    // 4) Switch embedded `local-provider.mjs` to pure offline local mode (zero external R2 / zero promotional text)
-    const lpPath = path.join(embeddedKitDir, "src", "providers", "local-provider.mjs");
+    // 4) Switch embedded `kit-provider-local-provider.mjs` to pure offline local mode
+    const lpPath = path.join(scriptsDir, "kit-provider-local-provider.mjs");
     let lpSrc = await fs.readFile(lpPath, "utf8");
     lpSrc = lpSrc
       .replace(
