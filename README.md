@@ -5,7 +5,7 @@
 [![AI Agents](https://img.shields.io/badge/AI%20Agents-WorkBuddy%20%7C%20Trae%20%7C%20Qoder%20%7C%20OpenClaw%20%7C%20Claude%20Code%20%7C%20Codex%20%7C%20Cursor-6366F1)](#快速开始)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
-> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **WorkBuddy, Trae, Qoder, CodeBuddy, OpenClaw, Claude Code, OpenAI Codex, Cursor, and Antigravity** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **11 automated OOXML & visual QA gates**.
+> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **WorkBuddy, Trae, Qoder, CodeBuddy, OpenClaw, Claude Code, OpenAI Codex, Cursor, and Antigravity** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, organic ink-brush & flood-fill masks, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **5 gate groups (15 automated OOXML & layout checks)** and side-by-side PDF visual QA.
 >
 > **一句话从零策划整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与全端 AI Agent Skill**（全覆盖国内主流 **WorkBuddy / Trae / Qoder / CodeBuddy / OpenClaw（龙虾）/ Kimi / Qwen Code** 与海外 **Claude Code / Codex / Cursor / Antigravity**）。无论是**只给一句话主题从零策划大纲、去 AI 腔文案、匹配 1.6W+ 真实商业版式库出整套视觉大片**，还是**把任意复杂截图/PDF 1:1 矢量复刻为可编辑 PowerPoint**、**对老旧 `.pptx` 无损换字换图与注入真 Excel 图表**，全链路一条龙交付。
 
@@ -13,17 +13,16 @@
 
 ## 快速开始
 
-### 必装环境依赖（强制门禁）
-为确保每一页 PPT 在交付前都经过真机渲染与视觉对齐核验（拒绝“盲画交付”），安装与运行前需具备以下环境（**零第三方 npm 依赖**）：
-- **Node.js `>= 22.5`**（内置 `node:sqlite` 与 `node:zlib`，无需 `npm install`）
-- **LibreOffice (`soffice`) + Poppler (`pdftoppm`)**（用于真机渲染 PNG 与视觉自检）：
+### 环境依赖（零 npm 依赖，支持真机渲染与离线降级双模式）
+- **必装：Node.js `>= 22.5`**（内置 `node:sqlite` 与 `node:zlib`，无需 `npm install`，即可运行全部原生 PPTX 构建与 **5 组 15 项静态代码门禁**）
+- **强烈推荐：LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)**（开启真机渲染、`compare_batch_*.jpg` 高清拼图与多页左右对照验收 PDF；在无权限装软件的沙箱中可自动降级为 `code-gates-only` 静态门禁模式）：
   ```bash
   # macOS
   brew install --cask libreoffice && brew install poppler
   # Ubuntu / Debian
   sudo apt update && sudo apt install -y libreoffice poppler-utils
   # Windows
-  winget install TheDocumentFoundation.LibreOffice  # 并将 poppler 加入 PATH
+  winget install TheDocumentFoundation.LibreOffice  # 并将 poppler 加入 PATH（或 pip install pypdfium2 pillow）
   ```
 
 ### 安装与自检
@@ -57,11 +56,11 @@ npm run test:m3
 | :--- | :--- | :--- |
 | **上手门槛** | ✅ **0 登录、0 配置、开箱即用**（安装完第一句话就能跑） | 飞书扫码授权 1 次（30 秒），后续自动免登续期 |
 | **一句话从零策划整套 PPT** | ✅ **支持从零创意策划**：只给一句话主题 → 咨询级大纲与去 AI 腔文案策划 → 1.6W+ 商业版式库同构选版 → 视觉大片级原生可编辑整套 `.pptx` | ✅ 完全包含，且可从 **10W+ 顶级商业视觉版式** 中挑版，审美上限更高 |
-| **图片 / 截图 / PDF 转 PPT** | ✅ 随手丢入小红书、行业报告、PDF 任意复杂排版（含多层遮罩、半透明玻璃叠层、圆角梯形），经 50% X-Ray 叠图与自动热点 2× 精检 1:1 还原为可编辑 `.pptx` | ✅ 完全包含（同一套 11 门禁矢量引擎） |
+| **图片 / 截图 / PDF 转 PPT** | ✅ 随手丢入小红书、行业报告、PDF 任意复杂排版（含多层遮罩、半透明玻璃叠层、圆角梯形、有机水墨笔刷与无孔洞蒙版），经 50% X-Ray 叠图与自动热点 2× 精检 1:1 还原为可编辑 `.pptx` | ✅ 完全包含（同一套 5 组 15 项门禁矢量引擎） |
 | **既有 `.pptx` 无损改版** | ✅ 支持对自己的 `.pptx` 模板原位换字、保蒙版换图、注入真 Excel 图表 | ✅ 完全包含 |
 | **内置现成商业版式库** | ✅ **开箱免登录自带 1.6W+ 页高质免费体验库**（含 1,600+ 结构化图示、封面/目录/图表/表格/种草/KFS/公司简介/复盘） | ✅ **享受 10W+ 持续日更高质量无水印商业模板**（覆盖全行业细分赛道、12 类图示家族与精细槽位指纹索引） |
 | **拉图方式与画质** | 自动静默同步全量索引 + 1 条命令 `batch-search` 按需拉取无损原图（临时目录 2 小时自动清理，防止 AI 偷懒复用旧图） | 本地毫秒级查库 + 按需拉取无损高清 PNG（临时目录 2 小时自动清理） |
-| **质量门禁与验收** | ✅ 内置 **11 道自动代码门禁**（ECMA-376 包结构、禁框中套框、内切宽度防孤字、WCAG 对比度、Anti-Slop、表格合计与 `.xlsx` 图表同步）+ 2.2 秒缓存渲染与 Base64 对比画廊 | ✅ 完全包含 |
+| **质量门禁与验收** | ✅ 内置 **5 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、禁框中套框、菱形/窄图形内切宽防孤字、禁实心块遮死底图、正文与表格最小字号、WCAG 对比度、Anti-Slop、表格合计与 `.xlsx` 图表同步）+ 缓存加速渲染 + 4 页一组高清拼图（`compare_batch_*.jpg`）与多页左右对照验收 PDF（`qa_compare.pdf`） | ✅ 完全包含 |
 | **适合人群** | 个人学习、日常汇报、从零做商业 PPT / 图片转可编辑 PPT 的所有用户 | 策划、咨询、品牌市场部、Agency 等高频交付与高审美需求从业者 |
 
 > 如需独立的 2026 各赛道行业报告库 / 完整 `.pptx` 策划方案库，或由渊眸团队真人承接方案撰写定制与品牌代运营，可联系 **渊眸策略**。
@@ -122,18 +121,18 @@ npm run test:m3
 
 ### 诚实说明：它目前的能力边界
 为了避免不切实际的预期，我们也把目前的边界说明白：
-- **强制要求安装 LibreOffice (`soffice`) + `pdftoppm`**：虽然生成 `.pptx` 引擎本身零 npm 依赖，但为了守住交付质量底线、防止“盲画走样”，我们把真机渲染自检工具链设为了强制环境门禁。
-- **目前聚焦咨询/策划高频 95% 的版式与图表类型**（柱状/条形/折线/面积/饼/环图、原生合并表、矢量路径、母版换字换图）；极冷门的 3D 图表、双轴组合图或非常规软件生成的畸形旧版 PPTX 仍在持续兼容中。
+- **真机渲染验收依赖 LibreOffice (`soffice`) + `pdftoppm`（或 `pypdfium2`）**：虽然生成 `.pptx` 与 5 组 15 项代码门禁零 npm 依赖且支持无渲染依赖离线降级（`code-gates-only`），但要跑完高清真机对比图（`compare_batch_*.jpg` / `qa_compare.pdf`），仍强烈建议在桌面端安装 LibreOffice 与 Poppler。
+- **目前聚焦咨询/策划高频 95% 的版式与图表类型**（柱状/条形/折线/面积/饼/环图、原生合并表、矢量路径、水墨笔刷蒙版、母版换字换图）；极冷门的 3D 图表、双轴组合图或非常规软件生成的畸形旧版 PPTX 仍在持续兼容中。
 
 ---
 
-## 核心工作流与省 Token 机制
+## 核心工作流与任务分流机制
 
-为了让 AI 在不同难度的页面上兼顾“还原度”与“速度/成本”，[SKILL.md](./skills/yuanmou-ppt/SKILL.md) 内置了按难度分级的执行策略：
+[SKILL.md](./skills/yuanmou-ppt/SKILL.md) 顶部内置了清晰的任务分流路由，兼顾“指令遵从”、“还原度”与“Token/速度”：
 
-- **L1 · 既有 `.pptx` 母本改版（最省 Token、还原度最高）**：直接解析原 `.pptx` 元素锚点，原位改字、保蒙版换图、注入原生图表，无需重绘结构，最后做 1 次交付终检即可。
-- **L2 · 常规截图 / 标准内容页**：直接单步生成 `.pptx` + 1 次全页并排渲染核对，不做多余轮次。
-- **L3 · 高难异形截图 1:1 复刻**：仅在遇到半透明叠层椭圆、弧边锥体、圆角倒梯形、复杂流程图时，才按需调用内置 `deck_cli.mjs inspect-ref`（2× 局部采色测透）与 `deck_cli.mjs diff`（50% 半透明叠图校准），先定壳子再灌图文。
+- **仅文字 / Markdown 大纲**：用户只要求输出 `.md` 逐页要点且不要求 `.pptx` 时，直接按咨询顾问结构与 Anti-Slop 规范产出 Markdown，不强行拉起 `.pptx` 工程流程。
+- **通道 A · 既有 `.pptx` 母本无损改版**：直接解析原 `.pptx` 元素锚点，原位改字、保蒙版换图、注入原生图表，无需重绘结构。
+- **通道 B · 从零策划 / 参考图 1:1 复刻**：按 4 类视觉页型分流（全出血半透明暗罩 / 菱形斜切与水墨笔刷 / 3D 物件与表单 / 常规与高难玻璃叠层），首轮过门禁先落盘 `./output/final.pptx`，再通过 `compare_batch_*.jpg` 与 `qa_compare.pdf` 精修验收。
 
 ---
 

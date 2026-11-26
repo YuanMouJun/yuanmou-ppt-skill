@@ -12,7 +12,7 @@ import { discoverRenderToolchain } from "../packages/pptx-kit/index.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 
-function assertRequiredEnvironment() {
+function checkEnvironment() {
   const [major, minor] = process.versions.node.split(".").map(Number);
   if (major < 22 || (major === 22 && minor < 5)) {
     throw new Error(`Node.js >= 22.5 is required (current: v${process.versions.node}).`);
@@ -20,17 +20,18 @@ function assertRequiredEnvironment() {
   const tc = discoverRenderToolchain();
   const missing = [];
   if (!tc.soffice) missing.push("LibreOffice (soffice)");
-  if (!tc.pdftoppm) missing.push("Poppler (pdftoppm)");
+  if (!tc.pdftoppm && !tc.hasPypdfium2) missing.push("Poppler (pdftoppm) 或 pypdfium2");
   if (missing.length > 0) {
-    throw new Error(
-      `[ENV GATE BLOCKED] 缺少必装视觉自检依赖：${missing.join("、")}。\n` +
-        `为确保每一页 PPT 交付前都能完成真机渲染与视觉对齐核验，本 Skill 将其设为强制依赖，请先安装：\n` +
+    console.warn(
+      `[INFO] 未检测到可选真机渲染依赖：${missing.join("、")}。\n` +
+        `Skill 仍可正常安装并在离线代码门禁模式（5 组 15 项检查）及纯 Markdown 策划模式下运行；\n` +
+        `如需开启真机渲染与高清视觉对照验收，建议补充安装：\n` +
         `  • macOS:   brew install --cask libreoffice && brew install poppler\n` +
         `  • Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils\n` +
-        `  • Windows: winget install TheDocumentFoundation.LibreOffice (并安装 poppler 加入 PATH)`
+        `  • Windows: winget install TheDocumentFoundation.LibreOffice (并将 poppler 加入 PATH 或 pip install pypdfium2 pillow)`
     );
   }
-  return tc;
+  return { toolchain: tc, missingRenderDeps: missing, mode: tc.canRenderSlides ? "full-visual" : "code-gates-only" };
 }
 
 const AGENT_TARGETS = {
@@ -105,7 +106,7 @@ async function main() {
     },
   });
 
-  const toolchain = assertRequiredEnvironment();
+  const envReport = checkEnvironment();
 
   const requested =
     values.target === "all"
@@ -127,7 +128,19 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ environment: "ok", toolchain, installed: results }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        environment: "ok",
+        verificationMode: envReport.mode,
+        missingRenderDeps: envReport.missingRenderDeps,
+        toolchain: envReport.toolchain,
+        installed: results,
+      },
+      null,
+      2
+    )
+  );
 }
 
 main().catch((err) => {

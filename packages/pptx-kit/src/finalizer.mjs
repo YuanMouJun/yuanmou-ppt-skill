@@ -1125,7 +1125,9 @@ function runGate5DataEvidence(zipMap) {
   }
 
   // 5B: Native `<a:tbl>` Total / Subtotal Arithmetic Check
-  const NON_ADDITIVE_HEADER_RE = /(?:roi|利率|利润率|转化率|增长率|增速|单价|均价|客单价|排名|编号|占比变化)/i;
+  const NON_ADDITIVE_HEADER_RE =
+    /(?:roi|roas|ctr|cvr|cpc|cpm|cpa|arpu|ltv|yoy|mom|率|增速|同比|环比|单价|均价|客单价|平均|均值|排名|编号|指数|评分|得分|占比变化)/i;
+  const ADDITIVE_PERCENT_HEADER_RE = /(?:占比|份额|权重|比例|分配|构成|share|weight|mix)/i;
   const TOTAL_LABEL_RE = /^(?:合计|总计|全天合计|年度合计|汇总|小计|total|grand total)$/i;
 
   for (const [partName, buf] of zipMap.entries()) {
@@ -1157,6 +1159,8 @@ function runGate5DataEvidence(zipMap) {
         if (NON_ADDITIVE_HEADER_RE.test(headers[c] || "")) continue;
         const totalParsed = parseBusinessNumber(lastRow[c]?.text);
         if (!totalParsed) continue;
+        // Percentage columns are only additive when they represent share/proportion (e.g. 预算占比), not rates/targets (e.g. 3.8%, 3.5%, avg 3.6%)
+        if (totalParsed.isPercent && !ADDITIVE_PERCENT_HEADER_RE.test(headers[c] || "")) continue;
 
         const bodyNums = [];
         let allBodyParseable = true;
