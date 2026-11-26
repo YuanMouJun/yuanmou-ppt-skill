@@ -858,10 +858,13 @@ function runGates2And4GeometryAndText(
       }
     }
 
-    // 2) Nested-Textbox-Inside-Colored-Shape Detector (严禁图形框中另套透明文本框)
-    const emptyPaintedShapes = items.filter(
-      (x) => x.tag === "p:sp" && !x.plainText && x.hasVisibleFillOrBorder && x.width >= 24 && x.height >= 16
-    );
+    // 2) Nested-Textbox-Inside-Colored-Shape Detector (严禁小节点/单卡片内另套透明文本框；豁免 fill:"none" 大装饰外框与大分区底板)
+    const emptyPaintedShapes = items.filter((x) => {
+      if (x.tag !== "p:sp" || x.plainText || !x.hasVisibleFillOrBorder || x.width < 24 || x.height < 16) return false;
+      const isHollowDecorFrame = !x.hasSolidFill && !x.hasGradOrBlipFill && (x.width >= 300 || x.height >= 180);
+      const isLargeZonePanel = x.width * x.height >= slideW * slideH * 0.26;
+      return !isHollowDecorFrame && !isLargeZonePanel;
+    });
     const transparentTextShapes = items.filter(
       (x) => x.tag === "p:sp" && x.plainText.length >= 1 && (x.isTextbox || !x.hasVisibleFillOrBorder) && x.width >= 16 && x.height >= 12
     );
@@ -1325,7 +1328,15 @@ export async function finalizeDeck({
     await fs.rename(tmpPublish, absOut);
   }
 
+  const warnings = report.issues.filter((i) => i.severity === "warn");
   return {
+    ok: report.passed,
+    passed: report.passed,
+    issues: report.issues,
+    warnings,
+    failCount: report.failCount,
+    warnCount: report.warnCount,
+    gates: report.gates,
     outputPath: absOut,
     receiptPath,
     sha256: report.sha256,

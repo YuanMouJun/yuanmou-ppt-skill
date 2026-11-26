@@ -232,6 +232,21 @@ export function mergeTextStyle(baseStyle = {}, overrideStyle = {}) {
   };
 }
 
+function parseSpaceToHundredthsPt(val) {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "string") {
+    const s = val.trim().toLowerCase();
+    const num = Number.parseFloat(s);
+    if (!Number.isFinite(num) || num <= 0) return 0;
+    return s.endsWith("px") ? Math.round(num * 0.75 * 100) : Math.round(num * 100);
+  }
+  if (typeof val === "number" && Number.isFinite(val) && val > 0) {
+    // <= 200: typographic `pt` (`spaceAfter: 12` -> `12pt` = `1200`); > 200: legacy OOXML hundredths-of-pt (`800` -> `8pt`)
+    return val <= 200 ? Math.round(val * 100) : Math.round(val);
+  }
+  return 0;
+}
+
 /**
  * Estimates CJK + Latin wrapped text height in CSS pixels for `height="hug"` and overflow gates.
  */
@@ -288,18 +303,25 @@ export function estimateParagraphsHeightPx(paragraphs, shapeStyle = {}, availWid
       ? 1 + explicitBreaks
       : Math.max(1, Math.ceil(lineAdvancePx / paraAvailW) + explicitBreaks);
 
-    const paraLineSpacing =
-      typeof para.lineSpacing === "number" && para.lineSpacing > 0
-        ? para.lineSpacing
-        : lineSpacingMult;
-
-    totalH += wrappedLines * maxRunFontPx * paraLineSpacing;
-
-    if (typeof para.spaceBefore === "number") {
-      totalH += (para.spaceBefore / 100) / 0.75;
+    const rawLs = para.lineSpacing ?? shapeStyle.lineSpacing;
+    if (typeof rawLs === "number" && rawLs > 0) {
+      if (rawLs <= 6) {
+        totalH += wrappedLines * maxRunFontPx * rawLs;
+      } else {
+        const lsPt = (rawLs <= 200 ? rawLs : rawLs / 100);
+        totalH += wrappedLines * (lsPt / 0.75);
+      }
+    } else {
+      totalH += wrappedLines * maxRunFontPx * lineSpacingMult;
     }
-    if (typeof para.spaceAfter === "number" && pIdx < normParas.length - 1) {
-      totalH += (para.spaceAfter / 100) / 0.75;
+
+    const spBef = parseSpaceToHundredthsPt(para.spaceBefore ?? para.style?.spaceBefore ?? shapeStyle.spaceBefore);
+    if (spBef > 0) {
+      totalH += (spBef / 100) / 0.75;
+    }
+    const spAft = parseSpaceToHundredthsPt(para.spaceAfter ?? para.style?.spaceAfter ?? shapeStyle.spaceAfter);
+    if (spAft > 0 && pIdx < normParas.length - 1) {
+      totalH += (spAft / 100) / 0.75;
     }
   }
 
@@ -360,13 +382,20 @@ export function renderTxBodyXml({
       const pPrChildren = [];
       const lineSpacing = para.lineSpacing ?? pStyle.lineSpacing;
       if (typeof lineSpacing === "number" && lineSpacing > 0) {
-        pPrChildren.push(`<a:lnSpc><a:spcPct val="${Math.round(lineSpacing * 100000)}"/></a:lnSpc>`);
+        if (lineSpacing <= 6) {
+          pPrChildren.push(`<a:lnSpc><a:spcPct val="${Math.round(lineSpacing * 100000)}"/></a:lnSpc>`);
+        } else {
+          const lsHundredths = Math.round(lineSpacing <= 200 ? lineSpacing * 100 : lineSpacing);
+          pPrChildren.push(`<a:lnSpc><a:spcPts val="${lsHundredths}"/></a:lnSpc>`);
+        }
       }
-      if (typeof para.spaceBefore === "number" && para.spaceBefore > 0) {
-        pPrChildren.push(`<a:spcBef><a:spcPts val="${Math.round(para.spaceBefore)}"/></a:spcBef>`);
+      const spBeforeVal = parseSpaceToHundredthsPt(para.spaceBefore ?? pStyle.spaceBefore);
+      if (spBeforeVal > 0) {
+        pPrChildren.push(`<a:spcBef><a:spcPts val="${spBeforeVal}"/></a:spcBef>`);
       }
-      if (typeof para.spaceAfter === "number" && para.spaceAfter > 0) {
-        pPrChildren.push(`<a:spcAft><a:spcPts val="${Math.round(para.spaceAfter)}"/></a:spcAft>`);
+      const spAfterVal = parseSpaceToHundredthsPt(para.spaceAfter ?? pStyle.spaceAfter);
+      if (spAfterVal > 0) {
+        pPrChildren.push(`<a:spcAft><a:spcPts val="${spAfterVal}"/></a:spcAft>`);
       }
 
       if (para.bulletCharacter) {

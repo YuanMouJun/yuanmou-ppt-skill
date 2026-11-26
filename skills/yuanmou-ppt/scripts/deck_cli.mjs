@@ -115,6 +115,31 @@ function runPythonVision(pyCode, argsJson, pythonBin) {
   return JSON.parse(res.stdout.trim());
 }
 
+function parseStrokeSpecs(raw) {
+  if (!raw || !raw.trim()) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("[")) {
+    return JSON.parse(trimmed);
+  }
+  // Semicolon-separated `x1,y1,x2,y2[,width[,fray]]`
+  return trimmed
+    .split(";")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const nums = entry.split(",").map((v) => Number(v.trim()));
+      if (nums.length < 4 || nums.some((v) => !Number.isFinite(v))) {
+        throw new Error(`Invalid --strokes entry "${entry}". Expected "x1,y1,x2,y2[,width]" or JSON array.`);
+      }
+      return {
+        from: [nums[0], nums[1]],
+        to: [nums[2], nums[3]],
+        ...(nums[4] !== undefined ? { width: nums[4] } : {}),
+        ...(nums[5] !== undefined ? { fray: nums[5] } : {}),
+      };
+    });
+}
+
 function parseCropSpecs(raw) {
   if (!raw || !raw.trim()) return [];
   return raw
@@ -351,8 +376,8 @@ os.makedirs(pairs_dir, exist_ok=True)
 
 pair_items = []
 n = min(len(refs), len(gens))
-pw, ph = 700, 394
-gap = 12
+pw, ph = 960, 540
+gap = 14
 
 for i in range(n):
     ri = Image.open(refs[i]).convert("RGB").resize((pw, ph), Image.Resampling.LANCZOS)
@@ -364,7 +389,7 @@ for i in range(n):
     pair.paste(ri, (gap, gap))
     pair.paste(gi, (pw + gap * 2, gap))
     out_jpg = os.path.join(pairs_dir, f"pair_{i+1:02d}.jpg")
-    pair.save(out_jpg, format="JPEG", quality=84, optimize=True)
+    pair.save(out_jpg, format="JPEG", quality=88, optimize=True)
     pair_items.append({
         "slide": i + 1,
         "refName": os.path.basename(refs[i]),
@@ -375,7 +400,7 @@ for i in range(n):
     })
 
 batches = []
-bw, bh = 640, 360
+bw, bh = 960, 540
 for b_idx in range(0, n, batch_size):
     chunk = pair_items[b_idx:b_idx + batch_size]
     sheet = Image.new("RGB", (bw * 2 + 24, len(chunk) * (bh + 12) + 12), (15, 23, 42))
@@ -386,7 +411,7 @@ for b_idx in range(0, n, batch_size):
         sheet.paste(ri, (8, y))
         sheet.paste(gi, (bw + 16, y))
     bp = os.path.join(out_dir, f"compare_batch_{len(batches) + 1}.jpg")
-    sheet.save(bp, format="JPEG", quality=86, optimize=True)
+    sheet.save(bp, format="JPEG", quality=90, optimize=True)
     batches.append({
         "batch": len(batches) + 1,
         "slides": f"P{chunk[0]['slide']}-P{chunk[-1]['slide']}",
@@ -497,6 +522,7 @@ async function main() {
       gallery: { type: "string" },
       title: { type: "string" },
       preset: { type: "string" },
+      strokes: { type: "string" },
       color: { type: "string" },
       opacity: { type: "string" },
       width: { type: "string" },
@@ -526,6 +552,7 @@ async function main() {
     }
     const res = await createBrushPng({
       preset: values.preset || "ink-band",
+      strokes: parseStrokeSpecs(values.strokes),
       color: values.color || "#C82829",
       opacity: values.opacity !== undefined ? Number(values.opacity) : 1,
       width: values.width ? Number(values.width) : 800,
@@ -554,6 +581,7 @@ async function main() {
     }
     const res = await applyAlphaMaskToImage({
       imagePath,
+      strokes: parseStrokeSpecs(values.strokes),
       maskPreset: values.preset,
       maskPngPath: values.mask,
       refMaskPath: values.ref,

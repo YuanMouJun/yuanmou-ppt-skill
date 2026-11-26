@@ -50,8 +50,8 @@ examples_en:
 ## 1. 核心工程铁律
 
 1. **纯原生 OOXML（禁止简化或贴图）**：所有 \`.pptx\` 构建、改版、表格与图表均调用 \`<SKILL_DIR>/scripts/kit.mjs\`；严禁 \`python-pptx\`，严禁简化省略结构，严禁用整页贴图冒充表格、流程图或可编辑重绘。图表必须内嵌 \`.xlsx\` 工作簿支持双击改数。
-2. **单图形承载底色与富文本（严禁框中套框）**：带底色/描边节点必须在同一个 \`<p:sp>\` 上直设 \`fill / line / text / textStyle\`（多字号/多色用富文本 \`runs\`，支持 \`{ text, bold, fontSize, color }\` 平层写法）；**严禁在图形内另套内框、覆盖透明文本框或用编组冒充**；表格文字直写单元格；项目符号用 \`makeBulletList()\`，禁手敲 \`"• "\`；禁 Emoji/方括号冒充图标与表单 UI；禁 4+ 连续空格定位；窄标签留足 5% 宽度余量。
-3. **只读保护与「先落盘、再精修」**：区分「内容源」与「版式参考」；要求源文件不动时严格只读（可用 \`verify --readonly-source\` 校验 SHA-256）；**首轮过代码门禁后立刻将正式成稿落盘到用户目标目录（如 \`./output/final.pptx\`），再按余量做 1～2 轮视觉微调并覆盖更新**，严禁全程锁在临时目录返工导致交付目录为空。
+2. **小节点单框合一 vs 大装饰框内独立定位**：按钮、标签或单段卡片必须在同一 \`<p:sp>\` 上直设 \`fill / line / text / textStyle\`（富文本 \`runs\` 支持 \`{ text, bold, fontSize, color }\` 平层写法）；**跨区域的 \`fill: "none"\` 大尺寸装饰外框或多分区底板，内部不同方位的元素（如左上引子与正中巨幅标题）应按真实坐标独立放置**，勿强塞同一文本框导致上半截空洞；表格文字直写单元格；项目符号用 \`makeBulletList()\`；禁 Emoji/方括号冒充图标与表单 UI；禁 4+ 连续空格定位；窄标签留足 5% 宽度余量。
+3. **只读保护、重做隔离与「先落盘、再精修」**：要求源文件不动时严格只读（可用 \`verify --readonly-source\` 校验 SHA-256）；重做或换风格时严禁跨旧目录偷拿废弃配图；构建脚本用 \`await deck.save("./work/candidate.pptx")\` 写出候选包并由 \`deck_cli.mjs verify --final ./output/final.pptx\` 单次完成门禁与发布，再做 1～2 轮视觉微调覆盖更新。
 4. **真机渲染自检与无依赖优雅降级**：所有 \`.pptx\` 成稿必须跑 \`deck_cli.mjs verify\`。本机具备 LibreOffice + Poppler（或 \`pypdfium2\`）时强制真机渲染并看图精修；**若缺渲染依赖，严禁私自上网下载安装包/字体，严禁修改技能脚本，严禁用自绘近似图冒充真机渲染**——\`verify\` 自动完成 **6 大门禁组 · 15 项静态代码检查**并原子发布 \`--final\`（返回 \`verificationMode: "code-gates-only"\` 与 \`visualVerified: false\`），桌面端提示安装复验，受限沙箱在交付说明首行如实注明未执行真机渲染。
 
 ## 2. 内容策划与版式规划
@@ -67,8 +67,8 @@ examples_en:
 
 ### 通道 B：从零生成 / 参考图与 PDF 1:1 复刻
 \`<=10\` 页常规图文/卡片/表格稿可用清晰单脚本一次成稿；\`>=12\` 页或复杂参考图 1:1 复刻在用户工作目录按页拆分模块化脚本再总装导出（脚本一律从工作区根目录运行或用 \`path.resolve\`，防相对路径叠加）：
-- **全出血大图 / 半透明遮罩**：底层全出血图片 + 中层半透明暗罩（\`fill: { color: "#0B1120", opacity: 0.55 }\`）+ 顶层 \`fill: "none"\` 线框，严禁 100% 实心块盖死底图；
-- **菱形 / 斜切多边形 / 倾斜卡 / 有机水墨笔刷**：使用 \`images.add({ geometry: "diamond" | svgPath, rotation })\`、\`createBrushPng\`（\`ink-circle-solid | ink-circle-ring | ink-band | ink-slash | ink-wave\`）与 \`applyAlphaMaskToImage\`，文字保持上层原生 \`<p:sp>\`；
+- **全出血大图 / 半透明遮罩**：底层全出血图片 + 中层半透明暗罩（\`fill: { color: "#0B1120", opacity: 0.55 }\`）+ 顶层 \`fill: "none"\` 大线框（框内引子与巨幅主标题独立定位），严禁 100% 实心块盖死底图；
+- **菱形 / 斜切多边形 / 倾斜卡 / 有机水墨笔刷**：使用 \`images.add({ geometry: "diamond" | svgPath, rotation })\`、\`applyAlphaMaskToImage\`（有参考图首选 \`refMaskPath + refCrop\` 1280×720 坐标提取轮廓，同色漫灌或拼多笔刷用 \`strokes: [{ from, to, width }]\`）与 \`createBrushPng\`（实心印章用 \`ink-circle-solid\`，空心环用 \`ink-circle-ring\`，斜扫带用 \`ink-band\`）；书封/屏幕等载体只生无字底图，文字与倾斜贴纸气泡（\`shapes.add({ rotation: -15 })\`）保持上层原生 \`<p:sp>\`；
 - **常规商务页**：直出内容稿 → 跑 \`deck_cli.mjs verify --final ./output/final.pptx\` 先落盘再按需微调；
 - **高难参考图精雕**（半透明玻璃叠层 / 弧边锥体 / 渐窄箭头 / 圆角倒梯形，可查 \`@references/structure-and-text.md\`）：有渲染环境时先 \`inspect-ref\` 采色与 2× 切片 → 先建骨架跑 \`verify --ref ./ref.png\` 核对叠图与热点放大 → 再注入正式内容；无渲染环境时直接按代码门禁构建并如实标注。
 - **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标保层次；**横竖重排**保持文字正常阅读方向，禁整图旋转。
@@ -89,7 +89,7 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./output/final.pptx \\
   --out ./work/qa --pdf ./output/qa_compare.pdf --anti-slop fail
 \`\`\`
 
-1. 当 \`visualVerified: true\` 时，必须实际查看 \`compare_batch_*.jpg\` / \`qa_sheet.png\`（有参考图时核对并排与 2× 热点图），不达标返工并覆盖更新 \`./output/final.pptx\`；
+1. 当 \`visualVerified: true\` 时，分批审阅 \`compare_batch_*.jpg\`（每轮最多读 2 张 = 8 页，重点核对 \`lowestPages\` 的标题占框比、对角构图重心、时间轴垂直刻度线、印章虚实与气泡倾角），结构失真必返工并覆盖更新 \`./output/final.pptx\`；
 2. 当 \`visualVerified: false\`（\`verificationMode: "code-gates-only"\`）时，直接交付已过 6 组 15 项代码门禁的 \`.pptx\`，并在交付说明首行如实标注验证范围与缺失依赖，严禁谎称已真机渲染或谎称 12pt 全部合规（须核对 \`warnings\`）。
 
 ## 6. \`@yuanmou/pptx-kit\` API 速查（坐标 \`px\` 1280×720 · \`fontSize\` 数值默认 \`pt\`）
@@ -156,10 +156,10 @@ async function main() {
     const fileMap = new Map(); // posix relPath from kitSrcRoot -> flat filename in scripts/
     fileMap.set("index.mjs", "kit-index.mjs");
     for (const f of await fs.readdir(path.join(kitSrcRoot, "src"))) {
-      if (f.endsWith(".mjs")) fileMap.set(`src/${f}`, `kit-${f}`);
+      if (f.endsWith(".mjs") && !f.endsWith(".local.mjs")) fileMap.set(`src/${f}`, `kit-${f}`);
     }
     for (const f of await fs.readdir(path.join(kitSrcRoot, "src", "providers"))) {
-      if (f.endsWith(".mjs")) fileMap.set(`src/providers/${f}`, `kit-provider-${f}`);
+      if (f.endsWith(".mjs") && !f.endsWith(".local.mjs")) fileMap.set(`src/providers/${f}`, `kit-provider-${f}`);
     }
 
     for (const [relPosix, flatName] of fileMap.entries()) {

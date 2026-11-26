@@ -19,7 +19,14 @@ const IGNORED_NAMES = new Set([".DS_Store", "__pycache__", "skill-manifest.json"
 async function walkRelFiles(rootDir, curDir = rootDir, acc = []) {
   const entries = await fs.readdir(curDir, { withFileTypes: true });
   for (const ent of entries) {
-    if (IGNORED_NAMES.has(ent.name) || ent.name.endsWith(".pyc") || ent.name.startsWith(".")) continue;
+    if (
+      IGNORED_NAMES.has(ent.name) ||
+      ent.name.endsWith(".pyc") ||
+      ent.name.endsWith(".local.mjs") ||
+      ent.name.startsWith(".")
+    ) {
+      continue;
+    }
     const full = path.join(curDir, ent.name);
     if (ent.isDirectory()) {
       await walkRelFiles(rootDir, full, acc);

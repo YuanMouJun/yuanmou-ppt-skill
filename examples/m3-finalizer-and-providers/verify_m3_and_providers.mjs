@@ -25,6 +25,10 @@ import {
   finalizeDeck,
   buildZipBuffer,
   readZipBuffer,
+  encodeRgbaPng,
+  decodePngToRgba,
+  createBrushPng,
+  applyAlphaMaskToImage,
   KIT_VERSION,
   compareSemver,
   checkSkillUpdate,
@@ -885,11 +889,114 @@ async function testSkillUpdater() {
   }
 }
 
+async function testBrushMaskAndTypographyUpgrades() {
+  console.log("=== [4/4] Testing v0.1.6 Brush Angle/Multi-Stroke/RefCrop, Typography pt Spacing & Hollow Frame Exemption ===");
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_v016_test_"));
+  try {
+    // 1) PNG encode <-> decode lossless round-trip + true pixel-space diagonal angle on wide 1280x460 canvas
+    const bandRes = await createBrushPng({ preset: "ink-band", width: 640, height: 230, angle: -15, color: "#1E293B" });
+    const decBand = decodePngToRgba(bandRes.buffer);
+    assert.equal(decBand.width, 640);
+    assert.equal(decBand.height, 230);
+    // Left half centroid Y vs Right half centroid Y must reflect negative upward slope (-15 deg)!
+    let leftY = 0, leftN = 0, rightY = 0, rightN = 0;
+    for (let y = 0; y < 230; y++) {
+      for (let x = 0; x < 640; x++) {
+        const a = decBand.rgba[(y * 640 + x) * 4 + 3];
+        if (a > 128) {
+          if (x < 240) { leftY += y; leftN++; }
+          else if (x > 400) { rightY += y; rightN++; }
+        }
+      }
+    }
+    const slope = (rightY / rightN - leftY / leftN) / (520 - 120);
+    assert.ok(slope < -0.15, `Expected clear upward diagonal slope on wide canvas, got ${slope.toFixed(3)}`);
+
+    // 2) Pure-Node applyAlphaMaskToImage: multi-stroke + 1280x720 refCrop + stray island pruning
+    const srcRgba = new Uint8Array(200 * 200 * 4);
+    for (let i = 0; i < 200 * 200; i++) {
+      srcRgba[i * 4] = 30; srcRgba[i * 4 + 1] = 80; srcRgba[i * 4 + 2] = 180; srcRgba[i * 4 + 3] = 255;
+    }
+    const srcPngPath = path.join(tmpDir, "src.png");
+    await fs.writeFile(srcPngPath, encodeRgbaPng(200, 200, srcRgba));
+
+    // Create a 2560x1440 (2x Retina of 1280x720!) white ref slide with a main dark diamond at (200..400, 200..400 in 1280x720)
+    // AND a small disconnected stray caption block at (260..320, 440..452 in 1280x720)
+    const rw = 2560, rh = 1440;
+    const refRgba = new Uint8Array(rw * rh * 4).fill(255);
+    for (let y = 420; y < 780; y++) {
+      for (let x = 420; x < 780; x++) {
+        if (Math.abs(x - 600) + Math.abs(y - 600) <= 150) {
+          const off = (y * rw + x) * 4;
+          refRgba[off] = 20; refRgba[off + 1] = 20; refRgba[off + 2] = 20;
+        }
+      }
+    }
+    // Stray disconnected caption island near bottom of crop
+    for (let y = 880; y < 900; y++) {
+      for (let x = 560; x < 640; x++) {
+        const off = (y * rw + x) * 4;
+        refRgba[off] = 20; refRgba[off + 1] = 20; refRgba[off + 2] = 20;
+      }
+    }
+    const refPngPath = path.join(tmpDir, "ref_retina.png");
+    await fs.writeFile(refPngPath, encodeRgbaPng(rw, rh, refRgba));
+
+    const maskedOut = path.join(tmpDir, "masked_ref.png");
+    const mRes = await applyAlphaMaskToImage({
+      imagePath: srcPngPath,
+      refMaskPath: refPngPath,
+      refCrop: [180, 180, 240, 285], // 1280x720 canvas coords!
+      width: 240,
+      height: 285,
+      outPath: maskedOut,
+    });
+    assert.equal(mRes.ok, true);
+    assert.equal(mRes.bleedWarning, false);
+    const decMasked = decodePngToRgba(await fs.readFile(maskedOut));
+    // Center of diamond (~120, 120) must be opaque; bottom stray island (~120, 265) must be pruned transparent!
+    assert.ok(decMasked.rgba[(120 * 240 + 120) * 4 + 3] > 240, "Main silhouette center should be opaque");
+    assert.equal(decMasked.rgba[(265 * 240 + 120) * 4 + 3], 0, "Disconnected stray caption island must be auto-pruned");
+
+    // 3) `spaceBefore / spaceAfter` in `pt`, `lineSpacing > 6` in `pt`, hollow frame exemption & top-level `finalizeDeck` fields
+    const d = Presentation.create({ title: "v0.1.6 Verification" });
+    const s = d.slides.add({ background: "#0F172A" });
+    s.shapes.add({ name: "外白框", geometry: "rect", position: { left: 64, top: 120, width: 1152, height: 460 }, fill: "none", line: { fill: "#FFFFFF", width: 8 } });
+    s.shapes.add({ name: "左上引子", geometry: "textbox", position: { left: 120, top: 168, width: 400, height: 36 }, text: "How about your living room?", textStyle: { fontSize: 15, color: "#E2E8F0" } });
+    s.shapes.add({
+      name: "主标题",
+      geometry: "textbox",
+      position: { left: 120, top: 230, width: 1040, height: 280 },
+      text: [
+        { runs: [{ text: "第一行大字", fontSize: 56, bold: true, color: "#FFFFFF" }], spaceAfter: 12, lineSpacing: 64 },
+        { runs: [{ text: "第二行大字", fontSize: 56, bold: true, color: "#FFFFFF" }] },
+      ],
+      textStyle: { alignment: "center", spaceBefore: 6 },
+    });
+    const slideXml = readZipBuffer(d.toPptxBuffer()).get("ppt/slides/slide1.xml").toString("utf8");
+    assert.ok(slideXml.includes('<a:spcAft><a:spcPts val="1200"/></a:spcAft>'), "spaceAfter: 12 must map to 1200 (12pt)");
+    assert.ok(slideXml.includes('<a:spcBef><a:spcPts val="600"/></a:spcBef>'), "textStyle.spaceBefore: 6 must map to 600 (6pt)");
+    assert.ok(slideXml.includes('<a:lnSpc><a:spcPts val="6400"/></a:lnSpc>'), "lineSpacing: 64 (>6) must map to 64pt spcPts");
+
+    const finOut = path.join(tmpDir, "fin.pptx");
+    const fin = await finalizeDeck({ deck: d, outputPath: finOut, antiSlop: "fail" });
+    assert.equal(fin.ok, true);
+    assert.equal(fin.passed, true);
+    assert.ok(Array.isArray(fin.issues) && Array.isArray(fin.warnings));
+    assert.ok(!fin.issues.some((i) => i.code === "nested_textbox_in_shape"), "Hollow outer frame must not trigger nested_textbox_in_shape");
+
+    console.log("  [PASS] True pixel-angle brush, multi-stroke/refCrop stray-island pruning, pt paragraph spacing, hollow-frame exemption & finalizeDeck top-level fields verified!");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
   await testSkillUpdater();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER TESTS PASSED!");
+  await testBrushMaskAndTypographyUpgrades();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 ENGINE TESTS PASSED!");
 }
 
 main().catch((err) => {

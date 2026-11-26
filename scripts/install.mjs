@@ -56,7 +56,7 @@ async function installToTarget(name, destDir, mode = "symlink") {
       recursive: true,
       filter: (p) => {
         const base = path.basename(p);
-        return base !== ".DS_Store" && base !== "__pycache__" && !base.endsWith(".pyc");
+        return base !== ".DS_Store" && base !== "__pycache__" && !base.endsWith(".pyc") && !base.endsWith(".local.mjs");
       },
     });
   };

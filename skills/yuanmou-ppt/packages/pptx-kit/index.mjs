@@ -78,6 +78,7 @@ export {
 } from "./src/providers/index.mjs";
 export {
   encodeRgbaPng,
+  decodePngToRgba,
   createBrushPng,
   applyAlphaMaskToImage,
 } from "./src/brush-mask.mjs";
