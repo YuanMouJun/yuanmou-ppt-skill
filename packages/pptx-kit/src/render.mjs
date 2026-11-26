@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
@@ -14,42 +15,79 @@ function findExecutable(name, extraCandidates = []) {
   const whichCmd = process.platform === "win32" ? "where" : "which";
   const res = spawnSync(whichCmd, [name], { encoding: "utf8" });
   if (res.status === 0 && res.stdout.trim()) {
-    return res.stdout.trim().split(/\r?\n/)[0];
+    const lines = res.stdout
+      .trim()
+      .split(/\r?\n/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    for (const line of lines) {
+      // Skip Windows Microsoft Store python stub (`WindowsApps\python*.exe`) when real python exists
+      if (process.platform === "win32" && /\\WindowsApps\\python/i.test(line)) continue;
+      if (existsSync(line)) return line;
+    }
+    return lines[0] || null;
   }
   return null;
 }
 
+function probePythonModule(pythonBin, moduleName) {
+  if (!pythonBin) return false;
+  const res = spawnSync(pythonBin, ["-c", `import ${moduleName}`], {
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  return res.status === 0;
+}
+
 export function discoverRenderToolchain() {
   const home = os.homedir();
+  const isWin = process.platform === "win32";
   const codexOverride = path.join(
     home,
     ".cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override"
   );
 
-  const soffice = findExecutable("soffice", [
+  const soffice = findExecutable(isWin ? "soffice.exe" : "soffice", [
     process.env.SOFFICE_BIN,
-    "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-    "/opt/homebrew/bin/soffice",
-    "/usr/local/bin/soffice",
-    "/usr/bin/soffice",
-    path.join(codexOverride, "soffice"),
+    ...(isWin
+      ? [
+          "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+          "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
+        ]
+      : [
+          "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+          "/opt/homebrew/bin/soffice",
+          "/usr/local/bin/soffice",
+          "/usr/bin/soffice",
+          path.join(codexOverride, "soffice"),
+        ]),
   ]);
 
-  const pdftoppm = findExecutable("pdftoppm", [
+  const pdftoppm = findExecutable(isWin ? "pdftoppm.exe" : "pdftoppm", [
     process.env.PDFTOPPM_BIN,
-    "/opt/homebrew/bin/pdftoppm",
-    "/usr/local/bin/pdftoppm",
-    "/usr/bin/pdftoppm",
-    path.join(codexOverride, "pdftoppm"),
+    ...(isWin
+      ? []
+      : [
+          "/opt/homebrew/bin/pdftoppm",
+          "/usr/local/bin/pdftoppm",
+          "/usr/bin/pdftoppm",
+          path.join(codexOverride, "pdftoppm"),
+        ]),
   ]);
 
-  const python3 = findExecutable("python3", [
-    "/opt/homebrew/bin/python3",
-    "/usr/local/bin/python3",
-    "/usr/bin/python3",
+  let python3 = findExecutable(isWin ? "python.exe" : "python3", [
+    process.env.PYTHON_BIN,
+    ...(isWin ? [] : ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"]),
   ]);
+  if (!python3) {
+    python3 = findExecutable(isWin ? "python3.exe" : "python", []);
+  }
 
-  return { soffice, pdftoppm, python3 };
+  const hasPypdfium2 = probePythonModule(python3, "pypdfium2");
+  const hasPillow = probePythonModule(python3, "PIL");
+  const canRenderSlides = Boolean(soffice && (pdftoppm || hasPypdfium2));
+
+  return { soffice, pdftoppm, python3, hasPypdfium2, hasPillow, canRenderSlides };
 }
 
 async function ensureChineseFontconfig(workDir) {
@@ -119,11 +157,12 @@ export async function renderDeckToPngs(pptxPath, options = {}) {
       ...(fontconfigFile ? { FONTCONFIG_FILE: fontconfigFile } : {}),
     };
 
+    const loProfileUrl = pathToFileURL(loProfile).href;
     const loRes = spawnSync(
       soffice,
       [
         "--headless",
-        `-env:UserInstallation=file://${loProfile}`,
+        `-env:UserInstallation=${loProfileUrl}`,
         "--convert-to",
         "pdf",
         "--outdir",
@@ -146,9 +185,9 @@ export async function renderDeckToPngs(pptxPath, options = {}) {
 
     if (pdftoppm) {
       const outPrefix = path.join(outDir, prefixName);
-      const ppmRes = spawnSync("pdftoppm", ["-png", "-r", String(dpi), pdfPath, outPrefix], {
+      const ppmRes = spawnSync(pdftoppm, ["-png", "-r", String(dpi), pdfPath, outPrefix], {
         encoding: "utf8",
-        env: { ...env, PATH: `${path.dirname(pdftoppm)}:${process.env.PATH || ""}` },
+        env: { ...env, PATH: `${path.dirname(pdftoppm)}${path.delimiter}${process.env.PATH || ""}` },
         timeout: 120_000,
       });
       if (ppmRes.status !== 0) {

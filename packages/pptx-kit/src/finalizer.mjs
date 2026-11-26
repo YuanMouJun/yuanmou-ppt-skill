@@ -8,6 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { emuToPx } from "./units.mjs";
+import { buildPptxBuffer } from "./package-builder.mjs";
 import { readZipBuffer } from "./xml.mjs";
 
 // ============================================================================
@@ -778,22 +779,38 @@ function runGates2And4GeometryAndText(
             message: `Slide ${slideNo} "${it.name}" uses unmatched "《" as a fake decorative icon ("${it.plainText.slice(0, 28)}") — draw a native vector shape instead`,
           });
         }
-        // Tiny non-footer body text (<11pt) check
+        // Tiny non-footer body text check (<9pt fail, 9–11.9pt warn)
         const isEdgeFooterOrHeader = it.top <= 48 || it.top + it.height >= slideH - 36;
-        if (!isEdgeFooterOrHeader && it.plainText.length >= 10) {
-          const minRunPt = Math.min(
-            ...it.paras
-              .filter((p) => p.text.trim().length > 0)
-              .map((p) => p.fontPt || 18)
-          );
-          if (minRunPt < 11) {
+        if (!isEdgeFooterOrHeader && it.plainText.length >= 12) {
+          const runPts = [];
+          for (const p of it.paras) {
+            if (!p.text.trim()) continue;
+            if (p.runs && p.runs.length > 0) {
+              for (const r of p.runs) {
+                if (r.text.trim()) runPts.push(r.fontPt ?? p.fontPt ?? 14);
+              }
+            } else {
+              runPts.push(p.fontPt || 14);
+            }
+          }
+          const minRunPt = runPts.length > 0 ? Math.min(...runPts) : 14;
+          if (minRunPt < 9) {
+            issues.push({
+              gate: "layout_geometry",
+              severity: "fail",
+              code: "tiny_body_font_size",
+              slide: slideNo,
+              element: it.name,
+              message: `Slide ${slideNo} "${it.name}" uses unreadable ${minRunPt}pt body text ("${it.plainText.slice(0, 24)}") — body text must be >=9pt (recommended >=12pt)`,
+            });
+          } else if (minRunPt < 12) {
             issues.push({
               gate: "layout_geometry",
               severity: "warn",
               code: "tiny_body_font_size",
               slide: slideNo,
               element: it.name,
-              message: `Slide ${slideNo} "${it.name}" uses tiny ${minRunPt}pt body text ("${it.plainText.slice(0, 24)}") — keep slide body text >=12pt`,
+              message: `Slide ${slideNo} "${it.name}" uses ${minRunPt}pt body text ("${it.plainText.slice(0, 24)}") — below the 12pt body guideline`,
             });
           }
         }
@@ -957,6 +974,44 @@ function runGates2And4GeometryAndText(
             message: `Slide ${slideNo} text elements "${a.name}" and "${b.name}" collide (${Math.round((interArea / minArea) * 100)}% overlap)`,
           });
         }
+      }
+    }
+
+    // 5) Native `<a:tbl>` Table Cell Minimum Font Size Check (<9pt fail, 9–11.9pt warn)
+    for (const tblMatch of xml.matchAll(/<a:tbl>([\s\S]*?)<\/a:tbl>/g)) {
+      let minTblPt = Infinity;
+      let sampleCellText = "";
+      for (const tcMatch of tblMatch[1].matchAll(/<a:tc\b[^>]*>([\s\S]*?)<\/a:tc>/g)) {
+        const tcInner = tcMatch[1];
+        for (const rMatch of tcInner.matchAll(/<a:r\b[^>]*>([\s\S]*?)<\/a:r>/g)) {
+          const rInner = rMatch[1];
+          const rTxt = decodeXml(rInner.match(/<a:t>([\s\S]*?)<\/a:t>/)?.[1] || "").trim();
+          if (!rTxt) continue;
+          const szAttr = rInner.match(/<a:rPr\b[^>]*\bsz="(\d+)"/)?.[1];
+          if (!szAttr) continue;
+          const pt = Number.parseInt(szAttr, 10) / 100;
+          if (pt < minTblPt) {
+            minTblPt = pt;
+            sampleCellText = rTxt;
+          }
+        }
+      }
+      if (minTblPt < 9) {
+        issues.push({
+          gate: "layout_geometry",
+          severity: "fail",
+          code: "tiny_table_font_size",
+          slide: slideNo,
+          message: `Slide ${slideNo} table uses unreadable ${minTblPt}pt cell text ("${sampleCellText.slice(0, 20)}") — table text must be >=9pt (recommended >=12pt)`,
+        });
+      } else if (minTblPt < 12) {
+        issues.push({
+          gate: "layout_geometry",
+          severity: "warn",
+          code: "tiny_table_font_size",
+          slide: slideNo,
+          message: `Slide ${slideNo} table uses ${minTblPt}pt cell text ("${sampleCellText.slice(0, 20)}") — below the 12pt readability guideline`,
+        });
       }
     }
   }
@@ -1218,7 +1273,6 @@ export async function finalizeDeck({
   } else if (typeof deck?.toPptxBuffer === "function") {
     buf = deck.toPptxBuffer();
   } else if (deck) {
-    const { buildPptxBuffer } = await import("./package-builder.mjs");
     buf = buildPptxBuffer(deck);
   } else {
     throw new Error("finalizeDeck requires `deck` or `candidatePptxPath`");

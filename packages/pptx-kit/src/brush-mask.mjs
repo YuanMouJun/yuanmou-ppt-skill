@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import zlib from "node:zlib";
 import { spawnSync } from "node:child_process";
+import { discoverRenderToolchain } from "./render.mjs";
 
 // ============================================================================
 // Pure Node.js RGBA PNG Encoder (zlib + CRC32, zero third-party deps)
@@ -541,7 +542,8 @@ export async function applyAlphaMaskToImage({
       height,
       outPath: resolvedOut,
     };
-    const res = spawnSync("python3", ["-c", PY_APPLY_MASK, JSON.stringify(payload)], {
+    const pythonBin = discoverRenderToolchain().python3 || "python3";
+    const res = spawnSync(pythonBin, ["-c", PY_APPLY_MASK, JSON.stringify(payload)], {
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,
     });

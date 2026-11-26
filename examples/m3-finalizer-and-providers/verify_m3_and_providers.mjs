@@ -544,6 +544,66 @@ async function testM3Finalizer() {
   const blockedExists = await fs.stat(blockedOut).then(() => true, () => false);
   assert.equal(blockedExists, false, "Blocked deck must NEVER be written to outputPath");
 
+  // Verify `Presentation.toPptxBuffer()`, numeric `fontSize` = pt (explicit `"24px"` = 18pt), and flat run styles
+  const unitDeck = Presentation.create({ title: "Unit & Flat Run Test" });
+  const us = unitDeck.slides.add({ background: "#FFFFFF" });
+  us.shapes.add({
+    name: "unit-check",
+    position: { left: 64, top: 60, width: 960, height: 80 },
+    text: [
+      {
+        runs: [
+          { text: "标题三十二磅 ", bold: true, fontSize: 32, color: "#C82829" },
+          { text: "正文十四磅 ", fontSize: 14, color: "#1E293B" },
+          { text: "显式二十四像素", fontSize: "24px", color: "#334155" },
+        ],
+      },
+    ],
+  });
+  const unitBuf = unitDeck.toPptxBuffer();
+  const unitXml = readZipBuffer(unitBuf).get("ppt/slides/slide1.xml").toString("utf8");
+  assert.ok(unitXml.includes('sz="3200"') && unitXml.includes('b="1"') && unitXml.includes('val="C82829"'));
+  assert.ok(unitXml.includes('sz="1400"'));
+  assert.ok(unitXml.includes('sz="1800"'));
+
+  // Verify tiny body & table font size gates (<9pt fail, 9-11.9pt warn)
+  const tinyWarnDeck = Presentation.create({ title: "Tiny Warn Deck" });
+  const tws = tinyWarnDeck.slides.add({ background: "#FFFFFF" });
+  tws.shapes.add({
+    name: "body-10pt",
+    position: { left: 64, top: 120, width: 600, height: 60 },
+    text: "这是一段十磅字号的正文内容，应当触发告警而不直接阻断。",
+    textStyle: { fontSize: 10, color: "#1E293B" },
+  });
+  tws.tables.add({
+    position: { left: 64, top: 220, width: 600, height: 140 },
+    bodyTextStyle: { fontSize: 10.5 },
+    values: [["指标", "数值"], ["转化率", "3.8%"]],
+  });
+  const warnReport = await validateDeckBuffer(tinyWarnDeck.toPptxBuffer(), { antiSlop: "fail" });
+  assert.equal(warnReport.passed, true, "10-10.5pt text should warn, not hard fail");
+  assert.ok(warnReport.issues.some((i) => i.code === "tiny_body_font_size" && i.severity === "warn"));
+  assert.ok(warnReport.issues.some((i) => i.code === "tiny_table_font_size" && i.severity === "warn"));
+
+  const tinyFailDeck = Presentation.create({ title: "Tiny Fail Deck" });
+  const tfs = tinyFailDeck.slides.add({ background: "#FFFFFF" });
+  tfs.shapes.add({
+    name: "body-8pt",
+    position: { left: 64, top: 120, width: 600, height: 60 },
+    text: "这是一段八磅超小字号的正文内容，投影不可读必须阻断。",
+    textStyle: { fontSize: 8, color: "#1E293B" },
+  });
+  tfs.tables.add({
+    position: { left: 64, top: 220, width: 600, height: 140 },
+    bodyTextStyle: { fontSize: 8 },
+    values: [["指标", "数值"], ["转化率", "3.8%"]],
+  });
+  const failReport = await validateDeckBuffer(tinyFailDeck.toPptxBuffer(), { antiSlop: "fail" });
+  assert.equal(failReport.passed, false, "<9pt text must hard fail");
+  assert.ok(failReport.issues.some((i) => i.code === "tiny_body_font_size" && i.severity === "fail"));
+  assert.ok(failReport.issues.some((i) => i.code === "tiny_table_font_size" && i.severity === "fail"));
+  console.log("  [PASS] Unit consistency (pt/px), flat run styles, Presentation.toPptxBuffer(), and tiny font gates verified!");
+
   console.log(
     `  [PASS] Negative sabotage test caught all ${codes.size} defect types across all 5 gates & blocked atomic publish!`
   );

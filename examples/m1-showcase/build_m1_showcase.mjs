@@ -34,7 +34,7 @@ function addConsultingHeader(slide, { category, title, metricTag }) {
   });
   brandPlate.text = "渊眸策略";
   brandPlate.text.style = {
-    fontSize: 13,
+    fontSize: "13px",
     bold: true,
     color: "#FDE68A",
     alignment: "center",
@@ -50,7 +50,7 @@ function addConsultingHeader(slide, { category, title, metricTag }) {
   });
   catLabel.text = category;
   catLabel.text.style = {
-    fontSize: 14,
+    fontSize: "14px",
     bold: true,
     color: "#0F3A7D",
     verticalAlignment: "middle",
@@ -66,7 +66,7 @@ function addConsultingHeader(slide, { category, title, metricTag }) {
     });
     tagBox.text = metricTag;
     tagBox.text.style = {
-      fontSize: 13,
+      fontSize: "13px",
       bold: true,
       color: "#334155",
       alignment: "center",
@@ -111,7 +111,7 @@ function addSlideFooter(slide, pageNo, sourceNote) {
     position: { left: 56, top: 684, width: 960, height: 22 },
   });
   src.text = sourceNote;
-  src.text.style = { fontSize: 12, color: "#64748B", verticalAlignment: "middle" };
+  src.text.style = { fontSize: "12px", color: "#64748B", verticalAlignment: "middle" };
 
   const pg = slide.shapes.add({
     geometry: "textbox",
@@ -120,7 +120,7 @@ function addSlideFooter(slide, pageNo, sourceNote) {
   });
   pg.text = `${pageNo}`;
   pg.text.style = {
-    fontSize: 12,
+    fontSize: "12px",
     bold: true,
     color: "#475569",
     alignment: "right",
@@ -159,11 +159,11 @@ async function main() {
           justify: "center",
         },
         paragraph(
-          { style: { fontSize: 21, bold: true, color: "#FFFFFF", alignment: "center" } },
+          { style: { fontSize: "21px", bold: true, color: "#FFFFFF", alignment: "center" } },
           "年度北极星：从单点爆文采买转向「核心人群资产沉淀 + 搜索首屏高转化截流」"
         ),
         paragraph(
-          { style: { fontSize: 14, color: "#BAE6FD", alignment: "center" }, spaceBefore: 400 },
+          { style: { fontSize: "14px", color: "#BAE6FD", alignment: "center" }, spaceBefore: 400 },
           "预算分配基准：品牌曝光 25%   /   精准达人种草 58%   /   搜索与店铺阵地承接 17%"
         )
       ),
@@ -218,7 +218,7 @@ async function main() {
                 justify: "center",
               },
               paragraph(
-                { style: { fontSize: 15, bold: true, color: "#FFFFFF" } },
+                { style: { fontSize: "15px", bold: true, color: "#FFFFFF" } },
                 pillar.code
               )
             ),
@@ -232,7 +232,7 @@ async function main() {
                 padding: { top: 16, bottom: 16, left: 18, right: 18 },
               },
               paragraph(
-                { style: { fontSize: 18, bold: true, color: "#0F172A" }, spaceAfter: 800 },
+                { style: { fontSize: "18px", bold: true, color: "#0F172A" }, spaceAfter: 800 },
                 pillar.headline
               ),
               ...makeBulletList(pillar.points, {
@@ -249,7 +249,7 @@ async function main() {
                     marginLeft: bp.marginLeft,
                     indent: bp.indent,
                     spaceAfter: bp.spaceAfter,
-                    style: { fontSize: 14.5, color: "#334155", lineSpacing: 1.38 },
+                    style: { fontSize: "14.5px", color: "#334155", lineSpacing: 1.38 },
                   },
                   bp.runs[0]
                 )
@@ -272,7 +272,7 @@ async function main() {
             justify: "center",
           },
           paragraph(
-            { style: { fontSize: 15, bold: true, color: "#FACC15" } },
+            { style: { fontSize: "15px", bold: true, color: "#FACC15" } },
             "内容中台基座：标准化高赞视觉母版库 + 卖点合规门禁词典"
           )
         ),
@@ -286,7 +286,7 @@ async function main() {
             justify: "center",
           },
           paragraph(
-            { style: { fontSize: 15, bold: true, color: "#38BDF8" } },
+            { style: { fontSize: "15px", bold: true, color: "#38BDF8" } },
             "数据度量基座：阅读渗透率 × 品类词SOV × 自然回搜GMV归因"
           )
         )
@@ -340,7 +340,7 @@ async function main() {
   });
   railCaption.text = "声量破圈";
   railCaption.text.style = {
-    fontSize: 12.5,
+    fontSize: "12.5px",
     bold: true,
     color: "#B45309",
     alignment: "center",
@@ -412,10 +412,10 @@ async function main() {
       customPaths: [{ width: w, height: tier.height, commands: tier.cmds }],
     });
     sp.text.set([
-      [{ run: tier.label, style: { fontSize: 16.5, bold: true, color: "#FFFFFF" } }],
+      [{ run: tier.label, style: { fontSize: "16.5px", bold: true, color: "#FFFFFF" } }],
       {
         spaceBefore: 300,
-        runs: [{ run: tier.sub, style: { fontSize: 13.5, color: "#E2E8F0" } }],
+        runs: [{ run: tier.sub, style: { fontSize: "13.5px", color: "#E2E8F0" } }],
       },
     ]);
     sp.text.style = {
@@ -461,10 +461,10 @@ async function main() {
       borderRadius: 10,
     });
     card.text.set([
-      [{ run: act.title, style: { fontSize: 16.5, bold: true, color: act.border } }],
+      [{ run: act.title, style: { fontSize: "16.5px", bold: true, color: act.border } }],
       {
         spaceBefore: 500,
-        runs: [{ run: act.body, style: { fontSize: 14, color: "#1E293B" } }],
+        runs: [{ run: act.body, style: { fontSize: "14px", color: "#1E293B" } }],
       },
     ]);
     card.text.style = {
@@ -561,11 +561,11 @@ async function main() {
               justify: "center",
             },
             paragraph(
-              { style: { fontSize: 13, color: "#BAE6FD", bold: true } },
+              { style: { fontSize: "13px", color: "#BAE6FD", bold: true } },
               "高端美白精华单品心智"
             ),
             paragraph(
-              { style: { fontSize: 30, color: "#FACC15", bold: true }, spaceBefore: 300 },
+              { style: { fontSize: "30px", color: "#FACC15", bold: true }, spaceBefore: 300 },
               "TOP 2"
             )
           ),
@@ -578,11 +578,11 @@ async function main() {
               justify: "center",
             },
             paragraph(
-              { style: { fontSize: 13, color: "#FECACA", bold: true } },
+              { style: { fontSize: "13px", color: "#FECACA", bold: true } },
               "H2 品牌预算环比增长"
             ),
             paragraph(
-              { style: { fontSize: 30, color: "#FDE68A", bold: true }, spaceBefore: 300 },
+              { style: { fontSize: "30px", color: "#FDE68A", bold: true }, spaceBefore: 300 },
               "+181%"
             )
           )
@@ -598,7 +598,7 @@ async function main() {
             padding: { top: 18, bottom: 18, left: 20, right: 20 },
           },
           paragraph(
-            { style: { fontSize: 18, bold: true, color: "#0F172A" }, spaceAfter: 800 },
+            { style: { fontSize: "18px", bold: true, color: "#0F172A" }, spaceAfter: 800 },
             "专案破局三大关键动作拆解"
           ),
           ...makeBulletList(
@@ -622,7 +622,7 @@ async function main() {
                 marginLeft: bp.marginLeft,
                 indent: bp.indent,
                 spaceAfter: bp.spaceAfter,
-                style: { fontSize: 14, color: "#334155", lineSpacing: 1.42 },
+                style: { fontSize: "14px", color: "#334155", lineSpacing: 1.42 },
               },
               bp.runs[0]
             )

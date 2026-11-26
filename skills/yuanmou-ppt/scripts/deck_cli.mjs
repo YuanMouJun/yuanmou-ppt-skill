@@ -22,21 +22,29 @@ import {
   applyAlphaMaskToImage,
 } from "../../../packages/pptx-kit/index.mjs";
 
-function assertRequiredRenderDeps() {
-  const tc = discoverRenderToolchain();
+const INSTALL_RENDER_HINT = [
+  "macOS:   brew install --cask libreoffice && brew install poppler",
+  "Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils",
+  "Windows: winget install TheDocumentFoundation.LibreOffice (并安装 poppler 加入 PATH 或 pip install pypdfium2 pillow)",
+].join("\n  • ");
+
+function inspectRenderDeps() {
+  const toolchain = discoverRenderToolchain();
   const missing = [];
-  if (!tc.soffice) missing.push("LibreOffice (soffice)");
-  if (!tc.pdftoppm) missing.push("Poppler (pdftoppm)");
-  if (missing.length > 0) {
+  if (!toolchain.soffice) missing.push("LibreOffice (soffice)");
+  if (!toolchain.pdftoppm && !toolchain.hasPypdfium2) missing.push("Poppler (pdftoppm) 或 pypdfium2");
+  const canRender = Boolean(toolchain.soffice && (toolchain.pdftoppm || toolchain.hasPypdfium2));
+  return { toolchain, missing, canRender, installHint: INSTALL_RENDER_HINT };
+}
+
+function assertRenderDeps(depInfo = inspectRenderDeps()) {
+  if (!depInfo.canRender) {
     throw new Error(
-      `[ENV GATE BLOCKED] 缺少必装视觉自检依赖：${missing.join("、")}。\n` +
-        `为防止无视觉核验盲画导致排版瑕疵，必须先安装以下环境：\n` +
-        `  • macOS:   brew install --cask libreoffice && brew install poppler\n` +
-        `  • Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils\n` +
-        `  • Windows: winget install TheDocumentFoundation.LibreOffice (并安装 poppler 加入 PATH)`
+      `[ENV GATE BLOCKED] 缺少视觉渲染依赖：${depInfo.missing.join("、")}。\n` +
+        `请先安装以下环境后再执行真机渲染：\n  • ${depInfo.installHint}`
     );
   }
-  return tc;
+  return depInfo.toolchain;
 }
 
 async function sha256File(filePath) {
@@ -45,9 +53,9 @@ async function sha256File(filePath) {
 }
 
 /**
- * If `inputPath` is a `.pdf`, renders `pageNo` (1-based) to PNG via mandatory `pdftoppm`.
+ * If `inputPath` is a `.pdf`, renders `pageNo` (1-based) to PNG via `pdftoppm` (with `pypdfium2` / `fitz` fallback).
  */
-async function ensureReferenceImagePath(inputPath, outDir, pageNo = 1, pdftoppmBin = "pdftoppm") {
+async function ensureReferenceImagePath(inputPath, outDir, pageNo = 1, toolchain = discoverRenderToolchain()) {
   const abs = path.resolve(inputPath);
   if (!existsSync(abs)) {
     throw new Error(`Reference file not found: ${abs}`);
@@ -57,20 +65,39 @@ async function ensureReferenceImagePath(inputPath, outDir, pageNo = 1, pdftoppmB
   }
   await fs.mkdir(outDir, { recursive: true });
   const prefix = path.join(outDir, `pdf_p${pageNo}`);
-  const res = spawnSync(
-    pdftoppmBin,
-    ["-png", "-r", "220", "-f", String(pageNo), "-l", String(pageNo), "-singlefile", abs, prefix],
-    { encoding: "utf8" }
-  );
   const outPng = `${prefix}.png`;
-  if (res.status !== 0 || !existsSync(outPng)) {
-    throw new Error(`Failed to render PDF page ${pageNo} via pdftoppm:\n${res.stderr || res.stdout}`);
+  if (toolchain.pdftoppm) {
+    const res = spawnSync(
+      toolchain.pdftoppm,
+      ["-png", "-r", "220", "-f", String(pageNo), "-l", String(pageNo), "-singlefile", abs, prefix],
+      { encoding: "utf8" }
+    );
+    if (res.status === 0 && existsSync(outPng)) return outPng;
   }
-  return outPng;
+  if (toolchain.python3) {
+    const pyPdf = `
+import sys
+pdf_path, out_png, page_no = sys.argv[1], sys.argv[2], int(sys.argv[3])
+try:
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument(pdf_path)
+    doc[page_no - 1].render(scale=220.0 / 72.0).to_pil().save(out_png)
+except Exception:
+    import fitz
+    doc = fitz.open(pdf_path)
+    doc[page_no - 1].get_pixmap(dpi=220).save(out_png)
+`;
+    const pyRes = spawnSync(toolchain.python3, ["-c", pyPdf, abs, outPng, String(pageNo)], { encoding: "utf8" });
+    if (pyRes.status === 0 && existsSync(outPng)) return outPng;
+  }
+  throw new Error(
+    `Failed to render PDF page ${pageNo}: neither Poppler (pdftoppm) nor Python (pypdfium2 / pymupdf) is available. Convert PDF page to PNG or install Poppler.`
+  );
 }
 
-function runPythonVision(pyCode, argsJson) {
-  const res = spawnSync("python3", ["-c", pyCode, JSON.stringify(argsJson)], {
+function runPythonVision(pyCode, argsJson, pythonBin) {
+  const py = pythonBin || discoverRenderToolchain().python3 || (process.platform === "win32" ? "python" : "python3");
+  const res = spawnSync(py, ["-c", pyCode, JSON.stringify(argsJson)], {
     encoding: "utf8",
     maxBuffer: 20 * 1024 * 1024,
   });
@@ -452,6 +479,7 @@ async function main() {
       "anti-slop": { type: "string" },
       "font-policy": { type: "string" },
       "allow-full-bg-pic": { type: "boolean" },
+      "require-render": { type: "boolean" },
       ref: { type: "string" },
       "ref-dir": { type: "string" },
       gen: { type: "string" },
@@ -534,9 +562,23 @@ async function main() {
     return;
   }
 
-  const toolchain = assertRequiredRenderDeps();
+  const depInfo = inspectRenderDeps();
+  const toolchain = depInfo.toolchain;
   if (cmd === "check-env") {
-    console.log(JSON.stringify({ ok: true, node: process.versions.node, toolchain }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          node: process.versions.node,
+          mode: depInfo.canRender ? "full-visual" : "code-gates-only",
+          toolchain,
+          missingRenderDeps: depInfo.missing,
+          installHint: depInfo.missing.length > 0 ? depInfo.installHint : null,
+        },
+        null,
+        2
+      )
+    );
     return;
   }
 
@@ -592,6 +634,7 @@ async function main() {
   }
 
   if (cmd === "render") {
+    assertRenderDeps(depInfo);
     const res = await renderDeckToPngs(values.pptx || positionals[1], {
       outDir: values.out,
       dpi: values.dpi ? Number(values.dpi) : 220,
@@ -604,9 +647,9 @@ async function main() {
     const rawRef = values.ref || positionals[1] || "";
     const outDir = path.resolve(values.out || "./ref_inspect");
     const pageNo = values.page ? Number(values.page) : 1;
-    const refPath = await ensureReferenceImagePath(rawRef, outDir, pageNo, toolchain.pdftoppm);
+    const refPath = await ensureReferenceImagePath(rawRef, outDir, pageNo, toolchain);
     const crops = parseCropSpecs(values.crops);
-    const res = runPythonVision(PY_INSPECT_REF, { refPath, outDir, crops });
+    const res = runPythonVision(PY_INSPECT_REF, { refPath, outDir, crops }, toolchain.python3);
     console.log(JSON.stringify(res, null, 2));
     return;
   }
@@ -614,10 +657,10 @@ async function main() {
   if (cmd === "diff") {
     const outDir = path.resolve(values.out || "./visual_diff");
     const pageNo = values.page ? Number(values.page) : 1;
-    const refPath = await ensureReferenceImagePath(values.ref || "", outDir, pageNo, toolchain.pdftoppm);
+    const refPath = await ensureReferenceImagePath(values.ref || "", outDir, pageNo, toolchain);
     const genPath = path.resolve(values.gen || "");
     const crops = parseCropSpecs(values.crops);
-    const res = runPythonVision(PY_DIFF, { refPath, genPath, outDir, crops, autoCrops: true });
+    const res = runPythonVision(PY_DIFF, { refPath, genPath, outDir, crops, autoCrops: true }, toolchain.python3);
 
     if (values.gallery) {
       const slides = [
@@ -703,7 +746,43 @@ async function main() {
       }
     }
 
-    // 3) Render all slides via cached-font LibreOffice + Poppler
+    // 3) Render all slides via LibreOffice + Poppler/pypdfium2 (graceful code-gates-only fallback if render deps missing)
+    if (!depInfo.canRender) {
+      if (values["require-render"]) {
+        assertRenderDeps(depInfo);
+      }
+      console.log(
+        JSON.stringify(
+          {
+            passed: validation.passed,
+            verificationMode: "code-gates-only",
+            visualVerified: false,
+            pptx: targetPptx,
+            gates: validation.gates,
+            failCount: validation.failCount,
+            warnCount: validation.warnCount,
+            warnings: validation.issues.filter((i) => i.severity === "warn").slice(0, 12),
+            sourceIntegrity,
+            visualVerification: {
+              status: "skipped_missing_deps",
+              missingDeps: depInfo.missing,
+              installHint: depInfo.installHint,
+              notice:
+                "All 5 static gate groups (15 checks) passed and PPTX was published, but visual rendering was skipped due to missing render dependencies. Report this truthfully and do NOT fabricate visual previews.",
+            },
+            renderedSlides: [],
+            qaSheetPng: null,
+            compareBatches: [],
+            comparePdf: null,
+            diff: null,
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
     const renderDir = path.join(outDir, "slides_png");
     const renderRes = await renderDeckToPngs(targetPptx, {
       outDir: renderDir,
@@ -713,11 +792,15 @@ async function main() {
     // 4) Stitch 1-image QA contact sheet so the Agent inspects the whole deck in a single `read_file`
     const renderedPngs = renderRes.pngFiles || renderRes.pngPaths || [];
     let qaSheet = null;
-    if (renderedPngs.length > 0) {
-      qaSheet = runPythonVision(PY_CONTACT_SHEET, {
-        pngs: renderedPngs,
-        outPng: path.join(outDir, "qa_sheet.png"),
-      });
+    if (renderedPngs.length > 0 && toolchain.hasPillow) {
+      qaSheet = runPythonVision(
+        PY_CONTACT_SHEET,
+        {
+          pngs: renderedPngs,
+          outPng: path.join(outDir, "qa_sheet.png"),
+        },
+        toolchain.python3
+      );
     }
 
     // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + multi-page QA PDF & compare_batch JPGs (zero HTML)
@@ -730,7 +813,7 @@ async function main() {
         ? path.resolve(values.gallery.replace(/\.html?$/i, ".pdf"))
         : path.join(outDir, "qa_compare.pdf");
 
-    if (values["ref-dir"] && renderedPngs.length > 0) {
+    if (values["ref-dir"] && renderedPngs.length > 0 && toolchain.hasPillow) {
       const refDirAbs = path.resolve(values["ref-dir"]);
       const refFiles = numericSortPaths(
         (await fs.readdir(refDirAbs))
@@ -741,12 +824,16 @@ async function main() {
       if (refFiles.length === 0) {
         throw new Error(`--ref-dir "${refDirAbs}" contains no image files (.png/.jpg/.webp)`);
       }
-      const multi = runPythonVision(PY_MULTI_COMPARE, {
-        refs: refFiles,
-        gens: genFiles,
-        outDir,
-        batchSize: 4,
-      });
+      const multi = runPythonVision(
+        PY_MULTI_COMPARE,
+        {
+          refs: refFiles,
+          gens: genFiles,
+          outDir,
+          batchSize: 4,
+        },
+        toolchain.python3
+      );
       diffRes = {
         mode: "multi-page",
         pairCount: multi.pairs.length,
@@ -759,52 +846,67 @@ async function main() {
           .map((x) => ({ slide: x.slide, ref: x.refName, similarityPct: x.similarityPct })),
       };
       compareBatches = multi.compareBatches;
-      comparePdf = runPythonVision(PY_BUILD_PDF, {
-        outPdf: pdfOut,
-        pages: multi.pairs.map((p) => ({
-          label: `Slide ${String(p.slide).padStart(2, "0")}  |  左：原模板 (${p.refName})   vs   右：原生可编辑成稿  |  相似度 ${p.similarityPct}%`,
-          imgPath: p.pairJpg,
-        })),
-      });
-    } else if (values.ref && renderedPngs.length > 0) {
+      comparePdf = runPythonVision(
+        PY_BUILD_PDF,
+        {
+          outPdf: pdfOut,
+          pages: multi.pairs.map((p) => ({
+            label: `Slide ${String(p.slide).padStart(2, "0")}  |  左：原模板 (${p.refName})   vs   右：原生可编辑成稿  |  相似度 ${p.similarityPct}%`,
+            imgPath: p.pairJpg,
+          })),
+        },
+        toolchain.python3
+      );
+    } else if (values.ref && renderedPngs.length > 0 && toolchain.hasPillow) {
       const pageNo = values.page ? Number(values.page) : 1;
-      const refPng = await ensureReferenceImagePath(values.ref, outDir, pageNo, toolchain.pdftoppm);
+      const refPng = await ensureReferenceImagePath(values.ref, outDir, pageNo, toolchain);
       const genPng = renderedPngs[Math.min(Math.max(0, pageNo - 1), renderedPngs.length - 1)];
       const crops = parseCropSpecs(values.crops);
-      diffRes = runPythonVision(PY_DIFF, { refPath: refPng, genPath: genPng, outDir, crops, autoCrops: true });
-      comparePdf = runPythonVision(PY_BUILD_PDF, {
-        outPdf: pdfOut,
-        pages: [
-          {
-            label: `全页并排对比（左：参考原图 ｜ 右：最终成稿）· 相似度 ${diffRes.fullSimilarityPct}%`,
-            imgPath: diffRes.sideBySidePng,
-          },
-          {
-            label: "三联 50% 半透明 X 光叠图校准",
-            imgPath: diffRes.overlay3PanelPng,
-          },
-          ...diffRes.zoomCrops.map((z) => ({
-            label: `局部 2x 放大精检：${z.name} [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
-            imgPath: z.zoomPng2x,
-          })),
-        ],
-      });
-    } else if (renderedPngs.length > 0) {
+      diffRes = runPythonVision(PY_DIFF, { refPath: refPng, genPath: genPng, outDir, crops, autoCrops: true }, toolchain.python3);
+      comparePdf = runPythonVision(
+        PY_BUILD_PDF,
+        {
+          outPdf: pdfOut,
+          pages: [
+            {
+              label: `全页并排对比（左：参考原图 ｜ 右：最终成稿）· 相似度 ${diffRes.fullSimilarityPct}%`,
+              imgPath: diffRes.sideBySidePng,
+            },
+            {
+              label: "三联 50% 半透明 X 光叠图校准",
+              imgPath: diffRes.overlay3PanelPng,
+            },
+            ...diffRes.zoomCrops.map((z) => ({
+              label: `局部 2x 放大精检：${z.name} [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
+              imgPath: z.zoomPng2x,
+            })),
+          ],
+        },
+        toolchain.python3
+      );
+    } else if (renderedPngs.length > 0 && toolchain.hasPillow) {
       const sorted = numericSortPaths(renderedPngs);
-      comparePdf = runPythonVision(PY_BUILD_PDF, {
-        outPdf: pdfOut,
-        pages: sorted.map((p, idx) => ({
-          label: `Slide ${String(idx + 1).padStart(2, "0")}  |  @yuanmou/pptx-kit 原生可编辑成稿（fail=0, warn=${validation.warnCount}）`,
-          imgPath: p,
-        })),
-      });
+      comparePdf = runPythonVision(
+        PY_BUILD_PDF,
+        {
+          outPdf: pdfOut,
+          pages: sorted.map((p, idx) => ({
+            label: `Slide ${String(idx + 1).padStart(2, "0")}  |  @yuanmou/pptx-kit 原生可编辑成稿（fail=0, warn=${validation.warnCount}）`,
+            imgPath: p,
+          })),
+        },
+        toolchain.python3
+      );
     }
 
     console.log(
       JSON.stringify(
         {
           passed: validation.passed,
+          verificationMode: "full-visual",
+          visualVerified: true,
           pptx: targetPptx,
+          gates: validation.gates,
           failCount: validation.failCount,
           warnCount: validation.warnCount,
           warnings: validation.issues.filter((i) => i.severity === "warn").slice(0, 12),

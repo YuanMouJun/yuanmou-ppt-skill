@@ -73,8 +73,13 @@ export class TableElement {
     this.id = makeTableAnchorId(slide.id, ooxmlId);
     this.name = options.name || `table-${ooxmlId}`;
 
-    const values = Array.isArray(options.values) ? options.values : [];
-    this.rowCount = Math.max(1, options.rows ?? (values.length || 2));
+    const values = Array.isArray(options.values)
+      ? options.values
+      : Array.isArray(options.rows)
+        ? options.rows
+        : [];
+    const numericRows = typeof options.rows === "number" ? options.rows : undefined;
+    this.rowCount = Math.max(1, numericRows ?? (values.length || 2));
     this.columnCount = Math.max(
       1,
       options.columns ?? (values[0]?.length || options.columnWidths?.length || options.columnTracks?.length || 2)
@@ -88,8 +93,11 @@ export class TableElement {
       height: options.height ?? pos.height ?? this.rowCount * 42,
     };
 
-    this.columnTracks = options.columnTracks || null;
-    this.columnWidths = options.columnWidths || null;
+    const hasTrackObjectsInWidths =
+      Array.isArray(options.columnWidths) &&
+      options.columnWidths.some((w) => w && typeof w === "object" && (w.mode === "fixed" || w.mode === "fr"));
+    this.columnTracks = options.columnTracks || (hasTrackObjectsInWidths ? options.columnWidths : null);
+    this.columnWidths = hasTrackObjectsInWidths ? null : options.columnWidths || null;
     this.rowHeights = options.rowHeights || null;
 
     // Styling defaults (clean consulting editorial table, zero garish default PowerPoint blue!)
@@ -131,11 +139,24 @@ export class TableElement {
       right: options.borders?.right ?? (options.verticalBorders ? defaultBorder : "none"),
     };
 
-    // Build cell matrix
+    // Build cell matrix (supports plain string/runs OR cell spec `{ text, fill, textStyle, style, borders, insets }`)
     this._grid = Array.from({ length: this.rowCount }, (_, r) =>
       Array.from({ length: this.columnCount }, (__, c) => {
-        const initVal = values[r]?.[c] !== undefined ? values[r][c] : "";
-        return new TableCellFacade(this, r, c, initVal);
+        const initVal = values[r]?.[c];
+        if (
+          initVal &&
+          typeof initVal === "object" &&
+          !Array.isArray(initVal) &&
+          ("fill" in initVal || "textStyle" in initVal || "borders" in initVal || "insets" in initVal)
+        ) {
+          const cell = new TableCellFacade(this, r, c, initVal.text ?? initVal.runs ?? initVal.value ?? "");
+          if (initVal.fill !== undefined) cell.fill = initVal.fill;
+          if (initVal.textStyle || initVal.style) cell.text.style = initVal.textStyle || initVal.style;
+          if (initVal.borders) cell.borders = { ...initVal.borders };
+          if (initVal.insets !== undefined) cell.insets = initVal.insets;
+          return cell;
+        }
+        return new TableCellFacade(this, r, c, initVal !== undefined ? initVal : "");
       })
     );
 

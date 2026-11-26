@@ -46,7 +46,7 @@ function addCrimsonTeaSeal(slide) {
     text: "茶",
     textStyle: {
       fontFamily: "PingFang SC",
-      fontSize: 40,
+      fontSize: "40px",
       bold: true,
       color: "#FFFFFF",
       alignment: "center",
@@ -263,7 +263,7 @@ async function buildPart2HybridDataDeck() {
   // 1) Native Clustered Column Chart (with embedded `.xlsx`)
   sl.charts.add("column", {
     title: "分时段种草曝光 vs 到店核销指数",
-    titleTextStyle: { fontSize: 13.5, bold: true, color: "#1E293B" },
+    titleTextStyle: { fontSize: "13.5px", bold: true, color: "#1E293B" },
     position: { left: 494, top: 140, width: 452, height: 258 },
     categories: ["09:00", "12:00", "14:00", "16:00", "19:00", "21:00"],
     series: [
@@ -271,14 +271,14 @@ async function buildPart2HybridDataDeck() {
       { name: "小程序核销单量", values: [26, 95, 78, 52, 119, 106], fill: "#0F3A7D" },
     ],
     barOptions: { grouping: "clustered", gapWidth: 115, overlap: -15 },
-    legend: { position: "t", textStyle: { fontSize: 10.5, color: "#475569" } },
-    dataLabels: { showValue: true, textStyle: { fontSize: 9.5, bold: true, color: "#334155" } },
-    xAxis: { textStyle: { fontSize: 10.5, color: "#475569" } },
+    legend: { position: "t", textStyle: { fontSize: "10.5px", color: "#475569" } },
+    dataLabels: { showValue: true, textStyle: { fontSize: "9.5px", bold: true, color: "#334155" } },
+    xAxis: { textStyle: { fontSize: "10.5px", color: "#475569" } },
     yAxis: {
       min: 0,
       max: 160,
       majorUnit: 40,
-      textStyle: { fontSize: 10, color: "#64748B" },
+      textStyle: { fontSize: "10px", color: "#64748B" },
       majorGridlines: { style: "dashed", fill: "#E2E8F0", width: 0.75 },
     },
   });
@@ -286,7 +286,7 @@ async function buildPart2HybridDataDeck() {
   // 2) Native Doughnut Chart (with embedded `.xlsx`)
   sl.charts.add("doughnut", {
     title: "全天GMV时段贡献占比",
-    titleTextStyle: { fontSize: 13.5, bold: true, color: "#1E293B" },
+    titleTextStyle: { fontSize: "13.5px", bold: true, color: "#1E293B" },
     position: { left: 974, top: 140, width: 254, height: 258 },
     categories: ["晚间社交档", "午间拼单档", "常规长尾档"],
     series: [
@@ -297,12 +297,12 @@ async function buildPart2HybridDataDeck() {
       },
     ],
     hasLegend: true,
-    legend: { position: "b", textStyle: { fontSize: 10, color: "#475569" } },
+    legend: { position: "b", textStyle: { fontSize: "10px", color: "#475569" } },
     doughnutOptions: { holeSize: 56, firstSliceAngle: 0 },
     dataLabels: {
       showValue: false,
       showPercent: true,
-      textStyle: { fontSize: 10.5, bold: true, color: "#FFFFFF" },
+      textStyle: { fontSize: "10.5px", bold: true, color: "#FFFFFF" },
     },
   });
 
@@ -471,10 +471,10 @@ function buildSlide4BcgP12Clone(pres) {
     text: [
       {
         runs: [
-          { run: "供给端：", style: { color: "#94B418", fontSize: 24, bold: false } },
+          { run: "供给端：", style: { color: "#94B418", fontSize: "24px", bold: false } },
           {
             run: "代工厂的大量存在帮助新消费品牌快速创新，电商销售渗透率的快速提",
-            style: { color: "#29BA74", fontSize: 24, bold: false },
+            style: { color: "#29BA74", fontSize: "24px", bold: false },
           },
         ],
         style: { lineSpacing: 1.25 },
@@ -483,7 +483,7 @@ function buildSlide4BcgP12Clone(pres) {
         runs: [
           {
             run: "升，降低了中小规模企业的线下渠道能力要求",
-            style: { color: "#29BA74", fontSize: 24, bold: false },
+            style: { color: "#29BA74", fontSize: "24px", bold: false },
           },
         ],
         style: { lineSpacing: 1.25 },
@@ -496,12 +496,12 @@ function buildSlide4BcgP12Clone(pres) {
   sl.shapes.add({
     position: { left: 76, top: 164, width: 568, height: 32 },
     text: "成熟国内供应链缩短品牌生产实现周期",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 19, bold: true, color: "#29BA74", alignment: "center" },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "19px", bold: true, color: "#29BA74", alignment: "center" },
   });
   sl.shapes.add({
     position: { left: 660, top: 164, width: 568, height: 32 },
     text: "电商和直播帮助品牌速达消费者",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 19, bold: true, color: "#29BA74", alignment: "center" },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "19px", bold: true, color: "#29BA74", alignment: "center" },
   });
 
   // Left & Right Subtle Hatched/Light Gray-Mint Panels (`y=205..655`)
@@ -571,7 +571,7 @@ function buildSlide4BcgP12Clone(pres) {
   sl.shapes.add({
     position: { left: 93, top: 230, width: 440, height: 28 },
     text: "完美日记国内代工厂举例（非穷尽）",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 17, bold: true, color: "#404040", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "17px", bold: true, color: "#404040", insets: 0 },
   });
 
   const bcgTbl = sl.tables.add({
@@ -582,7 +582,7 @@ function buildSlide4BcgP12Clone(pres) {
     zebraFill: "#FFFFFF",
     headerTextStyle: {
       fontFamily: "PingFang SC",
-      fontSize: 14.5,
+      fontSize: "14.5px",
       bold: false,
       color: "#FFFFFF",
       alignment: "left",
@@ -590,7 +590,7 @@ function buildSlide4BcgP12Clone(pres) {
     },
     bodyTextStyle: {
       fontFamily: "PingFang SC",
-      fontSize: 14.5,
+      fontSize: "14.5px",
       bold: false,
       color: "#404040",
       alignment: "left",
@@ -646,14 +646,14 @@ function buildSlide4BcgP12Clone(pres) {
         style: { alignment: "center", lineSpacing: 1.35 },
       },
     ],
-    textStyle: { fontFamily: "PingFang SC", fontSize: 15, verticalAlignment: "middle", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "15px", verticalAlignment: "middle", insets: 0 },
   });
 
   // --- RIGHT PANEL CONTENT: Timeline Arrow + 3 Milestone Cards ---
   sl.shapes.add({
     position: { left: 686, top: 230, width: 440, height: 28 },
     text: "电商和平台直播业务发展时间线",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 17, bold: true, color: "#064E2B", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "17px", bold: true, color: "#064E2B", insets: 0 },
   });
 
   const milestones = [
@@ -704,7 +704,7 @@ function buildSlide4BcgP12Clone(pres) {
     sl.shapes.add({
       position: { left: ms.cardLeft - 14, top: 270, width: 184, height: 22 },
       text: ms.label,
-      textStyle: { fontFamily: "PingFang SC", fontSize: 12.5, bold: true, color: "#404040", alignment: "center", insets: 0 },
+      textStyle: { fontFamily: "PingFang SC", fontSize: "12.5px", bold: true, color: "#404040", alignment: "center", insets: 0 },
     });
 
     // Concentric node circle on arrow + vertical stem
@@ -775,7 +775,7 @@ function buildSlide4BcgP12Clone(pres) {
         bulletColor: "#29BA74",
         indent: 11,
         fontFamily: "PingFang SC",
-        fontSize: 12,
+        fontSize: "12px",
         color: "#404040",
         lineSpacing: 1.25,
         spaceAfter: 3,
@@ -801,19 +801,19 @@ function buildSlide4BcgP12Clone(pres) {
         style: { alignment: "center", lineSpacing: 1.35 },
       },
     ],
-    textStyle: { fontFamily: "PingFang SC", fontSize: 15, verticalAlignment: "middle", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "15px", verticalAlignment: "middle", insets: 0 },
   });
 
   // Footer source & page number
   sl.shapes.add({
     position: { left: 66, top: 674, width: 620, height: 18 },
     text: "来源：逸林电商招股书；浙江省电子商务促进会数字贸易研究院；BCG研究与分析。",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 9.5, color: "#7F7F7F", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "9.5px", color: "#7F7F7F", insets: 0 },
   });
   sl.shapes.add({
     position: { left: 1185, top: 674, width: 30, height: 18 },
     text: "11",
-    textStyle: { fontFamily: "Arial", fontSize: 9.5, color: "#7F7F7F", alignment: "right", insets: 0 },
+    textStyle: { fontFamily: "Arial", fontSize: "9.5px", color: "#7F7F7F", alignment: "right", insets: 0 },
   });
 }
 
@@ -843,7 +843,7 @@ function buildSlide5ZuoerP08Clone(pres) {
   sl.shapes.add({
     position: { left: 44, top: 48, width: 920, height: 42 },
     text: "行业关键词趋势：功能——保湿和卸妆被提及频率最高",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 25, bold: false, color: "#5500E6", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "25px", bold: false, color: "#5500E6", insets: 0 },
   });
 
   // Top-right Zuoer brand mark (clean vector badge)
@@ -856,8 +856,8 @@ function buildSlide5ZuoerP08Clone(pres) {
   sl.shapes.add({
     position: { left: 1154, top: 42, width: 96, height: 34 },
     text: [
-      { runs: [{ run: "卓尔数科", style: { fontSize: 15, bold: true, color: "#0D9488" } }] },
-      { runs: [{ run: "数据驱动商业增长", style: { fontSize: 7.5, color: "#14B8A6" } }] },
+      { runs: [{ run: "卓尔数科", style: { fontSize: "15px", bold: true, color: "#0D9488" } }] },
+      { runs: [{ run: "数据驱动商业增长", style: { fontSize: "7.5px", color: "#14B8A6" } }] },
     ],
     textStyle: { fontFamily: "PingFang SC", insets: 0 },
   });
@@ -866,7 +866,7 @@ function buildSlide5ZuoerP08Clone(pres) {
   sl.shapes.add({
     position: { left: 140, top: 128, width: 395, height: 26 },
     text: "美容护肤相关单品词语出现频率统计",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 15, color: "#334155", alignment: "center", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "15px", color: "#334155", alignment: "center", insets: 0 },
   });
 
   // Purple highlight band behind top "功能" line (`70%` zone, exact match to `ze1008-08.png`!)
@@ -929,7 +929,7 @@ function buildSlide5ZuoerP08Clone(pres) {
     dataLabels: { showValue: false },
     xAxis: {
       labelRotation: -90,
-      textStyle: { fontSize: 10, color: "#334155" },
+      textStyle: { fontSize: "10px", color: "#334155" },
       lineColor: "#CBD5E1",
     },
     yAxis: {
@@ -937,7 +937,7 @@ function buildSlide5ZuoerP08Clone(pres) {
       max: 80,
       majorUnit: 10,
       numberFormatCode: '0"%"',
-      textStyle: { fontSize: 10.5, color: "#334155" },
+      textStyle: { fontSize: "10.5px", color: "#334155" },
       majorGridlines: { style: "solid", fill: "#F1F5F9", width: 0.75 },
     },
   });
@@ -960,7 +960,7 @@ function buildSlide5ZuoerP08Clone(pres) {
       text: tg.text,
       textStyle: {
         fontFamily: "PingFang SC",
-        fontSize: 12.5,
+        fontSize: "12.5px",
         color: "#1E293B",
         alignment: "center",
         verticalAlignment: "middle",
@@ -986,7 +986,7 @@ function buildSlide5ZuoerP08Clone(pres) {
     fill: "#5500E6",
     line: "none",
     text: "基础护肤",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 14.5, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "14.5px", color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: 0 },
   });
   sl.shapes.add({
     geometry: "rect",
@@ -994,7 +994,7 @@ function buildSlide5ZuoerP08Clone(pres) {
     fill: "#5500E6",
     line: "none",
     text: "多样护肤",
-    textStyle: { fontFamily: "PingFang SC", fontSize: 14.5, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: 0 },
+    textStyle: { fontFamily: "PingFang SC", fontSize: "14.5px", color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: 0 },
   });
 
   // Horizontal Bar Chart 1: 基础护肤 (`保湿 237790 .. 修护 35442`)
@@ -1016,11 +1016,11 @@ function buildSlide5ZuoerP08Clone(pres) {
     dataLabels: {
       showValue: true,
       position: "outEnd",
-      textStyle: { fontSize: 10, bold: false, color: "#334155" },
+      textStyle: { fontSize: "10px", bold: false, color: "#334155" },
     },
     xAxis: {
       reverseOrder: true,
-      textStyle: { fontSize: 11, color: "#64748B" },
+      textStyle: { fontSize: "11px", color: "#64748B" },
       lineColor: "#E2E8F0",
     },
     yAxis: {
@@ -1055,11 +1055,11 @@ function buildSlide5ZuoerP08Clone(pres) {
     dataLabels: {
       showValue: true,
       position: "outEnd",
-      textStyle: { fontSize: 9.5, bold: false, color: "#334155" },
+      textStyle: { fontSize: "9.5px", bold: false, color: "#334155" },
     },
     xAxis: {
       reverseOrder: true,
-      textStyle: { fontSize: 10.5, color: "#64748B" },
+      textStyle: { fontSize: "10.5px", color: "#64748B" },
       lineColor: "#E2E8F0",
     },
     yAxis: {
@@ -1075,7 +1075,7 @@ function buildSlide5ZuoerP08Clone(pres) {
     text: "数据来源：卓尔数科大数据中心-天猫数据整理",
     textStyle: {
       fontFamily: "PingFang SC",
-      fontSize: 8.5,
+      fontSize: "8.5px",
       color: "#94A3B8",
       underline: true,
       alignment: "right",

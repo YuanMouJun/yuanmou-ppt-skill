@@ -146,7 +146,7 @@ function buildCloneSlide1_BcgP18(deck) {
   });
   title.text = "消费品牌的性价比、产品创新速度、消费者互动受到肯定，但产品质量和品牌力\n遇有挑战";
   title.text.style = {
-    fontSize: 30.5,
+    fontSize: "30.5px",
     bold: false,
     color: "#29BA74",
     lineSpacing: 1.22,
@@ -161,7 +161,7 @@ function buildCloneSlide1_BcgP18(deck) {
   });
   secTitle.text = "消费者对于新消费品牌的看法";
   secTitle.text.style = {
-    fontSize: 21,
+    fontSize: "21px",
     bold: true,
     color: "#157954",
     alignment: "center",
@@ -296,7 +296,7 @@ function buildCloneSlide1_BcgP18(deck) {
     });
     disc.text = item.pct;
     disc.text.style = {
-      fontSize: 41,
+      fontSize: "41px",
       bold: false,
       color: "#575757",
       alignment: "center",
@@ -312,7 +312,7 @@ function buildCloneSlide1_BcgP18(deck) {
     });
     lbl.text = item.label;
     lbl.text.style = {
-      fontSize: 20,
+      fontSize: "20px",
       bold: true,
       color: labelColor,
       alignment: "center",
@@ -357,7 +357,7 @@ function buildCloneSlide1_BcgP18(deck) {
   });
   leftNote.text = "认为新\n消费品\n牌……";
   leftNote.text.style = {
-    fontSize: 18,
+    fontSize: "18px",
     bold: true,
     color: "#575757",
     alignment: "center",
@@ -371,7 +371,7 @@ function buildCloneSlide1_BcgP18(deck) {
     position: { left: 66, top: 676, width: 760, height: 22 },
   });
   footer.text = "来源：BCG小红书新消费品定性调研、定量调研（N=1,015）；BCG研究与分析";
-  footer.text.style = { fontSize: 11, color: "#575757", verticalAlignment: "middle" };
+  footer.text.style = { fontSize: "11px", color: "#575757", verticalAlignment: "middle" };
 
   const pgNo = slide.shapes.add({
     geometry: "textbox",
@@ -379,7 +379,7 @@ function buildCloneSlide1_BcgP18(deck) {
     position: { left: 1190, top: 676, width: 42, height: 22 },
   });
   pgNo.text = "17";
-  pgNo.text.style = { fontSize: 11, color: "#575757", alignment: "right", verticalAlignment: "middle" };
+  pgNo.text.style = { fontSize: "11px", color: "#575757", alignment: "right", verticalAlignment: "middle" };
 }
 
 /**
@@ -398,7 +398,7 @@ function buildCloneSlide2_BcgP20(deck) {
   });
   title.text = "新消费品的进一步发展也面临挑战，新用户的产品研究上更为精明，品牌力也需\n不断提升以吸引老用户复购";
   title.text.style = {
-    fontSize: 30.5,
+    fontSize: "30.5px",
     color: "#29BA74",
     lineSpacing: 1.22,
     verticalAlignment: "top",
@@ -412,7 +412,7 @@ function buildCloneSlide2_BcgP20(deck) {
   });
   leftHead.text = "消费者购物自主调研意愿明显";
   leftHead.text.style = {
-    fontSize: 20.5,
+    fontSize: "20.5px",
     bold: true,
     color: "#29BA74",
     alignment: "center",
@@ -426,7 +426,7 @@ function buildCloneSlide2_BcgP20(deck) {
   });
   rightHead.text = "新消费品牌复购率偏低，消费者品牌认同不强";
   rightHead.text.style = {
-    fontSize: 20.5,
+    fontSize: "20.5px",
     bold: true,
     color: "#29BA74",
     alignment: "center",
@@ -490,7 +490,7 @@ function buildCloneSlide2_BcgP20(deck) {
   });
   qPrompt.text = "新消费品牌产品产生兴趣后，您会如何做？";
   qPrompt.text.style = {
-    fontSize: 17.5,
+    fontSize: "17.5px",
     italic: true,
     color: "#157954",
     alignment: "center",
@@ -513,7 +513,7 @@ function buildCloneSlide2_BcgP20(deck) {
     });
     b.text = text;
     b.text.style = {
-      fontSize: 17.5,
+      fontSize: "17.5px",
       bold: true,
       color: "#575757",
       alignment: "center",
@@ -565,14 +565,14 @@ function buildCloneSlide2_BcgP20(deck) {
       position: { left: b.x - 8, top: b.top - 22, width: b.w + 16, height: 20 },
     });
     v.text = b.val;
-    v.text.style = { fontSize: 14.5, color: "#575757", alignment: "center", verticalAlignment: "bottom" };
+    v.text.style = { fontSize: "14.5px", color: "#575757", alignment: "center", verticalAlignment: "bottom" };
 
     const c = slide.shapes.add({
       geometry: "textbox",
       position: { left: b.x - 14, top: 486, width: b.w + 28, height: 58 },
     });
     c.text = b.cat;
-    c.text.style = { fontSize: 13.5, color: "#575757", alignment: "center", lineSpacing: 1.2 };
+    c.text.style = { fontSize: "13.5px", color: "#575757", alignment: "center", lineSpacing: 1.2 };
   }
   slide.shapes.add({
     geometry: "line",
@@ -597,14 +597,14 @@ function buildCloneSlide2_BcgP20(deck) {
       position: { left: b.x - 6, top: b.top - 22, width: b.w + 12, height: 20 },
     });
     v.text = b.val;
-    v.text.style = { fontSize: 14.5, color: "#575757", alignment: "center", verticalAlignment: "bottom" };
+    v.text.style = { fontSize: "14.5px", color: "#575757", alignment: "center", verticalAlignment: "bottom" };
 
     const c = slide.shapes.add({
       geometry: "textbox",
       position: { left: b.x - 18, top: 486, width: b.w + 36, height: 74 },
     });
     c.text = b.cat;
-    c.text.style = { fontSize: 13.5, color: "#575757", alignment: "center", lineSpacing: 1.2 };
+    c.text.style = { fontSize: "13.5px", color: "#575757", alignment: "center", lineSpacing: 1.2 };
   }
   slide.shapes.add({
     geometry: "line",
@@ -629,7 +629,7 @@ function buildCloneSlide2_BcgP20(deck) {
     });
     boxSp.text = text;
     boxSp.text.style = {
-      fontSize: 16.5,
+      fontSize: "16.5px",
       bold: true,
       color: "#157954",
       alignment: "left",
@@ -704,14 +704,14 @@ function buildCloneSlide2_BcgP20(deck) {
       position: { left: b.x - 6, top: b.top - 19, width: 61, height: 18 },
     });
     v.text = b.val;
-    v.text.style = { fontSize: 13.5, color: "#575757", alignment: "center", verticalAlignment: "bottom" };
+    v.text.style = { fontSize: "13.5px", color: "#575757", alignment: "center", verticalAlignment: "bottom" };
 
     const c = slide.shapes.add({
       geometry: "textbox",
       position: { left: b.x - 12, top: 373, width: 73, height: 22 },
     });
     c.text = b.cat;
-    c.text.style = { fontSize: 13.5, color: "#575757", alignment: "center" };
+    c.text.style = { fontSize: "13.5px", color: "#575757", alignment: "center" };
   }
   slide.shapes.add({
     geometry: "line",
@@ -756,7 +756,7 @@ function buildCloneSlide2_BcgP20(deck) {
     position: { left: 688, top: 446, width: 260, height: 24 },
   });
   repTitle.text = "对于新消费品牌复购……";
-  repTitle.text.style = { fontSize: 16, color: "#575757" };
+  repTitle.text.style = { fontSize: "16px", color: "#575757" };
 
   const ringSpecs = [
     {
@@ -796,7 +796,7 @@ function buildCloneSlide2_BcgP20(deck) {
     });
     inner.text = r.val;
     inner.text.style = {
-      fontSize: 20,
+      fontSize: "20px",
       color: "#666666",
       alignment: "center",
       verticalAlignment: "middle",
@@ -809,7 +809,7 @@ function buildCloneSlide2_BcgP20(deck) {
       position: { left: r.textLeft, top: 492, width: 146, height: 72 },
     });
     desc.text.set([r.runs]);
-    desc.text.style = { fontSize: 15, lineSpacing: 1.28, verticalAlignment: "middle" };
+    desc.text.style = { fontSize: "15px", lineSpacing: 1.28, verticalAlignment: "middle" };
   }
 
   addChamferBox(
@@ -827,14 +827,14 @@ function buildCloneSlide2_BcgP20(deck) {
     position: { left: 66, top: 676, width: 760, height: 22 },
   });
   footer.text = "来源：BCG小红书新消费品定性调研；BCG研究与分析";
-  footer.text.style = { fontSize: 11, color: "#575757", verticalAlignment: "middle" };
+  footer.text.style = { fontSize: "11px", color: "#575757", verticalAlignment: "middle" };
 
   const pgNo = slide.shapes.add({
     geometry: "textbox",
     position: { left: 1190, top: 676, width: 42, height: 22 },
   });
   pgNo.text = "19";
-  pgNo.text.style = { fontSize: 11, color: "#575757", alignment: "right", verticalAlignment: "middle" };
+  pgNo.text.style = { fontSize: "11px", color: "#575757", alignment: "right", verticalAlignment: "middle" };
 }
 
 /**
@@ -888,7 +888,7 @@ function buildCloneSlide3_TimelineP43(deck) {
   });
   title.text = "选题方向";
   title.text.style = {
-    fontSize: 32,
+    fontSize: "32px",
     bold: true,
     color: "#000000",
     verticalAlignment: "middle",
@@ -983,7 +983,7 @@ function buildCloneSlide3_TimelineP43(deck) {
     });
     body.text = numStr;
     body.text.style = {
-      fontSize: 60,
+      fontSize: "60px",
       bold: true,
       color: "#FFFFFF",
       alignment: "center",
@@ -1024,7 +1024,7 @@ function buildCloneSlide3_TimelineP43(deck) {
     });
     body.text = numStr;
     body.text.style = {
-      fontSize: 60,
+      fontSize: "60px",
       bold: true,
       color: "#FFFFFF",
       alignment: "center",
@@ -1089,10 +1089,10 @@ function buildCloneSlide3_TimelineP43(deck) {
       position: { left: tb.left, top: tb.top, width: tb.width, height: tb.height },
     });
     sp.text.set([
-      [{ run: tb.heading, style: { fontSize: 17.5, bold: true, color: "#FF3535" } }],
+      [{ run: tb.heading, style: { fontSize: "17.5px", bold: true, color: "#FF3535" } }],
       {
         spaceBefore: 600,
-        runs: [{ run: tb.body, style: { fontSize: 15, bold: false, color: "#1A1A1A" } }],
+        runs: [{ run: tb.body, style: { fontSize: "15px", bold: false, color: "#1A1A1A" } }],
       },
     ]);
     sp.text.style = {

@@ -40,38 +40,38 @@ export function degToOoxmlAngle(deg) {
 }
 
 /**
- * Converts numeric CSS pixels or explicit unit strings ("20pt", "28px")
- * into OpenXML hundredths of a point (e.g. 20pt -> 2000, 28px -> 2100).
+ * Converts numeric typographic points (pt, PowerPoint/WPS standard) or explicit unit strings
+ * ("20pt", "28px") into OpenXML hundredths of a point (e.g. 20 / "20pt" -> 2000, "28px" -> 2100).
  */
-export function parseFontSizeToHundredthsPt(input, fallbackPx = 18) {
+export function parseFontSizeToHundredthsPt(input, fallbackPt = 14) {
   if (typeof input === "number" && Number.isFinite(input) && input > 0) {
-    return Math.max(100, Math.round(input * PX_TO_PT * 100));
+    return Math.max(100, Math.round(input * 100));
   }
   if (typeof input === "string") {
     const trimmed = input.trim().toLowerCase();
     const m = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)\s*(pt|px)?$/);
     if (m) {
       const num = Number.parseFloat(m[1]);
-      const unit = m[2] || "px";
-      if (unit === "pt") return Math.max(100, Math.round(num * 100));
-      return Math.max(100, Math.round(num * PX_TO_PT * 100));
+      const unit = m[2] || "pt";
+      if (unit === "px") return Math.max(100, Math.round(num * PX_TO_PT * 100));
+      return Math.max(100, Math.round(num * 100));
     }
   }
-  return Math.max(100, Math.round(fallbackPx * PX_TO_PT * 100));
+  return Math.max(100, Math.round(fallbackPt * 100));
 }
 
-export function fontSizeToPx(input, fallbackPx = 18) {
-  if (typeof input === "number" && Number.isFinite(input) && input > 0) return input;
+export function fontSizeToPx(input, fallbackPt = 14) {
+  if (typeof input === "number" && Number.isFinite(input) && input > 0) return input / PX_TO_PT;
   if (typeof input === "string") {
     const trimmed = input.trim().toLowerCase();
     const m = trimmed.match(/^([0-9]+(?:\.[0-9]+)?)\s*(pt|px)?$/);
     if (m) {
       const num = Number.parseFloat(m[1]);
-      const unit = m[2] || "px";
-      return unit === "pt" ? num / PX_TO_PT : num;
+      const unit = m[2] || "pt";
+      return unit === "px" ? num : num / PX_TO_PT;
     }
   }
-  return fallbackPx;
+  return fallbackPt / PX_TO_PT;
 }
 
 /**

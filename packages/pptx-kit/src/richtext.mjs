@@ -87,6 +87,26 @@ export function makeBulletList(items, options = {}) {
 
 export const makeNativeBulletParagraphs = makeBulletList;
 
+const FLAT_RUN_STYLE_KEYS = [
+  "fontSize",
+  "fontFamily",
+  "typeface",
+  "color",
+  "bold",
+  "italic",
+  "underline",
+  "letterSpacing",
+  "outline",
+];
+
+function extractFlatRunStyle(obj) {
+  const out = {};
+  for (const k of FLAT_RUN_STYLE_KEYS) {
+    if (obj[k] !== undefined) out[k] = obj[k];
+  }
+  return out;
+}
+
 /**
  * Normalizes any supported `TextValue` (string, string[], run[][], structured paragraph[])
  * into a canonical array of paragraph objects.
@@ -125,9 +145,18 @@ export function normalizeParagraphs(input) {
         return { runs: normalizeRuns(para) };
       }
       if (para && typeof para === "object") {
+        const flatParaStyle = extractFlatRunStyle(para);
+        const existingStyle =
+          typeof para.style === "string"
+            ? parseCompactTextStyleString(para.style)
+            : para.style || {};
+        const mergedParaStyle = { ...flatParaStyle, ...existingStyle };
         return {
           ...para,
-          runs: normalizeRuns(para.runs ?? (para.run !== undefined ? [para] : [""])),
+          style: Object.keys(mergedParaStyle).length > 0 ? mergedParaStyle : para.style,
+          runs: normalizeRuns(
+            para.runs ?? (para.run !== undefined || para.text !== undefined ? [para] : [""])
+          ),
         };
       }
       return { runs: [{ run: "" }] };
@@ -136,8 +165,28 @@ export function normalizeParagraphs(input) {
 
   if (typeof input === "object") {
     if (Array.isArray(input.paragraphs)) return normalizeParagraphs(input.paragraphs);
-    if (Array.isArray(input.runs)) return [{ ...input, runs: normalizeRuns(input.runs) }];
-    if ("text" in input) return normalizeParagraphs(input.text);
+    if (Array.isArray(input.runs)) {
+      const flatParaStyle = extractFlatRunStyle(input);
+      const existingStyle =
+        typeof input.style === "string"
+          ? parseCompactTextStyleString(input.style)
+          : input.style || {};
+      const mergedStyle = { ...flatParaStyle, ...existingStyle };
+      return [
+        {
+          ...input,
+          style: Object.keys(mergedStyle).length > 0 ? mergedStyle : input.style,
+          runs: normalizeRuns(input.runs),
+        },
+      ];
+    }
+    if ("text" in input) {
+      const flatStyle = extractFlatRunStyle(input);
+      if (Object.keys(flatStyle).length > 0 || input.style || input.textStyle) {
+        return [{ ...input, runs: normalizeRuns([input]) }];
+      }
+      return normalizeParagraphs(input.text);
+    }
   }
 
   return [];
@@ -151,13 +200,14 @@ function normalizeRuns(runsInput) {
     }
     if (r && typeof r === "object") {
       const classTokens = r.className ? parseClassNameTokens(r.className).text : {};
+      const flatStyle = extractFlatRunStyle(r);
       const baseStyle =
         typeof r.style === "string"
           ? parseCompactTextStyleString(r.style)
           : r.style || r.textStyle || {};
       return {
         run: String(r.run ?? r.text ?? ""),
-        style: { ...classTokens, ...baseStyle },
+        style: { ...classTokens, ...flatStyle, ...baseStyle },
         link: r.link,
       };
     }
@@ -187,7 +237,7 @@ export function estimateParagraphsHeightPx(paragraphs, shapeStyle = {}, availWid
   const normParas = normalizeParagraphs(paragraphs);
   const insets = normalizeInsetsPx(shapeStyle.insets, { top: 4, right: 8, bottom: 4, left: 8 });
   const innerW = Math.max(24, availWidthPx - insets.left - insets.right);
-  const defaultSizePx = fontSizeToPx(shapeStyle.fontSize, 18);
+  const defaultSizePx = fontSizeToPx(shapeStyle.fontSize, 14);
   const lineSpacingMult =
     typeof shapeStyle.lineSpacing === "number" && shapeStyle.lineSpacing > 0
       ? shapeStyle.lineSpacing
@@ -338,7 +388,7 @@ export function renderTxBodyXml({
         .map((r) => {
           const rStyle = mergeTextStyle(pStyle, r.style);
           const typeface = rStyle.typeface || rStyle.fontFamily || defaultFont;
-          const sz = parseFontSizeToHundredthsPt(rStyle.fontSize, 18);
+          const sz = parseFontSizeToHundredthsPt(rStyle.fontSize, 14);
           const letterSpc =
             typeof rStyle.letterSpacing === "number" ? Math.round(rStyle.letterSpacing * 100) : undefined;
 

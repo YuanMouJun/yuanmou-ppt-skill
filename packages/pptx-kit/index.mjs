@@ -1,6 +1,7 @@
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 
 export { Presentation, PresentationFile, FileBlob } from "./src/presentation.mjs";
+export { buildPptxBuffer } from "./src/package-builder.mjs";
 export {
   row,
   column,

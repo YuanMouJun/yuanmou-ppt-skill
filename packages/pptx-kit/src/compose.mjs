@@ -1,6 +1,6 @@
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 
-import { normalizeInsetsPx } from "./units.mjs";
+import { fontSizeToPx, normalizeInsetsPx } from "./units.mjs";
 import { parseClassNameTokens, parseCompactTextStyleString } from "./tokens.mjs";
 import { estimateParagraphsHeightPx, mergeTextStyle } from "./richtext.mjs";
 
@@ -169,7 +169,7 @@ function measureIntrinsicWidth(node, defaultFont) {
   if (type === "paragraph") {
     const { paragraph: paraObj, style } = extractParagraphModel(node, defaultFont);
     const textLen = paraObj.runs.reduce((s, r) => s + String(r.run || "").length, 0);
-    const fPx = typeof style.fontSize === "number" ? style.fontSize : 18;
+    const fPx = fontSizeToPx(style.fontSize, 14);
     return Math.ceil(textLen * fPx * 0.92) + pad.left + pad.right + 8;
   }
   return 160;

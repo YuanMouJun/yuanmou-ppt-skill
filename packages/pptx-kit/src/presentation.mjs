@@ -105,6 +105,17 @@ export class Presentation {
     return ImportedPresentation.load(pptxPathOrBlob);
   }
 
+  toPptxBuffer() {
+    return buildPptxBuffer(this);
+  }
+
+  async save(outputPath) {
+    const abs = path.resolve(outputPath);
+    await fs.mkdir(path.dirname(abs), { recursive: true });
+    await fs.writeFile(abs, this.toPptxBuffer());
+    return abs;
+  }
+
   _nextOoxmlId() {
     return ++this._ooxmlSeq;
   }

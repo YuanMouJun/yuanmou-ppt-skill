@@ -70,16 +70,16 @@ export const SHADOW_PRESETS = Object.freeze({
 });
 
 const TEXT_SIZE_TOKENS_PX = Object.freeze({
-  "text-xs": 12,
-  "text-sm": 14,
-  "text-base": 16,
-  "text-lg": 18,
-  "text-xl": 20,
-  "text-2xl": 24,
-  "text-3xl": 30,
-  "text-4xl": 36,
-  "text-5xl": 48,
-  "text-6xl": 60,
+  "text-xs": "12px",
+  "text-sm": "14px",
+  "text-base": "16px",
+  "text-lg": "18px",
+  "text-xl": "20px",
+  "text-2xl": "24px",
+  "text-3xl": "30px",
+  "text-4xl": "36px",
+  "text-5xl": "48px",
+  "text-6xl": "60px",
 });
 
 const LEADING_TOKENS = Object.freeze({
