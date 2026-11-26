@@ -18,6 +18,8 @@ import {
   renderDeckToPngs,
   buildShowcaseGalleryHtml,
   discoverRenderToolchain,
+  createBrushPng,
+  applyAlphaMaskToImage,
 } from "../../../packages/pptx-kit/index.mjs";
 
 function assertRequiredRenderDeps() {
@@ -420,7 +422,22 @@ function numericSortPaths(paths) {
 }
 
 async function main() {
+  // Normalize `--flag -12` negative numbers into `--flag=-12` so Node's parseArgs accepts negative angles/values naturally
+  const rawArgs = process.argv.slice(2);
+  const normalizedArgs = [];
+  for (let i = 0; i < rawArgs.length; i++) {
+    const cur = rawArgs[i];
+    const next = rawArgs[i + 1];
+    if (cur.startsWith("--") && !cur.includes("=") && next !== undefined && /^-\d+(\.\d+)?$/.test(next)) {
+      normalizedArgs.push(`${cur}=${next}`);
+      i++;
+    } else {
+      normalizedArgs.push(cur);
+    }
+  }
+
   const { values, positionals } = parseArgs({
+    args: normalizedArgs,
     allowPositionals: true,
     options: {
       pptx: { type: "string" },
@@ -442,10 +459,81 @@ async function main() {
       pdf: { type: "string" },
       gallery: { type: "string" },
       title: { type: "string" },
+      preset: { type: "string" },
+      color: { type: "string" },
+      opacity: { type: "string" },
+      width: { type: "string" },
+      height: { type: "string" },
+      angle: { type: "string" },
+      seed: { type: "string" },
+      image: { type: "string" },
+      mask: { type: "string" },
+      "ref-crop": { type: "string" },
+      "bg-color": { type: "string" },
+      tolerance: { type: "string" },
+      feather: { type: "string" },
+      "left-depth": { type: "string" },
+      "right-depth": { type: "string" },
+      "flip-y": { type: "boolean" },
     },
   });
 
   const cmd = positionals[0];
+
+  if (cmd === "make-brush") {
+    if (!values.out) {
+      throw new Error("make-brush requires --out <path.png>");
+    }
+    const res = await createBrushPng({
+      preset: values.preset || "ink-band",
+      color: values.color || "#C82829",
+      opacity: values.opacity !== undefined ? Number(values.opacity) : 1,
+      width: values.width ? Number(values.width) : 800,
+      height: values.height ? Number(values.height) : 360,
+      angle: values.angle !== undefined ? Number(values.angle) : undefined,
+      seed: values.seed ? Number(values.seed) : 42,
+      leftDepth: values["left-depth"] !== undefined ? Number(values["left-depth"]) : 0.62,
+      rightDepth: values["right-depth"] !== undefined ? Number(values["right-depth"]) : 0.86,
+      flipY: Boolean(values["flip-y"]),
+      outPath: values.out,
+    });
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+
+  if (cmd === "mask-image") {
+    const imagePath = values.image || positionals[1];
+    if (!imagePath || !values.out) {
+      throw new Error("mask-image requires --image <src> and --out <out.png>");
+    }
+    const refCrop = values["ref-crop"]
+      ? values["ref-crop"].split(",").map((v) => Number(v.trim()))
+      : undefined;
+    if (refCrop && (refCrop.length !== 4 || refCrop.some((v) => !Number.isFinite(v)))) {
+      throw new Error(`Invalid --ref-crop "${values["ref-crop"]}". Expected 4 comma-separated numbers: x,y,w,h`);
+    }
+    const res = await applyAlphaMaskToImage({
+      imagePath,
+      maskPreset: values.preset,
+      maskPngPath: values.mask,
+      refMaskPath: values.ref,
+      refCrop,
+      bgColor: values["bg-color"],
+      bgTolerance: values.tolerance !== undefined ? Number(values.tolerance) : 28,
+      feather: values.feather !== undefined ? Number(values.feather) : 0.8,
+      width: values.width ? Number(values.width) : 600,
+      height: values.height ? Number(values.height) : 800,
+      angle: values.angle !== undefined ? Number(values.angle) : undefined,
+      seed: values.seed ? Number(values.seed) : 42,
+      leftDepth: values["left-depth"] !== undefined ? Number(values["left-depth"]) : 0.62,
+      rightDepth: values["right-depth"] !== undefined ? Number(values["right-depth"]) : 0.86,
+      flipY: Boolean(values["flip-y"]),
+      outPath: values.out,
+    });
+    console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+
   const toolchain = assertRequiredRenderDeps();
   if (cmd === "check-env") {
     console.log(JSON.stringify({ ok: true, node: process.versions.node, toolchain }, null, 2));
@@ -735,7 +823,7 @@ async function main() {
   }
 
   throw new Error(
-    `Unknown command "${cmd}". Expected: check-env | verify | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
+    `Unknown command "${cmd}". Expected: check-env | verify | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
   );
 }
 

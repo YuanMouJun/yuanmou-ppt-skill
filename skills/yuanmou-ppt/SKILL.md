@@ -37,7 +37,9 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,
 多页任务先导出参考页 PNG 到 `./refs/`，用**模块化单页文件**推进（`slides/p1.mjs`…`pN.mjs` 汇总到 `build_deck.mjs` 一次性导出），**开工写代码前必须先按 4 类视觉页型分流与规划独立配图预算（长方案严禁只生 6～8 张通用图在 20+ 页里反复粘贴！）**：
 
 - **页型 1 · 全出血情绪大图 + 半透明暗罩 / 透明细线框页**：底层放满屏 `images.add`，中层用半透明暗罩（`fill: "#0B1120/55%"` 或 `fill: { color: "#0B1120", opacity: 0.55 }`），顶层线框用 `fill: "none"` 透出背景实景；**严禁用 100% 实心矩形盖死底图**（已被门禁 `opaque_overlay_hides_bg_image` 拦死）。
-- **页型 2 · 菱形裁图 / 斜切多边形拼图 / 倾斜叠图页**：直接用原生 `images.add({ geometry: "diamond" })`、`images.add({ svgPath, viewBox })`、顶层 `rotation: -10` 与 `shapes.add({ svgPath, viewBox })` 还原菱形、斜切边框与 V 形大彩带，**严禁退化成水平 `roundRect` 小方框**。
+- **页型 2 · 菱形裁图 / 斜切多边形拼图 / 倾斜叠图 / 有机水墨笔刷页**：
+  - 几何裁图与倾斜卡：直接用原生 `images.add({ geometry: "diamond" })`、`images.add({ svgPath, viewBox })`、顶层 `rotation: -10` 与 `shapes.add({ svgPath, viewBox })` 还原菱形、斜切边框与 V 形大彩带，**严禁退化成水平 `roundRect` 小方框**。
+  - 真实毛笔飞白 / 书法圆印 / 笔触蒙版叠图：当原稿出现真实笔刷飞白边缘、水墨色带或被有机笔触裁剪的配图时，调用内置引擎 `createBrushPng`（预设 `ink-circle-solid` / `ink-circle-ring` / `ink-band` / `ink-slash` / `ink-wave`）生成透明底笔刷层，或 `applyAlphaMaskToImage` 给目标新图叠加预设笔触 / 边界泛洪无孔洞参考轮廓（`refMaskPath`），**严禁把文字画进笔刷 PNG，文字必须保留为上层原生可编辑 `<p:sp>`**。
 - **页型 3 · 3D 精装立体书 / 手绘场景路线图 / 报刊信息拼贴 / H5 漫画弹窗 / 表单与社媒卡片页**：
   - 立体物件、手绘插画、H5 主视觉应借助生图工具按页生成**纯白底或与页底融合的专属视觉插画**嵌入，搭配原生虚线连接箭头（`geometry: "connector"`）、圆角对话气泡与独立表单输入框/提交按钮、社媒头像圆图与多图格；**严禁用两张普通方图或纯文本方括号敷衍降级**。
 - **页型 4 · 常规商务卡片 / 表格 / 图表 / 高难玻璃叠层（L2 / L3）**：
@@ -74,6 +76,7 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --fina
 import {
   Presentation, finalizeDeck, makeBulletList, fr, fixed,
   buildRoundedTrapezoidPath, buildPolylineStrokeCommands,
+  createBrushPng, applyAlphaMaskToImage,
 } from "<SKILL_DIR>/scripts/kit.mjs";
 
 const deck = Presentation.create({ title: "方案标题", defaultFont: "PingFang SC" });
@@ -84,10 +87,12 @@ s.images.add({ path: "./hero.jpg", position: { left: 0, top: 0, width: 1280, hei
 s.shapes.add({ name: "暗角遮罩", geometry: "rect", position: { left: 0, top: 0, width: 1280, height: 720 }, fill: { color: "#0B1120", opacity: 0.52 }, line: { fill: "none" } });
 s.shapes.add({ name: "透底白线框", geometry: "rect", position: { left: 180, top: 140, width: 920, height: 420 }, fill: "none", line: { fill: "#FFFFFF", width: 4 }, text: "主标题", textStyle: { fontSize: 48, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" } });
 
-// 2) 菱形裁图 / 斜切多边形 SVG 裁图 / 倾斜白边拍立得（拒绝千篇一律 roundRect！）
+// 2) 菱形裁图 / 斜切多边形 SVG 裁图 / 倾斜白边拍立得 / 有机水墨笔刷与无孔洞蒙版叠图
 s.images.add({ path: "./p1.jpg", geometry: "diamond", position: { left: 120, top: 180, width: 220, height: 220 }, fit: "cover", line: { fill: "#E85D04", width: 3 } });
 s.images.add({ path: "./p2.jpg", svgPath: "M 0 0 L 560 0 L 420 720 L 0 720 Z", viewBox: { width: 560, height: 720 }, position: { left: 0, top: 0, width: 560, height: 720 }, fit: "cover" });
 s.images.add({ path: "./p3.jpg", position: { left: 320, top: 160, width: 260, height: 260 }, fit: "cover", rotation: -12, line: { fill: "#FFFFFF", width: 8 } });
+await createBrushPng({ preset: "ink-circle-solid", color: "#C82829", width: 420, height: 420, outPath: "./work/stamp.png" }); // 可选: ink-circle-ring | ink-band | ink-slash | ink-wave
+await applyAlphaMaskToImage({ imagePath: "./p4.jpg", maskPreset: "ink-slash", width: 520, height: 720, outPath: "./work/p4_masked.png" }); // 或传 refMaskPath + refCrop 边界泛洪提取无孔洞轮廓
 
 // 3) 单图形直写底色+富文本 / 虚线箭头路径 / 原生表格 / 内嵌 .xlsx 真图表
 s.shapes.add({ name: "卡片", geometry: "roundRect", borderRadius: 8, rotation: 0, position: { left: 64, top: 120, width: 320, height: 56 }, fill: "#0F3A7D", line: { fill: "#0F3A7D", width: 1 }, text: "结论前置标题", textStyle: { fontSize: 18, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", insets: { left: 10, right: 10, top: 6, bottom: 6 } } });

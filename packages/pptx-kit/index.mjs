@@ -75,4 +75,9 @@ export {
   createSourceProvider,
   resolveActiveSourceProvider,
 } from "./src/providers/index.mjs";
+export {
+  encodeRgbaPng,
+  createBrushPng,
+  applyAlphaMaskToImage,
+} from "./src/brush-mask.mjs";
 export { readZipBuffer, buildZipBuffer } from "./src/xml.mjs";
