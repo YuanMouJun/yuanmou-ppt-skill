@@ -53,20 +53,20 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,
 
 ## 5. 一条龙终检与强制高清左右对照验收（Step 5）
 
-交付前 1 条命令跑完 **14 道自动代码门禁**（ECMA-376、越界、碰撞、框中套框、菱形/窄图形内切宽溢出、WCAG 对比度、整页贴图冒充、**实心块遮死底图**、长空格与假圆点、**脏 Emoji/假表单方括号**、**超小正文**、Anti-Slop、`[待补充]`、表图 `.xlsx` 同步）+ **缓存加速渲染** + **4 页一组高清左右对照审图拼图（`compare_batch_*.jpg`）** + **轻量 JPEG Base64 逐页左右对比画廊（<5MB）**：
+交付前 1 条命令跑完 **14 道自动代码门禁**（ECMA-376、越界、碰撞、框中套框、菱形/窄图形内切宽溢出、WCAG 对比度、整页贴图冒充、**实心块遮死底图**、长空格与假圆点、**脏 Emoji/假表单方括号**、**超小正文**、Anti-Slop、`[待补充]`、表图 `.xlsx` 同步）+ **缓存加速渲染** + **4 页一组高清左右对照审图拼图（`compare_batch_*.jpg`）** + **多页高清左右对照验收 PDF（`qa_compare.pdf`，不再生成 HTML）**：
 
 ```bash
-# 多页参考图/PDF 复刻（必须传 --ref-dir 自动生成逐页左原模板 vs 右成稿画廊与高清审图批）
+# 多页参考图/PDF 复刻（必须传 --ref-dir 自动生成逐页左原模板 vs 右成稿对照 PDF 与高清审图批）
 node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --final ./output/final.pptx \
-  --out ./work/qa --ref-dir ./refs --gallery ./output/qa_compare_gallery.html --anti-slop fail
+  --out ./work/qa --ref-dir ./refs --pdf ./output/qa_compare.pdf --anti-slop fail
 
-# 单页 L3 精雕对比（传 --ref 单图，自动输出 50% X 光叠图 + Top-2 误差热点 2× 放大）
+# 单页 L3 精雕对比（传 --ref 单图，自动输出 50% X 光叠图 + Top-2 误差热点 2× 放大对照 PDF）
 node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --final ./output/final.pptx \
-  --out ./work/qa --ref ./ref.png --gallery ./output/qa_gallery.html --anti-slop fail
+  --out ./work/qa --ref ./ref.png --pdf ./output/qa_compare.pdf --anti-slop fail
 ```
 
 1. **严禁只看 20 合一邮票总览图就交差！** 多页复刻必须逐张 `read_file` 审阅 `compare_batch_1.jpg`、`compare_batch_2.jpg`…，逐页核对：**① 底图是否清晰透出无死色块遮挡 ② 菱形/斜切/倾斜构图是否完整保留 ③ 菱形与窄标签有无断行孤字 ④ 有无把 3D 物件/路线图/H5 表单降级成简陋方框 ⑤ 配图是否高频重复**；凡有明显失真必须返工重渲后再交付！
-2. 交付附带 `.pptx` + **轻量 Base64 左右对比画廊 HTML**（有参考页时必须为左原模板 vs 右成稿），并如实写明渲染器、字体替换与验证范围。
+2. 交付附带 `.pptx` + **多页高清对照 PDF（`qa_compare.pdf`）**（有参考页时为左原模板 vs 右成稿），以及 `compare_batch_*.jpg` 对照图，并如实写明渲染器、字体替换与验证范围。
 
 ## 6. `@yuanmou/pptx-kit` 零翻源码 API 速查（1280×720 坐标）
 

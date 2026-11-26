@@ -361,23 +361,54 @@ for b_idx in range(0, n, batch_size):
 print(json.dumps({"pairs": pair_items, "compareBatches": batches}, ensure_ascii=False))
 `;
 
-const PY_COMPRESS_FOR_GALLERY = `
+const PY_BUILD_PDF = `
 import json, os, sys
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 cfg = json.loads(sys.argv[1])
-pngs = cfg["pngs"]
-out_dir = cfg["outDir"]
-os.makedirs(out_dir, exist_ok=True)
-out = []
-for i, p in enumerate(pngs, 1):
-    im = Image.open(p).convert("RGB")
-    if im.width > 1280:
-        im = im.resize((1280, int(im.height * 1280 / im.width)), Image.Resampling.LANCZOS)
-    dst = os.path.join(out_dir, f"gal_{i:02d}.jpg")
-    im.save(dst, format="JPEG", quality=84, optimize=True)
-    out.append(dst)
-print(json.dumps({"jpgs": out}))
+pages = cfg["pages"]
+out_pdf = cfg["outPdf"]
+os.makedirs(os.path.dirname(os.path.abspath(out_pdf)), exist_ok=True)
+
+def load_font(size):
+    for fp in [
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Medium.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]:
+        if os.path.exists(fp):
+            try:
+                return ImageFont.truetype(fp, size)
+            except Exception:
+                pass
+    return ImageFont.load_default()
+
+font = load_font(22)
+pdf_imgs = []
+for item in pages:
+    im = Image.open(item["imgPath"]).convert("RGB")
+    target_w = 1600
+    if im.width != target_w:
+        im = im.resize((target_w, max(1, int(im.height * target_w / im.width))), Image.Resampling.LANCZOS)
+    header_h = 54
+    pad = 16
+    page = Image.new("RGB", (target_w + pad * 2, im.height + header_h + pad), (15, 23, 42))
+    draw = ImageDraw.Draw(page)
+    draw.text((pad + 6, 14), item.get("label", ""), fill=(248, 250, 252), font=font)
+    page.paste(im, (pad, header_h))
+    pdf_imgs.append(page)
+
+if pdf_imgs:
+    pdf_imgs[0].save(
+        out_pdf,
+        format="PDF",
+        resolution=144.0,
+        save_all=True,
+        append_images=pdf_imgs[1:],
+    )
+print(json.dumps({"comparePdf": out_pdf, "pages": len(pdf_imgs), "kb": round(os.path.getsize(out_pdf) / 1024, 1) if os.path.exists(out_pdf) else 0}))
 `;
 
 function numericSortPaths(paths) {
@@ -408,6 +439,7 @@ async function main() {
       "ref-dir": { type: "string" },
       gen: { type: "string" },
       crops: { type: "string" },
+      pdf: { type: "string" },
       gallery: { type: "string" },
       title: { type: "string" },
     },
@@ -600,11 +632,16 @@ async function main() {
       });
     }
 
-    // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + compact JPEG Base64 HTML gallery
+    // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + multi-page QA PDF & compare_batch JPGs (zero HTML)
     let diffRes = null;
     let compareBatches = [];
-    let galleryHtml = null;
-    const galleryOut = values.gallery ? path.resolve(values.gallery) : path.join(outDir, "qa_gallery.html");
+    let comparePdf = null;
+    const pdfOut = values.pdf
+      ? path.resolve(values.pdf)
+      : values.gallery
+        ? path.resolve(values.gallery.replace(/\.html?$/i, ".pdf"))
+        : path.join(outDir, "qa_compare.pdf");
+
     if (values["ref-dir"] && renderedPngs.length > 0) {
       const refDirAbs = path.resolve(values["ref-dir"]);
       const refFiles = numericSortPaths(
@@ -634,17 +671,12 @@ async function main() {
           .map((x) => ({ slide: x.slide, ref: x.refName, similarityPct: x.similarityPct })),
       };
       compareBatches = multi.compareBatches;
-      galleryHtml = await buildShowcaseGalleryHtml({
-        title: values.title || "渊眸 PPT 引擎 · 原模板 vs 成稿逐页左右对比画廊",
-        subtitle: "左：原模板参考页 ｜ 右：@yuanmou/pptx-kit 零依赖原生可编辑成稿（点击图片可放大）",
-        pptxPath: targetPptx,
-        slides: multi.pairs.map((p) => ({
-          title: `Slide ${p.slide}（对照 ${p.refName}）`,
-          caption: `整页像素相似度 ${p.similarityPct}%（MAE=${p.mae}）· 左原模板 / 右成稿`,
-          pngPath: p.pairJpg,
-          weapons: ["左原模板 vs 右成稿", "轻量 JPEG Base64"],
+      comparePdf = runPythonVision(PY_BUILD_PDF, {
+        outPdf: pdfOut,
+        pages: multi.pairs.map((p) => ({
+          label: `Slide ${String(p.slide).padStart(2, "0")}  |  左：原模板 (${p.refName})   vs   右：原生可编辑成稿  |  相似度 ${p.similarityPct}%`,
+          imgPath: p.pairJpg,
         })),
-        outHtmlPath: galleryOut,
       });
     } else if (values.ref && renderedPngs.length > 0) {
       const pageNo = values.page ? Number(values.page) : 1;
@@ -652,51 +684,31 @@ async function main() {
       const genPng = renderedPngs[Math.min(Math.max(0, pageNo - 1), renderedPngs.length - 1)];
       const crops = parseCropSpecs(values.crops);
       diffRes = runPythonVision(PY_DIFF, { refPath: refPng, genPath: genPng, outDir, crops, autoCrops: true });
-
-      const gallerySlides = [
-        {
-          title: values.title || "全页并排对比（左：参考原图 ｜ 右：最终成稿）",
-          caption: `整页像素相似度 ${diffRes.fullSimilarityPct}%（MAE=${diffRes.fullMae}）`,
-          pngPath: diffRes.sideBySidePng,
-          weapons: ["左原图 vs 右成稿", "Base64 内联防裂图"],
-        },
-        {
-          title: "三联 50% 半透明 X 光叠图校准",
-          caption: "核查形状轮廓、梯度透明度与文字对齐",
-          pngPath: diffRes.overlay3PanelPng,
-          weapons: ["50% 叠图校准"],
-        },
-        ...diffRes.zoomCrops.map((z) => ({
-          title: `局部 2× 放大精检：${z.name}`,
-          caption: `区域 [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
-          pngPath: z.zoomPng2x,
-          weapons: ["自动热点 2× 放大"],
-        })),
-      ];
-      galleryHtml = await buildShowcaseGalleryHtml({
-        title: values.title || "渊眸 PPT 引擎 · 参考原图 vs 成稿视觉精检画廊",
-        subtitle: "左：参考原图 ｜ 右：@yuanmou/pptx-kit 零依赖原生可编辑成稿",
-        pptxPath: targetPptx,
-        slides: gallerySlides,
-        outHtmlPath: galleryOut,
+      comparePdf = runPythonVision(PY_BUILD_PDF, {
+        outPdf: pdfOut,
+        pages: [
+          {
+            label: `全页并排对比（左：参考原图 ｜ 右：最终成稿）· 相似度 ${diffRes.fullSimilarityPct}%`,
+            imgPath: diffRes.sideBySidePng,
+          },
+          {
+            label: "三联 50% 半透明 X 光叠图校准",
+            imgPath: diffRes.overlay3PanelPng,
+          },
+          ...diffRes.zoomCrops.map((z) => ({
+            label: `局部 2x 放大精检：${z.name} [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
+            imgPath: z.zoomPng2x,
+          })),
+        ],
       });
     } else if (renderedPngs.length > 0) {
-      const compressed = runPythonVision(PY_COMPRESS_FOR_GALLERY, {
-        pngs: numericSortPaths(renderedPngs),
-        outDir: path.join(outDir, "gallery_jpgs"),
-      });
-      const galleryImgs = compressed?.jpgs || numericSortPaths(renderedPngs);
-      galleryHtml = await buildShowcaseGalleryHtml({
-        title: values.title || "渊眸 PPT 引擎 · 成稿视觉验收画廊",
-        subtitle: "@yuanmou/pptx-kit 零依赖原生可编辑成稿（点击可放大）",
-        pptxPath: targetPptx,
-        slides: galleryImgs.map((p, idx) => ({
-          title: `Slide ${idx + 1}`,
-          caption: `已通过全部自动门禁（fail=0, warn=${validation.warnCount}）`,
-          pngPath: p,
-          weapons: ["纯原生 OOXML"],
+      const sorted = numericSortPaths(renderedPngs);
+      comparePdf = runPythonVision(PY_BUILD_PDF, {
+        outPdf: pdfOut,
+        pages: sorted.map((p, idx) => ({
+          label: `Slide ${String(idx + 1).padStart(2, "0")}  |  @yuanmou/pptx-kit 原生可编辑成稿（fail=0, warn=${validation.warnCount}）`,
+          imgPath: p,
         })),
-        outHtmlPath: galleryOut,
       });
     }
 
@@ -712,8 +724,8 @@ async function main() {
           renderedSlides: renderedPngs,
           qaSheetPng: qaSheet?.qaSheetPng || null,
           compareBatches,
+          comparePdf,
           diff: diffRes,
-          galleryHtml,
         },
         null,
         2
