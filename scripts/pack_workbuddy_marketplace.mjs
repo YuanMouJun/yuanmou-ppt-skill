@@ -19,18 +19,18 @@ const WORKBUDDY_SKILL_MD = `---
 name: yuanmou-ppt
 display_name: 渊眸可编辑PPT生成与复刻引擎
 display_name_en: Yuanmou Editable PPTX Engine
-description: 一句话生成原生可编辑PPT、截图与PDF 1:1矢量复刻为PPTX、既有PPTX无损改版及内嵌真Excel图表（基于零依赖原生OOXML引擎，支持11道自动质检门禁与真机渲染验收）
-description_zh: 基于纯Node.js零第三方npm依赖的原生OOXML引擎，支持一句话策划生成整套可编辑.pptx演示文稿、将用户提供的参考截图或PDF 1:1矢量复刻为可编辑PPT、对既有.pptx母本无损换字换图，以及生成双击可改数的内嵌Excel真图表与原生表格；内置11道代码质检门禁与真机渲染验收。运行需本机安装Node.js>=22.5、LibreOffice与Poppler。
-description_en: Zero-dependency native OOXML PowerPoint (.pptx) engine for generating editable decks from a topic, 1:1 vector redrawing from user-provided screenshots or PDFs, lossless editing of existing .pptx templates, and creating Excel-backed editable charts with 11 automated QA gates. Requires Node.js>=22.5, LibreOffice, and Poppler.
+description: 一句话生成原生可编辑PPT、截图与PDF 1:1矢量复刻为PPTX、既有PPTX无损改版及内嵌.xlsx电子表格真图表（基于零依赖原生OOXML引擎，支持11道自动质检门禁与真机渲染验收）
+description_zh: 基于纯Node.js零第三方npm依赖的原生OOXML引擎，支持一句话策划生成整套可编辑.pptx演示文稿、将用户提供的参考截图或PDF 1:1矢量复刻为可编辑PPTX、对既有.pptx母本无损换字换图，以及生成双击可改数的内嵌.xlsx数据真图表与原生表格；内置11道代码质检门禁与真机渲染验收。运行需本机安装Node.js>=22.5、LibreOffice与Poppler。
+description_en: Zero-dependency native OOXML (.pptx) engine for generating editable slide decks from a topic, 1:1 vector redrawing from user-provided screenshots or PDFs, lossless editing of existing .pptx templates, and creating .xlsx-backed editable charts with 11 automated QA gates. Requires Node.js>=22.5, LibreOffice, and Poppler.
 version: 0.1.0
 author: "渊眸策略"
 examples_zh:
   - "帮我根据这份产品方案文稿，策划并生成一套 6 页可编辑商业汇报 PPT，包含原生柱状图与对比表格"
-  - "把我上传的这张参考排版截图 1:1 复刻成 PowerPoint 原生可编辑形状，并替换成我的季度复盘数据"
+  - "把我上传的这张参考排版截图 1:1 复刻成 PPTX 原生可编辑形状，并替换成我的季度复盘数据"
   - "保留这份公司既有 .pptx 模板的母版样式与图片蒙版，把第 2 页和第 5 页原位更新成最新业务内容"
 examples_en:
-  - "Create a 6-slide editable business presentation from this brief with native Excel-backed bar charts and tables"
-  - "Redraw this reference slide screenshot into native editable PowerPoint shapes and replace the copy with my quarterly metrics"
+  - "Create a 6-slide editable business presentation (.pptx) from this brief with native .xlsx-backed bar charts and tables"
+  - "Redraw this reference slide screenshot into native editable PPTX shapes and replace the copy with my quarterly metrics"
   - "Update slides 2 and 5 of this existing .pptx template in place while preserving master styles and image masks"
 ---
 
@@ -40,7 +40,7 @@ examples_en:
 
 ## 1. 核心工程铁律
 
-1. **纯原生 OOXML（禁止简化或贴图）**：所有构建、改版、表格与图表均调用 \`<SKILL_DIR>/scripts/kit.mjs\`；严禁 \`python-pptx\`，严禁简化/合并省略结构，严禁用整页背景图或截图碎片冒充表格、流程图或可编辑重绘。图表必须内嵌 \`.xlsx\` 工作簿以支持 PowerPoint / WPS 双击改数。
+1. **纯原生 OOXML（禁止简化或贴图）**：所有构建、改版、表格与图表均调用 \`<SKILL_DIR>/scripts/kit.mjs\`；严禁 \`python-pptx\`，严禁简化/合并省略结构，严禁用整页背景图或截图碎片冒充表格、流程图或可编辑重绘。图表必须内嵌 \`.xlsx\` 工作簿以支持主流演示软件双击改数。
 2. **单图形承载底色与富文本（严禁框中套框）**：圆角矩形、色带、圆形、箭头等带底色/描边节点必须在同一个 \`<p:sp>\` 上直接设置 \`fill / line / text / textStyle\`（多字号/多色使用富文本 \`runs\`）；**严禁在图形内另套内框、覆盖透明文本框或用编组冒充**；表格文字直写单元格；项目符号使用 \`makeBulletList()\`，禁手敲 \`"• "\`；禁 4+ 连续空格定位；跨端优先通用字体且窄标签留足 5% 宽度余量防换字掉孤字。
 3. **只读保护与交付边界**：区分「内容源」与「版式参考」；用户要求源文件不动时严格只读并在副本制作（可用 \`verify --readonly-source\` 校验 SHA-256），核对物理页码、隐藏页与交付份数。
 4. **强制视觉自检**：成稿必须通过 \`deck_cli.mjs verify\` 渲染核验；如缺少 LibreOffice 或 Poppler，先提示用户安装后再继续，严禁盲画交付。
