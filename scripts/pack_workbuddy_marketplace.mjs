@@ -22,7 +22,7 @@ display_name_en: Yuanmou Editable PPTX Engine
 description: 一句话生成原生可编辑PPT、截图与PDF 1:1矢量复刻为PPTX、既有PPTX无损改版及内嵌.xlsx电子表格真图表（基于零依赖原生OOXML引擎，支持11道自动质检门禁与真机渲染验收）
 description_zh: 基于纯Node.js零第三方npm依赖的原生OOXML引擎，支持一句话策划生成整套可编辑.pptx演示文稿、将用户提供的参考截图或PDF 1:1矢量复刻为可编辑PPTX、对既有.pptx母本无损换字换图，以及生成双击可改数的内嵌.xlsx数据真图表与原生表格；内置11道代码质检门禁与真机渲染验收。运行需本机安装Node.js>=22.5、LibreOffice与Poppler。
 description_en: Zero-dependency native OOXML (.pptx) engine for generating editable slide decks from a topic, 1:1 vector redrawing from user-provided screenshots or PDFs, lossless editing of existing .pptx templates, and creating .xlsx-backed editable charts with 11 automated QA gates. Requires Node.js>=22.5, LibreOffice, and Poppler.
-version: 0.1.0
+version: 0.1.1
 author: "渊眸策略"
 examples_zh:
   - "帮我根据这份产品方案文稿，策划并生成一套 6 页可编辑商业汇报 PPT，包含原生柱状图与对比表格"
@@ -54,10 +54,10 @@ examples_en:
 ## 3. 双通道制作流（Step 2 ～ Step 4）
 
 ### 通道 A：既有 \`.pptx\` 母本无损改版（L1）
-严禁新建空白页重画：\`inspectTemplateDeck\` 提取锚点 → 编写 \`template-frame-map.json\` 并过 \`validateTemplatePlan\` → \`prepareStarterDeck\` 无损抽页并清理冗余媒体 → \`.text.set()\` / \`.text.replace()\` 保样式换字、\`.replace({ path, fit: "cover" })\` 保蒙版换图、原生表图注入 → \`auditTemplateFidelity\` 保真稽查。
+严禁新建空白页重画：\`inspectTemplateDeck\` 提取锚点 → 编写模板框位映射 JSON 并过 \`validateTemplatePlan\` → \`prepareStarterDeck\` 无损抽页并清理冗余媒体 → \`.text.set()\` / \`.text.replace()\` 保样式换字、\`.replace({ path, fit: "cover" })\` 保蒙版换图、原生表图注入 → \`auditTemplateFidelity\` 保真稽查。
 
 ### 通道 B：从零生成 / 用户截图与 PDF 1:1 复刻
-多页任务用**模块化单页文件**推进（\`slides/p1.mjs\`…\`pN.mjs\` 各自 \`export function addSlide(deck) { ... }\`，再由 \`build_deck.mjs\` 汇总 \`Presentation.create()\` 一次性导出）：
+多页任务用**模块化单页脚本**推进（在用户工作目录按页拆写 \`export function addSlide(deck) { ... }\`，再由总装入口脚本汇总 \`Presentation.create()\` 一次性导出）：
 - **L2（常规卡片 / 表格 / 图表 / 时间轴）**：单步直出内容稿 → 跑 1 次 \`deck_cli.mjs verify\` 审阅 \`qa_sheet.png\` 多页总览图。
 - **L3（半透明玻璃叠层 / 弧边锥体 / 渐窄箭头 / 圆角倒梯形，可按需查阅 \`@references/structure-and-text.md\`）**：
   1. \`node <SKILL_DIR>/scripts/deck_cli.mjs inspect-ref --ref ./ref.pdf --page 1 --out ./work/inspect\`（原生支持 PNG/JPG/PDF，自动采色与 2× 切片）；
