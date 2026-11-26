@@ -72,7 +72,9 @@ export function makeBulletList(items, options = {}) {
       ? item
       : typeof item === "object" && item !== null && Array.isArray(item.runs)
         ? item.runs
-        : [String(item)];
+        : typeof item === "object" && item !== null && ("text" in item || "run" in item)
+          ? [item]
+          : [String(item)];
     return {
       bulletCharacter,
       bulletColor,

@@ -77,7 +77,7 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --fina
 
 ## 6. `@yuanmou/pptx-kit` 零翻源码 API 速查（坐标 `px` 1280×720 · `fontSize` 数值默认 `pt`）
 
-> 单位约定：`position / width / height / borderRadius / insets` 均用 `px`（画布 `1280×720`）；**`fontSize` 数值默认单位为 `pt`**（如 `fontSize: 14` 即 `14pt`，显式传 `"24px"` 时按 `0.75` 折算 `18pt`）。Windows/macOS/Linux 通用跨平台导入请用 `pathToFileURL`：
+> 单位约定：`position / width / height / borderRadius / insets` 均用 `px`（画布 `1280×720`）；**`fontSize` 数值默认单位为 `pt`**（如 `fontSize: 14` 即 `14pt`，显式传 `"24px"` 时按 `0.75` 折算 `18pt`）。脚本一律从工作区根目录运行或用 `path.resolve`（防 `work/work` 相对路径叠加）；Windows/macOS/Linux 通用跨平台导入请用 `pathToFileURL`：
 
 ```js
 import path from "node:path";

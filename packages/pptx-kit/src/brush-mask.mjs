@@ -542,7 +542,7 @@ export async function applyAlphaMaskToImage({
       height,
       outPath: resolvedOut,
     };
-    const pythonBin = discoverRenderToolchain().python3 || "python3";
+    const pythonBin = discoverRenderToolchain().python3 || (process.platform === "win32" ? "python" : "python3");
     const res = spawnSync(pythonBin, ["-c", PY_APPLY_MASK, JSON.stringify(payload)], {
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,

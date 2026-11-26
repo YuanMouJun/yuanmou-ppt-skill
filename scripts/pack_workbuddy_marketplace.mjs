@@ -240,12 +240,13 @@ async function main() {
     }
 
     const st = await fs.stat(outZip);
+    const wbVersion = WORKBUDDY_SKILL_MD.match(/^version:\s*(.+)$/m)?.[1]?.trim() || pkg.version;
     console.log(
       JSON.stringify(
         {
           ok: true,
           variant: "workbuddy-marketplace-pure-offline",
-          version: pkg.version,
+          version: wbVersion,
           zipPath: outZip,
           bytes: st.size,
           kb: Number((st.size / 1024).toFixed(1)),

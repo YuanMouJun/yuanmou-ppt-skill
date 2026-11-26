@@ -779,9 +779,9 @@ function runGates2And4GeometryAndText(
             message: `Slide ${slideNo} "${it.name}" uses unmatched "《" as a fake decorative icon ("${it.plainText.slice(0, 28)}") — draw a native vector shape instead`,
           });
         }
-        // Tiny non-footer body text check (<9pt fail, 9–11.9pt warn)
+        // Tiny non-footer body text check (<9pt fail, 9–11.9pt warn; ignores <=5-char micro-badges like "01"/"Q1")
         const isEdgeFooterOrHeader = it.top <= 48 || it.top + it.height >= slideH - 36;
-        if (!isEdgeFooterOrHeader && it.plainText.length >= 12) {
+        if (!isEdgeFooterOrHeader && it.plainText.length >= 6) {
           const runPts = [];
           for (const p of it.paras) {
             if (!p.text.trim()) continue;
