@@ -9,9 +9,36 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { generateSkillManifest } from "./sync_skill_manifest.mjs";
+import { buildZipBuffer } from "../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
+
+async function writeZipCrossPlatform(stageRoot, rootFolderName, outZip) {
+  await fs.rm(outZip, { force: true });
+  const zipRes = spawnSync("zip", ["-rq", outZip, rootFolderName], {
+    cwd: stageRoot,
+    encoding: "utf8",
+  });
+  if (zipRes.status === 0) return;
+
+  // Fallback for Windows / environments without `zip` CLI: pure Node.js PKZIP builder
+  const entries = [];
+  async function walk(curDir) {
+    for (const ent of await fs.readdir(curDir, { withFileTypes: true })) {
+      const full = path.join(curDir, ent.name);
+      if (ent.isDirectory()) await walk(full);
+      else if (ent.isFile()) {
+        entries.push({
+          name: path.relative(stageRoot, full).split(path.sep).join("/"),
+          data: await fs.readFile(full),
+        });
+      }
+    }
+  }
+  await walk(path.join(stageRoot, rootFolderName));
+  await fs.writeFile(outZip, buildZipBuffer(entries));
+}
 
 async function copyClean(src, dest) {
   await fs.cp(src, dest, {
@@ -34,15 +61,7 @@ async function main() {
   const bundleDir = path.join(stageRoot, "yuanmou-ppt");
   try {
     await copyClean(path.join(REPO_ROOT, "skills", "yuanmou-ppt"), bundleDir);
-
-    await fs.rm(outZip, { force: true });
-    const zipRes = spawnSync("zip", ["-rq", outZip, "yuanmou-ppt"], {
-      cwd: stageRoot,
-      encoding: "utf8",
-    });
-    if (zipRes.status !== 0) {
-      throw new Error(`zip failed: ${zipRes.stderr || zipRes.stdout}`);
-    }
+    await writeZipCrossPlatform(stageRoot, "yuanmou-ppt", outZip);
 
     const st = await fs.stat(outZip);
     console.log(

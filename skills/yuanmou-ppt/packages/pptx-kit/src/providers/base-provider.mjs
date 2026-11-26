@@ -29,8 +29,13 @@ export async function atomicReplaceFile(tmpPath, targetPath) {
   try {
     await fs.rename(tmpPath, targetPath);
   } catch {
-    await fs.rm(targetPath, { force: true });
-    await fs.rename(tmpPath, targetPath);
+    try {
+      await fs.rm(targetPath, { force: true });
+      await fs.rename(tmpPath, targetPath);
+    } catch {
+      await fs.copyFile(tmpPath, targetPath);
+      await fs.rm(tmpPath, { force: true }).catch(() => {});
+    }
   }
 }
 

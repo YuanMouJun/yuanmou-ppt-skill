@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { atomicReplaceFile, defaultCacheRoot } from "./providers/base-provider.mjs";
 
-export const KIT_VERSION = "0.1.3";
+export const KIT_VERSION = "0.1.4";
 export const GITHUB_REPO = "YuanMouJun/yuanmou-ppt-skill";
 
 // Flipped to `true` automatically by `pack_workbuddy_marketplace.mjs` so platform-hosted packages
@@ -371,15 +371,32 @@ async function syncColocatedPluginVersion(realSkillDir, newVersion) {
   }
 }
 
+async function isYuanmouSkillGitClone(maybeRepoRoot) {
+  if (!existsSync(path.join(maybeRepoRoot, ".git"))) return false;
+  const pkgPath = path.join(maybeRepoRoot, "package.json");
+  if (!existsSync(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(await fs.readFile(pkgPath, "utf8"));
+    return pkg?.name === "@yuanmou/pptx-kit";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Explicit user-triggered one-click skill updater:
- * 1) Uses `git pull --ff-only` if installed via clean Git clone (falling back to China CDN if GitHub is unreachable).
+ * 1) Uses `git pull --ff-only` if installed via clean Git clone of `yuanmou-ppt-skill` (falling back to China CDN if GitHub is unreachable).
  * 2) Otherwise performs SHA-256 verified incremental file sync from China-accessible jsDelivr/GitHub mirrors,
  *    verifying 100% of changed files in memory BEFORE writing anything to disk.
  */
 export async function selfUpdateSkill(options = {}) {
   if (MARKETPLACE_BUILD || process.env.YUANMOU_CHANNEL === "workbuddy-marketplace") {
-    throw new Error("当前为开放平台市场托管版本，请直接在客户端技能市场中检查并升级版本。");
+    return {
+      ok: false,
+      updated: false,
+      reason: "marketplace_managed",
+      message: "当前为开放平台市场托管版本，请直接在客户端技能市场中检查并升级版本。",
+    };
   }
 
   const skillDirInput = options.skillDir;
@@ -398,9 +415,11 @@ export async function selfUpdateSkill(options = {}) {
   const timeoutMs = options.timeoutMs || EXPLICIT_TIMEOUT_MS;
   const cachePath = getUpdateCachePath(options.cacheDir);
 
-  // Path A: Git repository checkout (`<repo>/skills/yuanmou-ppt`)
+  // Path A: Verified Git repository checkout of `yuanmou-ppt-skill` (`<repo>/skills/yuanmou-ppt`)
+  // Never misidentify a user's own project repo (`<user-project>/skills/yuanmou-ppt`)!
   const maybeRepoRoot = path.resolve(realSkillDir, "..", "..");
-  const isGitRepo = !baseUrlOverride && !options.cdnOnly && existsSync(path.join(maybeRepoRoot, ".git"));
+  const isGitRepo =
+    !baseUrlOverride && !options.cdnOnly && (await isYuanmouSkillGitClone(maybeRepoRoot));
   if (isGitRepo) {
     const statusRes = spawnSync("git", ["status", "--porcelain"], {
       cwd: maybeRepoRoot,
@@ -408,7 +427,7 @@ export async function selfUpdateSkill(options = {}) {
       timeout: 5000,
     });
     const isDirty = statusRes.status === 0 && Boolean(statusRes.stdout.trim());
-    if (isDirty && !force) {
+    if (isDirty && !force && !dryRun) {
       return {
         ok: false,
         updated: false,
@@ -467,7 +486,7 @@ export async function selfUpdateSkill(options = {}) {
   ]);
 
   let chosen = mainRes && !mainRes.error ? mainRes : null;
-  if (releaseVer && (!chosen || compareSemver(releaseVer, chosen.manifest.version) >= 0)) {
+  if (releaseVer && (!chosen || compareSemver(releaseVer, chosen.manifest.version) > 0)) {
     const tagRes = await fetchManifestFromEndpoints(`v${releaseVer}`, timeoutMs, null, baseUrlOverride, true).catch(
       () => null
     );
@@ -506,7 +525,12 @@ export async function selfUpdateSkill(options = {}) {
     (oldRel) => !remoteSet.has(oldRel) && SAFE_REL_PATH_RE.test(oldRel)
   );
 
-  if (changedEntries.length === 0 && removedRelPaths.length === 0 && compareSemver(remoteManifest.version, currentVersion) <= 0) {
+  if (
+    changedEntries.length === 0 &&
+    removedRelPaths.length === 0 &&
+    existsSync(localManifestPath) &&
+    compareSemver(remoteManifest.version, currentVersion) <= 0
+  ) {
     await writeUpdateCache(cachePath, {
       checkedAt: Date.now(),
       latestVersion: remoteManifest.version,
@@ -543,7 +567,7 @@ export async function selfUpdateSkill(options = {}) {
     };
   }
 
-  // Prefer immutable git tag `@vX.Y.Z` first so CDN cache never mixes versions, falling back to `chosen.ref` / `main`
+  // Prefer immutable git tag `@vX.Y.Z` first (falling back to `chosen.ref` / `main` via SHA-256 verification)
   const candidateRefs = Array.from(new Set([`v${remoteManifest.version}`, chosen.ref, "main"]));
 
   // Download & SHA-256 verify ALL changed files in memory BEFORE touching any file on disk!

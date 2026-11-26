@@ -6,6 +6,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -75,12 +76,28 @@ export async function generateSkillManifest({ purgeCdn = false } = {}) {
 
   let purged = false;
   if (purgeCdn) {
+    const purgePaths = new Set(["skills/yuanmou-ppt/skill-manifest.json"]);
+    const diffRes = spawnSync(
+      "git",
+      ["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD", "--", "skills/yuanmou-ppt/"],
+      { cwd: REPO_ROOT, encoding: "utf8" }
+    );
+    if (diffRes.status === 0 && diffRes.stdout.trim()) {
+      for (const line of diffRes.stdout.trim().split(/\r?\n/)) {
+        if (line.trim()) purgePaths.add(line.trim());
+      }
+    }
     try {
-      const res = await fetch(
-        "https://purge.jsdelivr.net/gh/YuanMouJun/yuanmou-ppt-skill@main/skills/yuanmou-ppt/skill-manifest.json",
-        { signal: AbortSignal.timeout(6000) }
+      const results = await Promise.all(
+        Array.from(purgePaths).map((rel) =>
+          fetch(`https://purge.jsdelivr.net/gh/YuanMouJun/yuanmou-ppt-skill@main/${rel}`, {
+            signal: AbortSignal.timeout(6000),
+          })
+            .then((r) => r.ok)
+            .catch(() => false)
+        )
       );
-      purged = res.ok;
+      purged = results.every(Boolean);
     } catch {
       purged = false;
     }

@@ -292,6 +292,13 @@ async function main() {
 
   // 7) Optional: upload/refresh `yuanmou-ppt-skill.zip` onto existing GitHub Release `vX.Y.Z` + purge CDN
   if (values["sync-gh-release"]) {
+    const dirtyCheck = spawnSync("git", ["status", "--porcelain"], { cwd: REPO_ROOT, encoding: "utf8" });
+    if (dirtyCheck.status !== 0 || dirtyCheck.stdout.trim()) {
+      throw new Error(
+        `[RELEASE SYNC BLOCKED] Working tree has uncommitted changes:\n${dirtyCheck.stdout}\n` +
+          `Commit & push first, or use \`npm run release -- --version X.Y.Z --highlights "..."\`.`
+      );
+    }
     const authCheck = runChecked("gh", ["api", "user", "--jq", ".login"], { capture: true });
     if (authCheck.stdout.trim() !== "YuanMouJun") {
       throw new Error(`Expected active gh account "YuanMouJun", got "${authCheck.stdout.trim()}"`);

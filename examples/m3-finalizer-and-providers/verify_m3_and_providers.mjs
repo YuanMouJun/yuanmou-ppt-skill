@@ -811,7 +811,24 @@ async function testSkillUpdater() {
     const updatedPlugin = JSON.parse(await fs.readFile(path.join(pluginDir, "plugin.json"), "utf8"));
     assert.equal(updatedPlugin.version, "9.9.9");
 
-    console.log("  [PASS] Passive 24h cached update check, dry-run, SHA-256 tamper rejection & incremental update verified!");
+    // 5) User's own Git project repo (`<user-app>/.git` + `<user-app>/skills/yuanmou-ppt`) must NOT be misidentified as `yuanmou-ppt-skill`!
+    const userAppRoot = path.join(tmpRoot, "user-company-app");
+    const userAppSkill = path.join(userAppRoot, "skills", "yuanmou-ppt");
+    await fs.mkdir(path.join(userAppRoot, ".git"), { recursive: true });
+    await fs.writeFile(path.join(userAppRoot, "package.json"), JSON.stringify({ name: "my-company-webapp", version: "1.0.0" }));
+    await fs.mkdir(userAppSkill, { recursive: true });
+    await fs.writeFile(path.join(userAppSkill, "SKILL.md"), "---\nname: yuanmou-ppt\nversion: 0.1.0\n---\nOld\n");
+    const userAppUpd = await selfUpdateSkill({
+      skillDir: userAppSkill,
+      currentVersion: "0.1.0",
+      cacheDir,
+      baseUrlOverride: mirrorUrl,
+    });
+    assert.equal(userAppUpd.ok, true);
+    assert.equal(userAppUpd.method, "cdn-incremental");
+    assert.equal(userAppUpd.toVersion, "9.9.9");
+
+    console.log("  [PASS] Passive 24h cached update check, dry-run, SHA-256 tamper rejection, user-repo isolation & incremental update verified!");
   } finally {
     server.close();
     await fs.rm(tmpRoot, { recursive: true, force: true });

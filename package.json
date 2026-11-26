@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.1.3",
-  "latestHighlights": "新增国内直连新版本提醒与 SHA-256 增量一键更新、修复 npx skills add 独立运行、支持有机水墨笔刷与无孔洞蒙版",
+  "version": "0.1.4",
+  "latestHighlights": "加固更新器用户仓库隔离、全路径CDN同步刷新与跨平台无依赖ZIP构建",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

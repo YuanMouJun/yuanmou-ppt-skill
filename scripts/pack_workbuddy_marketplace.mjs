@@ -198,7 +198,7 @@ async function main() {
         `export const GITHUB_REPO = "";\n` +
         `export function compareSemver() { return 0; }\n` +
         `export async function checkSkillUpdate() { return null; }\n` +
-        `export async function selfUpdateSkill() { return { ok: false, updated: false, reason: "marketplace_managed" }; }\n`,
+        `export async function selfUpdateSkill() { return { ok: false, updated: false, reason: "marketplace_managed", message: "当前为开放平台市场托管版本，请直接在客户端技能市场中检查并升级版本。" }; }\n`,
       "utf8"
     );
 
@@ -256,7 +256,21 @@ async function main() {
       encoding: "utf8",
     });
     if (zipRes.status !== 0) {
-      throw new Error(`zip failed: ${zipRes.stderr || zipRes.stdout}`);
+      const entries = [];
+      const walk = async (curDir) => {
+        for (const ent of await fs.readdir(curDir, { withFileTypes: true })) {
+          const full = path.join(curDir, ent.name);
+          if (ent.isDirectory()) await walk(full);
+          else if (ent.isFile()) {
+            entries.push({
+              name: path.relative(stageRoot, full).split(path.sep).join("/"),
+              data: await fs.readFile(full),
+            });
+          }
+        }
+      };
+      await walk(bundleDir);
+      await fs.writeFile(outZip, kitMod.buildZipBuffer(entries));
     }
 
     const st = await fs.stat(outZip);
