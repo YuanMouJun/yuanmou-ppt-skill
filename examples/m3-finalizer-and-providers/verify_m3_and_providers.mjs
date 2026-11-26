@@ -517,7 +517,13 @@ async function testM3Finalizer() {
   assert.equal(badReport.gates.layout_geometry, "fail");
   assert.equal(badReport.gates.font_availability, "fail");
   assert.equal(badReport.gates.text_overflow, "fail");
+  assert.equal(badReport.gates.anti_slop, "fail");
   assert.equal(badReport.gates.data_evidence, "fail");
+  assert.equal(
+    badReport.passed,
+    Object.values(badReport.gates).every((v) => v === "pass"),
+    "report.passed must strictly match all report.gates entries"
+  );
 
   const codes = new Set(badReport.issues.map((i) => i.code));
   for (const expectedCode of [

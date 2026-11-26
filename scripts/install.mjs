@@ -24,7 +24,7 @@ function checkEnvironment() {
   if (missing.length > 0) {
     console.warn(
       `[INFO] 未检测到可选真机渲染依赖：${missing.join("、")}。\n` +
-        `Skill 仍可正常安装并在离线代码门禁模式（5 组 15 项检查）及纯 Markdown 策划模式下运行；\n` +
+        `Skill 仍可正常安装并在离线代码门禁模式（6 组 15 项检查）及纯 Markdown 策划模式下运行；\n` +
         `如需开启真机渲染与高清视觉对照验收，建议补充安装：\n` +
         `  • macOS:   brew install --cask libreoffice && brew install poppler\n` +
         `  • Ubuntu:  sudo apt update && sudo apt install -y libreoffice poppler-utils\n` +

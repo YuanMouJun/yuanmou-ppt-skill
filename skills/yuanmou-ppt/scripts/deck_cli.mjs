@@ -699,7 +699,7 @@ async function main() {
     return;
   }
 
-  // One-Shot Verification Pipeline: Optional Read-Only Source Hash + 5+6 Gate Finalizer + Render + QA Contact Sheet + Optional Diff & Gallery
+  // One-Shot Verification Pipeline: Optional Read-Only Source Hash + 6-Group (15-Check) Finalizer + Optional Render + Multi-Page QA PDF & Batch JPGs
   if (cmd === "verify") {
     const candidatePath = path.resolve(values.pptx || positionals[1] || "");
     if (!existsSync(candidatePath)) {
@@ -720,7 +720,7 @@ async function main() {
       sourceIntegrity = { path: path.resolve(values["readonly-source"]), sha256: actualSha, intact: true };
     }
 
-    // 2) Atomic 5+6 gate validation (publish `--final` if supplied, else validate candidate)
+    // 2) Atomic 6-group (15-check) validation (publish `--final` if supplied, else validate candidate)
     let validation;
     let targetPptx = candidatePath;
     if (values.final) {
@@ -771,7 +771,7 @@ async function main() {
               missingDeps: depInfo.missing,
               installHint: depInfo.installHint,
               notice:
-                "All 5 static gate groups (15 checks) passed and PPTX was published, but visual rendering was skipped due to missing render dependencies. Report this truthfully and do NOT fabricate visual previews.",
+                "All 6 static gate groups (15 checks) passed and PPTX was published, but visual rendering was skipped due to missing render dependencies. Report this truthfully and do NOT fabricate visual previews.",
             },
             renderedSlides: [],
             qaSheetPng: null,

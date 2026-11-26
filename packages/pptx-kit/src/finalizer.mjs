@@ -1237,6 +1237,10 @@ export async function validateDeckBuffer(pptxBuffer, options = {}) {
         gate2And4.filter((x) => x.gate === "text_overflow" && x.severity === "fail").length === 0
           ? "pass"
           : "fail",
+      anti_slop:
+        gate2And4.filter((x) => x.gate === "anti_slop" && x.severity === "fail").length === 0
+          ? "pass"
+          : "fail",
       data_evidence: gate5.filter((x) => x.severity === "fail").length === 0 ? "pass" : "fail",
     },
     issues,

@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库 / 10W+ 飞书云盘版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 5 组 15 项自动代码门禁与多页左右对照验收。
+description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库 / 10W+ 飞书云盘版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
 ---
 
 # Yuanmou PPT Skill (`@yuanmou/pptx-kit`)
@@ -21,7 +21,7 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 1. **纯原生 OOXML（禁止简化或贴图）**：所有 `.pptx` 构建、改版、表图与终检调用 `<SKILL_DIR>/scripts/kit.mjs`；严禁 `python-pptx`，严禁简化省略结构，严禁用整页贴图冒充表格/流程图/可编辑重绘。图表必须内嵌 `.xlsx` 可双击改数。
 2. **单图形承载底色与富文本（严禁框中套框）**：带底色/描边节点必须在同一 `<p:sp>` 上直设 `fill / line / text / textStyle`（多字号/多色用富文本 `runs`，支持 `{ text, bold, fontSize, color }` 平层写法）；**严禁另套内框、盖透明文本框或编组冒充**；表格文字直写单元格；列表用 `makeBulletList()`，禁手敲 `"• "`；**严禁用 `☀ / ▶ / 《` 等 Emoji/标点冒充图标，严禁用 `[ 姓名 ] | [ 手机 ]` 冒充表单 UI**；禁 4+ 连续空格定位；窄标签留足 5% 余量（菱形安全区仅 `0.50×宽 × 0.50×高`，禁塞入导致竖排断行）。
 3. **只读保护与「先落盘、再精修」**：要求原稿不动时严禁改写原件（可用 `verify --readonly-source` 锁哈希），核对物理页码与交付份数；**首轮过代码门禁后立刻把正式成稿落盘到用户目标目录（如 `./output/final.pptx`），再按余量做 1～2 轮视觉精修并覆盖更新**，严禁锁在 `./work/` 返工直至预算耗尽、目标目录为空。
-4. **强制视觉自检 + 无依赖离线降级（代码全绿 ≠ 视觉达标）**：所有 `.pptx` 必跑 `deck_cli.mjs verify`。本机具备 **LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)** 时强制真机渲染并审图返工；**若缺渲染依赖，严禁上网下载安装包/字体或自绘近似假图冒充真机渲染**——`verify` 自动完成 **5 组 15 项静态代码门禁**并原子落盘 `--final`（返回 `verificationMode: "code-gates-only"`, `visualVerified: false`），桌面端提示用户安装复验，受限沙箱则在交付说明首行如实标注未做真机渲染。
+4. **强制视觉自检 + 无依赖离线降级（代码全绿 ≠ 视觉达标）**：所有 `.pptx` 必跑 `deck_cli.mjs verify`。本机具备 **LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)** 时强制真机渲染并审图返工；**若缺渲染依赖，严禁上网下载安装包/字体或自绘近似假图冒充真机渲染**——`verify` 自动完成 **6 组 15 项静态代码门禁**并原子落盘 `--final`（返回 `verificationMode: "code-gates-only"`, `visualVerified: false`），桌面端提示用户安装复验，受限沙箱则在交付说明首行如实标注未做真机渲染。
 
 ## 2. 从零策划与全库同构选版（仅无参考图/非一键直出时执行）
 
@@ -62,7 +62,7 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,
 
 ## 5. 一条龙终检与多页左右对照验收
 
-1 条命令跑完 **5 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、越界、碰撞、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步）并原子落盘 `--final`；有渲染依赖时自动出 `compare_batch_*.jpg` + 多页对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
+1 条命令跑完 **6 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、越界、碰撞、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步）并原子落盘 `--final`；有渲染依赖时自动出 `compare_batch_*.jpg` + 多页对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
 
 ```bash
 # 多页参考图/PDF 复刻（--ref-dir 自动输出逐页左原模板 vs 右成稿对照 PDF 与 4 页一组高清审图批）
@@ -75,7 +75,7 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --fina
 ```
 
 1. **先落盘、再视觉精修**：首轮代码门禁通过即把 `--final` 落盘到 `./output/final.pptx`。当 `visualVerified: true` 时，**严禁只看 20 合一邮票图交差**，必须逐张 `read_file` 审阅 `compare_batch_*.jpg`，逐页核对：① 底图是否透出无死色块遮挡 ② 菱形/斜切/倾斜/水墨构图是否还原 ③ 窄标签有无断行孤字 ④ 有无把 3D 物件/路线图/表单降级成简陋方框 ⑤ 配图是否高频重复；有明显失真必须返工并覆盖更新 `./output/final.pptx`。
-2. **离线降级如实声明**：若返回 `verificationMode: "code-gates-only"`（`visualVerified: false`），直接交付已过 5 组 15 项代码门禁的 `.pptx`，桌面端附 `installHint` 建议安装复验，受限沙箱在交付说明首行如实标注未执行真机渲染，并核对 `warnings` 不谎称 12pt 全部合规。
+2. **离线降级如实声明**：若返回 `verificationMode: "code-gates-only"`（`visualVerified: false`），直接交付已过 6 组 15 项代码门禁的 `.pptx`，桌面端附 `installHint` 建议安装复验，受限沙箱在交付说明首行如实标注未执行真机渲染，并核对 `warnings` 不谎称 12pt 全部合规。
 
 ## 6. `@yuanmou/pptx-kit` 零翻源码 API 速查（坐标 `px` 1280×720 · `fontSize` 数值默认 `pt`）
 
@@ -90,7 +90,7 @@ const {
   createBrushPng, applyAlphaMaskToImage,
 } = await import(pathToFileURL(path.resolve("<SKILL_DIR>/scripts/kit.mjs")).href);
 
-const deck = Presentation.create({ title: "方案标题", defaultFont: "PingFang SC" });
+const deck = Presentation.create({ title: "方案标题", defaultFont: "Microsoft YaHei" }); // macOS 也可设 "PingFang SC"
 const s = deck.slides.add({ background: "#FFFFFF" }); // 或 { type: "linear", angle: 135, stops: [{ offset: 0, color: "#0B1120" }, { offset: 1, color: "#1E3A8A" }] }
 
 // 1) 全出血底图 + 半透明暗罩（"#HEX/55%" 或 { color, opacity: 0.55 }）+ 透明白线框
