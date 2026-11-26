@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.1.6",
-  "latestHighlights": "修复水墨笔刷像素角度与锐利干笔质感、新增多笔触组合与1280x720泛洪去杂字、补齐段距pt单位与大装饰外框豁免及私有Provider免侵入扩展",
+  "version": "0.1.7",
+  "latestHighlights": "README上线渊眸电视23页全套实战案例与脱敏展板，优化段距<100pt旧版兼容阈值",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

@@ -241,8 +241,8 @@ function parseSpaceToHundredthsPt(val) {
     return s.endsWith("px") ? Math.round(num * 0.75 * 100) : Math.round(num * 100);
   }
   if (typeof val === "number" && Number.isFinite(val) && val > 0) {
-    // <= 200: typographic `pt` (`spaceAfter: 12` -> `12pt` = `1200`); > 200: legacy OOXML hundredths-of-pt (`800` -> `8pt`)
-    return val <= 200 ? Math.round(val * 100) : Math.round(val);
+    // < 100: typographic `pt` (`spaceAfter: 12` -> `12pt` = `1200`); >= 100: legacy OOXML hundredths-of-pt (`200` -> `2pt`, `800` -> `8pt`)
+    return val < 100 ? Math.round(val * 100) : Math.round(val);
   }
   return 0;
 }
