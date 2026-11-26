@@ -83,7 +83,7 @@ async function installToTarget(name, destDir, mode = "symlink") {
       displayName: "渊眸 PPT 全能生成与复刻",
       description:
         "一句话从零策划生成整套商业 PPT / 16,200+ 免登录商业版式库同构选版 / 图片、截图与 PDF 1:1 复刻（含水墨笔刷与无孔洞蒙版） / 既有 PPTX 母本无损改版（6 组 15 项门禁）。",
-      version: "0.1.0",
+      version: "0.1.2",
       author: "渊眸策略 (Yuanmou Strategy)",
       suggestedPrompts: [
         "帮我策划并生成一份 10 页的品牌 Q3 营销增长方案 PPT，先出大纲和选版看板",
