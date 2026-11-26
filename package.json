@@ -38,6 +38,10 @@
   },
   "scripts": {
     "sync:manifest": "node scripts/sync_skill_manifest.mjs",
+    "release": "node scripts/release.mjs",
+    "release:verify": "node scripts/release.mjs --verify-only",
+    "release:sync": "node scripts/release.mjs --verify-only --sync-gh-release",
+    "install:hooks": "node scripts/release.mjs --install-hooks",
     "install:skill": "node scripts/install.mjs --target all",
     "pack:zip": "node scripts/pack_zip.mjs",
     "pack:workbuddy": "node scripts/pack_workbuddy_marketplace.mjs",
