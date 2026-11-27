@@ -4,7 +4,7 @@
   "highlights": "上线 Selection Engine 2.0（5维正交跨行业精准选版、内存快照毫秒批量检索、--auto-pick 静默选版与 deck_blueprint.json、纯Node 15KB硬链接轻量看板及8大离线高定语法卡），同步升级14,337页零404 R2开源试用库",
   "fileCount": 33,
   "files": {
-    "SKILL.md": "fe2e90211ce3375449628189e5e54dd9ee762c6cea9c6c52fce14184e2852b8a",
+    "SKILL.md": "7f71036fe44f2368ca5ad7a3ab4fb7ae23c51a6f62f5e91b6db83bba4348e561",
     "agents/openai.yaml": "7ba1487c19fc86ed00a67b37db870294bf76ca2cca9e54d32ce96d09aff48e59",
     "packages/pptx-kit/index.mjs": "d52e5d1db883efd8272b40b6b684ddcfd439abad4f6c3743e894a7a875f335a1",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
