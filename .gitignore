@@ -22,3 +22,6 @@ examples/*/output/
 examples/*/references/
 examples/*/assets/
 dist/
+
+__pycache__/
+*.pyc
