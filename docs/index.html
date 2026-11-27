@@ -7,7 +7,7 @@
   <meta name="description" content="解放广告人的双手。给一句推广命题或跨行业参考图，直接生成 100% 原生可编辑商业 PPTX。" />
   <meta property="og:title" content="yuanmou-ppt · 解放广告人的双手" />
   <meta property="og:description" content="把凌晨三点调对齐的时间，还给创意本身。0 依赖原生 OOXML 商业 PPT 引擎。" />
-  <meta property="og:image" content="./showcase/yuanmou_tv_hero_campaign_overview.jpg" />
+  <meta property="og:image" content="./showcase/case-aura-cover.jpg" />
   <meta name="theme-color" content="#F7F5F0" />
   <style>
     :root {
@@ -811,8 +811,89 @@
       section { padding: 72px 0; }
       .hero { padding: 56px 0 68px; }
       .nav-links { display: none; }
-      .seg-tabs { width: 100%; overflow-x: auto; }
+      .seg-tabs { width: 100%; overflow-x: auto; flex-wrap: nowrap; }
       .tier { padding: 28px 22px; }
+      .cmd-btn { max-width: 100%; font-size: 12px; padding: 10px 12px; gap: 8px; }
+      .cmd-btn > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .hero-title { font-size: 32px; }
+      .frame-meta { flex-direction: column; align-items: flex-start; gap: 12px; }
+    }
+
+    /* ---------------- v0.2.0 Gallery Extras ---------------- */
+    .hero-frame-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .frame-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.08);
+      color: #F8FAFC;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.16s ease, border-color 0.16s ease;
+    }
+    .frame-pill:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.36);
+    }
+    .frame-pill.accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #FFFFFF;
+    }
+    .frame-pill.accent:hover {
+      background: var(--accent-hover);
+    }
+    .sample-strip {
+      margin-top: 20px;
+      padding: 18px 22px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .sample-strip-title {
+      font-size: 14px;
+      color: var(--ink-2);
+    }
+    .sample-strip-title strong {
+      color: var(--ink);
+    }
+    .sample-links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .sample-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--bg);
+      border: 1px solid var(--line-strong);
+      text-decoration: none;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .sample-chip:hover {
+      border-color: var(--accent);
+      color: var(--accent);
     }
   </style>
 </head>
@@ -842,10 +923,10 @@
   <!-- Hero: Single Focal Axis -->
   <section class="hero">
     <div class="wrap">
-      <div class="hero-kicker"><span>v0.1.7</span> · 开源免费 · 0 依赖原生 OOXML 引擎</div>
-      <h1 class="hero-title">解放广告人的双手。<br />把熬夜调版，<em>还给创意</em>。</h1>
+      <div class="hero-kicker"><span>v0.2.0</span> · 开源免费 · 0 依赖原生 OOXML 引擎</div>
+      <h1 class="hero-title">打字。回车。<br />拿回真能改数的<em>原生 PPT</em>。</h1>
       <p class="hero-sub">
-        给一句推广命题或任意跨行业参考图，直接生成 100% 原生可编辑 .pptx 商业提案——文字、水墨蒙版、菱形画框与真 Excel 图表全部双击可改。
+        不是网页截图，也不是改一个字就得重画的死图——给一句主题或任意参考图，直接交付 100% 原生可编辑 .pptx，双击图表弹出真 Excel。
       </p>
 
       <div class="hero-actions">
@@ -862,11 +943,14 @@
         原生适配 <strong>WorkBuddy · Trae · Qoder · OpenClaw · Claude Code · Codex · Cursor · Antigravity</strong>
       </div>
 
-      <div class="hero-frame" data-zoom="./showcase/yuanmou_tv_hero_campaign_overview.jpg" data-zoom-title="一句话命题 + 跨行业参考版式 → 23 页全套原生可编辑 .pptx">
-        <img src="./showcase/yuanmou_tv_hero_campaign_overview.jpg" alt="23 页全套原生可编辑商业方案实拍成稿" fetchpriority="high" decoding="async" />
+      <div class="hero-frame" id="heroFrame">
+        <img id="heroMedia" src="./showcase/case-aura-cover.jpg" alt="《声如建筑》渊眸声学 AURA 01 工业设计发布会原生 PPTX 封面" fetchpriority="high" decoding="async" style="cursor: zoom-in;" />
         <div class="frame-meta">
-          <div><strong>23 页全套商业方案实拍成稿</strong> — 给定一句命题与异业参考图，0 告警交付完整提案</div>
-          <span>点击放大检验细节 ↗</span>
+          <div id="heroCaption"><strong>《声如建筑》全原生 .pptx 实拍封面</strong> — 6 组 15 项门禁 0 报错，支持 PowerPoint / WPS 双击改真 Excel</div>
+          <div class="hero-frame-actions">
+            <button type="button" class="frame-pill accent" id="heroPlayBtn">▶ 观看 11 秒发布片</button>
+            <a class="frame-pill" href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-aura-01-flagship-sample.pptx">下载源 .pptx 验真 ↓</a>
+          </div>
         </div>
       </div>
     </div>
@@ -899,31 +983,43 @@
     </div>
   </section>
 
-  <!-- 02 Craft Gallery (3 Distinct High-Craft Details) -->
+  <!-- 02 Craft Gallery (6 Museum & Enterprise Suites) -->
   <section id="craft">
     <div class="wrap">
       <div class="showcase-head">
         <div>
-          <div class="sec-kicker">02 / CRAFT DETAILS</div>
-          <h2 class="sec-title">放大 400%，依然全是原生矢量</h2>
+          <div class="sec-kicker">02 / EXHIBITION GALLERY</div>
+          <h2 class="sec-title">美术馆画册审美，兼顾真实职场实战</h2>
         </div>
-        <div class="seg-tabs" role="tablist" aria-label="细节切换">
-          <button type="button" class="seg-tab active" data-case="0">水墨飞白蒙版</button>
-          <button type="button" class="seg-tab" data-case="1">异形菱形画廊</button>
-          <button type="button" class="seg-tab" data-case="2">H5 表单与社媒样张</button>
+        <div class="seg-tabs" role="tablist" aria-label="作品切换">
+          <button type="button" class="seg-tab active" data-case="0">声如建筑</button>
+          <button type="button" class="seg-tab" data-case="1">光影混凝土</button>
+          <button type="button" class="seg-tab" data-case="2">深空之眼</button>
+          <button type="button" class="seg-tab" data-case="3">轻奢与出行</button>
+          <button type="button" class="seg-tab" data-case="4">23 页全案</button>
+          <button type="button" class="seg-tab" data-case="5">高密度咨询图</button>
         </div>
       </div>
 
       <div class="gallery-stage">
         <div class="gallery-img-wrap" id="galleryTrigger">
-          <img id="galleryImg" src="./showcase/yuanmou_tv_ink_brush_and_cinematic.jpg" alt="水墨飞白蒙版与全出血电影感大字叠层" loading="lazy" decoding="async" />
+          <img id="galleryImg" src="./showcase/case-aura-pages.jpg" alt="《声如建筑》渊眸声学 AURA 01 工业设计发布会内页四联" loading="lazy" decoding="async" />
         </div>
         <div class="gallery-foot">
           <div>
-            <strong id="galleryTitle">纯 Node 原生水墨笔刷引擎</strong>
-            <span id="galleryDesc">像素级还原 -11°/-12° 干笔飞白与朱砂印章圆，标题与正文 100% 保持原生可编辑。</span>
+            <strong id="galleryTitle">《声如建筑》渊眸声学 AURA 01 发布会（5 页全原生 .pptx）</strong>
+            <span id="galleryDesc">纯黑机械剖面引线标注 + 双内嵌真 Excel 声学实测图 + 材质微距色卡 + 瑞士三段式架构，0 报错 0 警告。</span>
           </div>
           <button type="button" class="zoom-link" id="galleryZoomBtn">全屏查看细节 ↗</button>
+        </div>
+      </div>
+
+      <div class="sample-strip">
+        <div class="sample-strip-title"><strong>不信不是死图？</strong> 直接下载主展厅 3 套真 <code>.pptx</code> 原件，在 PowerPoint / WPS 里双击图表弹 Excel：</div>
+        <div class="sample-links">
+          <a class="sample-chip" href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-aura-01-flagship-sample.pptx">声如建筑.pptx ↓</a>
+          <a class="sample-chip" href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-arch-monograph-sample.pptx">光影与混凝土.pptx ↓</a>
+          <a class="sample-chip" href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-cosmos-keynote-sample.pptx">深空之眼.pptx ↓</a>
         </div>
       </div>
     </div>
@@ -1131,6 +1227,7 @@ node skills/yuanmou-ppt/scripts/deck_cli.mjs update</pre>
         <div>© 2026 渊眸策略 · yuanmou-ppt-skill (@yuanmou/pptx-kit) · Apache-2.0</div>
         <div class="footer-links">
           <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/blob/main/SECURITY.md" target="_blank" rel="noopener">安全与数据流</a>
           <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases" target="_blank" rel="noopener">Releases</a>
           <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/issues" target="_blank" rel="noopener">反馈建议</a>
         </div>
@@ -1153,21 +1250,72 @@ node skills/yuanmou-ppt/scripts/deck_cli.mjs update</pre>
     (function () {
       const craftCases = [
         {
-          img: './showcase/yuanmou_tv_ink_brush_and_cinematic.jpg',
-          title: '纯 Node 原生水墨笔刷引擎',
-          desc: '像素级还原 -11°/-12° 干笔飞白与朱砂印章圆，标题与正文 100% 保持原生可编辑。'
+          img: './showcase/case-aura-pages.jpg',
+          title: '《声如建筑》渊眸声学 AURA 01 发布会（5 页全原生 .pptx）',
+          desc: '纯黑机械剖面引线标注 + 双内嵌真 Excel 声学实测图 + 材质微距色卡 + 瑞士三段式架构，0 报错 0 警告。'
         },
         {
-          img: './showcase/yuanmou_tv_diamond_editorial_layouts.jpg',
-          title: '原生 SVG 异形裁图与九宫格菱形画廊',
-          desc: '自动计算 srcRect 零拉伸居中裁切，全部照片保留独立槽位，PowerPoint 内右键即可单张换图。'
+          img: './showcase/case-arch-pages.jpg',
+          title: '《光影与混凝土》极简建筑美学讲演（5 页全原生 .pptx）',
+          desc: '68% 主动留白与克制灰阶，内置十二小时墙面照度真 Excel 折线图与材料反射率对比。'
         },
         {
-          img: './showcase/yuanmou_tv_interactive_h5_and_social.jpg',
-          title: '线上 H5 表单与全媒传播样张全原生重绘',
-          desc: '拒绝模糊贴图，所有输入框、按钮与社媒卡片均为原生矢量，放大 400% 依然锐利。'
+          img: './showcase/case-cosmos-pages.jpg',
+          title: '《深空之眼》红外空间望远镜科普讲演（4 页全原生 .pptx）',
+          desc: '纯黑画布聚焦黄金六边形主镜光学引线、可见光与红外穿透对比，收尾采用纯黑金原生对比表。'
+        },
+        {
+          img: './showcase/case-luxury-duo.jpg',
+          title: '品牌高定单页 · 轻奢护肤画册与智能出行战役总纲',
+          desc: '内置 1.6W+ 商业版式库按行业气质同构匹配，从香槟丝绸轻奢到红黑杂志风出行各自对味。'
+        },
+        {
+          img: './showcase/case-yuanmou-tv-grid.jpg',
+          title: '23 页完整商业推广全案 · 渊眸电视「一家一屏 100 天」',
+          desc: '跨行业参考版式骨架 1:1 换血重绘，含纯 Node 水墨干笔飞白切片、45° 菱形独立换图槽位与 H5 原生表单。'
+        },
+        {
+          img: './showcase/case-industry-highlights.jpg',
+          title: '1.6W+ 商业版式库 · 亮钴蓝全域增长矩阵与高密度咨询框架',
+          desc: '面向咨询顾问、品牌市场部与 Agency 的三阶闭环漏斗、组合投放模型与跨赛道高光版式。'
         }
       ];
+
+      // Hero cover <-> 11s Launch Film toggle (lazy-loads GIF only on click so LCP stays <0.5s!)
+      const heroMedia = document.getElementById('heroMedia');
+      const heroCaption = document.getElementById('heroCaption');
+      const heroPlayBtn = document.getElementById('heroPlayBtn');
+      const HERO_COVER = './showcase/case-aura-cover.jpg';
+      const HERO_GIF = 'https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/launch-yuanmou-0.2.gif';
+      let playingFilm = false;
+
+      if (heroPlayBtn && heroMedia) {
+        heroPlayBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          playingFilm = !playingFilm;
+          if (playingFilm) {
+            heroPlayBtn.textContent = '加载中…';
+            const pre = new Image();
+            pre.onload = () => {
+              heroMedia.src = HERO_GIF;
+              heroPlayBtn.textContent = '■ 切回高清静帧';
+              heroCaption.innerHTML = '<strong>0.2 发布片（11 秒）</strong> — 6 套高定 PPT 实拍快切 + PowerPoint 双击图表弹真 Excel 改数';
+            };
+            pre.onerror = () => {
+              playingFilm = false;
+              heroPlayBtn.textContent = '▶ 观看 11 秒发布片';
+            };
+            pre.src = HERO_GIF;
+          } else {
+            heroMedia.src = HERO_COVER;
+            heroPlayBtn.textContent = '▶ 观看 11 秒发布片';
+            heroCaption.innerHTML = '<strong>《声如建筑》全原生 .pptx 实拍封面</strong> — 6 组 15 项门禁 0 报错，支持 PowerPoint / WPS 双击改真 Excel';
+          }
+        });
+        heroMedia.addEventListener('click', () => {
+          openLb(playingFilm ? HERO_GIF : HERO_COVER, playingFilm ? 'Yuanmou PPT 0.2 发布片' : '《声如建筑》渊眸声学 AURA 01 封面');
+        });
+      }
 
       let activeIdx = 0;
       const segTabs = document.querySelectorAll('.seg-tab');
