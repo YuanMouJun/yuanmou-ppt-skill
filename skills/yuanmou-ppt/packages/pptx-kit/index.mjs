@@ -29,6 +29,8 @@ export {
   validateTemplatePlan,
   prepareStarterDeck,
   auditTemplateFidelity,
+  assembleDeck,
+  auditMasterSlotIntegrity,
 } from "./src/deck-surgery.mjs";
 export {
   makeBulletList,
@@ -51,6 +53,8 @@ export {
   buildPolylineStrokeCommands,
   buildRoundedPolygonCommands,
   buildRoundedTrapezoidPath,
+  placeInRotatedFrame,
+  rotatedBoundingBox,
 } from "./src/geometry.mjs";
 export {
   renderDeckToPngs,
@@ -61,6 +65,7 @@ export {
   CHINESE_AI_SLOP_PATTERNS,
   validateDeckBuffer,
   finalizeDeck,
+  archivePreviousDeliveredFile,
 } from "./src/finalizer.mjs";
 export {
   SlideCacheStore,

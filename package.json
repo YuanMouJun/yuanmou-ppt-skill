@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.3.1",
-  "latestHighlights": "新增 search-decks 毫秒级按文件名查整套与 deck-outline 单套目录按页拉图能力，支持公开脱敏库优雅降级",
+  "version": "0.4.0",
+  "latestHighlights": "v0.4.0 两阶段硬解耦架构：新增跨PPTX无损合页 assembleDeck、Phase-1 母版 X光/角度/边缘硬关卡 verify-master、PDF 矢量/位图自动嗅探与 1280x720 网格/主倾斜角实测、旋转子组件精算 placeInRotatedFrame、Z-order 遮挡硬门禁及交付历史版本自动归档 history/",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

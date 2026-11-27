@@ -41,6 +41,10 @@ import {
   querySlideIndexDb,
   queryDecksByFilename,
   queryDeckOutline,
+  assembleDeck,
+  auditMasterSlotIntegrity,
+  placeInRotatedFrame,
+  rotatedBoundingBox,
 } from "../../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1364,13 +1368,205 @@ async function testSelectionEngine2() {
   }
 }
 
+async function testTwoStageArchitectureV040() {
+  console.log("=== [F] Verifying v0.4.0 Two-Stage Architecture (assembleDeck, Master Slot Audit, Rotated Frame, Z-Order Gate, History Archive, inspect-ref) ===");
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_v040_arch_"));
+  try {
+    // F1: Exact rotated child math (`+deg` = clockwise / top leans right)
+    const box90 = { left: 100, top: 100, width: 200, height: 400, rotation: 90 };
+    const topNotch90 = placeInRotatedFrame(box90, { left: 50, top: 0, width: 100, height: 20 });
+    // Center of unrotated notch is (100, 10) vs parent center (100, 200) -> dy = -190.
+    // Rotated +90° clockwise: (0, -190) -> (+190, 0), so world center = (200+190, 300) = (390, 300)!
+    assert.ok(Math.abs(topNotch90.left + topNotch90.width / 2 - 390) < 0.2, `Expected rotated center X=390, got ${topNotch90.left + topNotch90.width / 2}`);
+    assert.ok(Math.abs(topNotch90.top + topNotch90.height / 2 - 300) < 0.2, `Expected rotated center Y=300, got ${topNotch90.top + topNotch90.height / 2}`);
+    assert.equal(topNotch90.rotation, 90);
+
+    const aabb12 = rotatedBoundingBox({ left: 100, top: 200, width: 300, height: 500, rotation: 12 });
+    assert.ok(aabb12.width > 300 && aabb12.bottom > 700, "Rotated AABB should expand beyond unrotated bounds");
+
+    // Prepare tiny valid PNGs for images
+    const makeSolidPng = (r, g, b) => {
+      const rgba = new Uint8Array(32 * 32 * 4);
+      for (let i = 0; i < 32 * 32; i++) {
+        rgba[i * 4] = r; rgba[i * 4 + 1] = g; rgba[i * 4 + 2] = b; rgba[i * 4 + 3] = 255;
+      }
+      return encodeRgbaPng(32, 32, rgba);
+    };
+    const imgA = path.join(tmpDir, "a.png");
+    const imgB = path.join(tmpDir, "b.png");
+    const imgC = path.join(tmpDir, "c.png");
+    await fs.writeFile(imgA, makeSolidPng(30, 64, 175));
+    await fs.writeFile(imgB, makeSolidPng(16, 185, 129));
+    await fs.writeFile(imgC, makeSolidPng(220, 38, 38));
+
+    // F2: Build Original Deck (untouched P1 cover & P2 back cover) + Phase-1 Masters Deck (semantic `slot:*` + chart + `+12°` phone!)
+    const origDeck = Presentation.create({ title: "Original Untouched Deck" });
+    const oc = origDeck.slides.add({ background: "#0F172A" });
+    oc.shapes.add({ name: "untouched-cover-title", left: 80, top: 260, width: 900, height: 120, text: "原版封面一像素不动", textStyle: { fontSize: 48, bold: true, color: "#FFFFFF" } });
+    const ob = origDeck.slides.add({ background: "#1E293B" });
+    ob.shapes.add({ name: "untouched-back-title", left: 80, top: 280, width: 900, height: 100, text: "原版封底一像素不动", textStyle: { fontSize: 44, bold: true, color: "#F8FAFC" } });
+    const origPath = path.join(tmpDir, "orig.pptx");
+    await origDeck.save(origPath);
+
+    const mastersDeck = Presentation.create({ title: "Phase-1 Masters" });
+    const m1 = mastersDeck.slides.add({ background: "#FAF8F3" });
+    const phoneBox = { left: 96, top: 140, width: 280, height: 420, rotation: 12 };
+    m1.images.add({ name: "slot:hero_img", path: imgA, geometry: "roundRect", borderRadius: 28, ...phoneBox, fit: "cover", line: { fill: "#FFFFFF", width: 8 } });
+    m1.shapes.add({ name: "phone-notch", geometry: "roundRect", borderRadius: 6, ...placeInRotatedFrame(phoneBox, { left: 90, top: 14, width: 100, height: 12 }), fill: "#FFFFFF", line: { fill: "none" } });
+    m1.shapes.add({ name: "slot:title", left: 460, top: 120, width: 720, height: 70, text: "母版主标题占位", textStyle: { fontSize: 32, bold: true, color: "#E63946" } });
+    m1.shapes.add({ name: "slot:body", left: 460, top: 210, width: 720, height: 140, text: "母版正文说明占位文案，保持等长呼吸感。", textStyle: { fontSize: 15, color: "#1E293B" } });
+    m1.charts.add("bar", { left: 460, top: 380, width: 700, height: 240, title: "母版图表占位", categories: ["Q1", "Q2"], series: [{ name: "指标", values: [40, 85], fill: "#E63946" }] });
+    m1.shapes.add({ name: "footer", left: 48, top: 676, width: 420, height: 26, text: "2026 | 页脚安全置顶", textStyle: { fontSize: 11, color: "#64748B" } });
+    const mastersPath = path.join(tmpDir, "masters.pptx");
+    await mastersDeck.save(mastersPath);
+
+    // Cross-PPTX lossless assembly: [orig:1, masters:1, masters:1 (cloned twice!), orig:2]
+    const assembledPath = path.join(tmpDir, "assembled.pptx");
+    const assembled = await assembleDeck({
+      base: "orig",
+      sources: { orig: origPath, masters: mastersPath },
+      slides: [
+        { from: "orig", slide: 1 },
+        { from: "masters", slide: 1 },
+        { from: "masters", slide: 1 },
+        { from: "orig", slide: 2 },
+      ],
+      outPptxPath: assembledPath,
+    });
+    assert.equal(assembled.slides.count, 4);
+    assert.equal(assembled.slides.getItem(0).getSlot("untouched-cover-title").text.toPlainString(), "原版封面一像素不动");
+    assert.equal(assembled.slides.getItem(3).getSlot("untouched-back-title").text.toPlainString(), "原版封底一像素不动");
+
+    // Phase-2 pure in-place slot filling (`recolor` + `getSlot` + `replace`)
+    const s2 = assembled.slides.getItem(1);
+    s2.recolor({ "#E63946": "#0F3A7D" });
+    s2.getSlot("slot:title").text.set("正式业务标题：架构升级");
+    s2.getSlot("slot:body").text.set("严格在锁死母版槽位内原位填字换图，不破坏任何几何比例。");
+    s2.getSlot("slot:hero_img").replace({ path: imgB, fit: "cover" });
+
+    const s3 = assembled.slides.getItem(2);
+    s3.getSlot("slot:title").text.set("第二页复用同款母版");
+    s3.getSlot("slot:hero_img").replace({ path: imgC, fit: "cover" });
+
+    const phase2Path = path.join(tmpDir, "phase2_filled.pptx");
+    await assembled.save(phase2Path);
+
+    // Validate assembled + filled deck passes ALL 6 gates (zero dangling rels, chart workbooks intact, recolor applied!)
+    const p2Buf = await fs.readFile(phase2Path);
+    const p2Report = await validateDeckBuffer(p2Buf, { antiSlop: "fail" });
+    assert.equal(p2Report.passed, true, `Assembled Phase-2 deck failed gates:\n${JSON.stringify(p2Report.issues, null, 2)}`);
+    const s2Xml = readZipBuffer(p2Buf).get("ppt/slides/slide2.xml").toString("utf8");
+    assert.ok(s2Xml.includes('val="0F3A7D"'), "slide.recolor must swap #E63946 -> #0F3A7D");
+
+    // F3: Master Slot Integrity Audit (positive + negative sabotage!)
+    const auditOk = await auditMasterSlotIntegrity({
+      masterPptxPath: mastersPath,
+      finalPptxPath: phase2Path,
+      slideMap: [
+        { slide: 2, masterSlide: 1 },
+        { slide: 3, masterSlide: 1 },
+      ],
+    });
+    assert.equal(auditOk.passed, true, `Expected master slot audit to pass: ${JSON.stringify(auditOk.issues)}`);
+
+    // Sabotage: drop the image slot on slide 2 & flip rotation on slide 3!
+    const sabMap = readZipBuffer(p2Buf);
+    const sabS2 = sabMap.get("ppt/slides/slide2.xml").toString("utf8").replace(/<p:pic\b[\s\S]*?<\/p:pic>/, "");
+    sabMap.set("ppt/slides/slide2.xml", Buffer.from(sabS2, "utf8"));
+    const sabS3 = sabMap.get("ppt/slides/slide3.xml").toString("utf8").replace(`rot="${12 * 60000}"`, `rot="${348 * 60000}"`);
+    sabMap.set("ppt/slides/slide3.xml", Buffer.from(sabS3, "utf8"));
+    const sabPath = path.join(tmpDir, "sabotaged_phase2.pptx");
+    await fs.writeFile(sabPath, buildZipBuffer([...sabMap.entries()].map(([name, data]) => ({ name, data }))));
+
+    const auditBad = await auditMasterSlotIntegrity({
+      masterPptxPath: mastersPath,
+      finalPptxPath: sabPath,
+      slideMap: [
+        { slide: 2, masterSlide: 1 },
+        { slide: 3, masterSlide: 1 },
+      ],
+    });
+    assert.equal(auditBad.passed, false);
+    const auditCodes = new Set(auditBad.issues.map((i) => i.code));
+    assert.ok(auditCodes.has("master_image_slot_dropped"), "Must catch dropped image slot");
+    assert.ok(auditCodes.has("master_named_slot_missing"), "Must catch missing named slot");
+    assert.ok(auditCodes.has("master_rotation_drifted"), "Must catch flipped rotation angle");
+
+    // F4: Z-order rotated-AABB text occlusion gate (`z_order_text_occluded`)
+    const occDeck = Presentation.create({ title: "Z-Order Occlusion Test" });
+    const os1 = occDeck.slides.add({ background: "#FFFFFF" });
+    // Footer drawn FIRST -> then tilted framed phone card drawn ON TOP covering footer!
+    os1.shapes.add({ name: "footer-buried", left: 60, top: 676, width: 320, height: 28, text: "2026 | 页脚被手机压死测试", textStyle: { fontSize: 12, color: "#475569" } });
+    os1.images.add({ name: "tilted-phone", path: imgA, left: 100, top: 220, width: 300, height: 490, rotation: 12, fit: "cover", line: { fill: "#FFFFFF", width: 8 } });
+    const occReport = await validateDeckBuffer(occDeck.toPptxBuffer(), { antiSlop: "fail" });
+    assert.equal(occReport.passed, false, "Foreground framed image burying earlier footer must FAIL validation");
+    assert.ok(occReport.issues.some((i) => i.code === "z_order_text_occluded" && i.severity === "fail"));
+
+    // F5: Non-destructive versioned history archival in `finalizeDeck` (`preserveHistory: true`)
+    const delivDir = path.join(tmpDir, "deliverables");
+    const delivPath = path.join(delivDir, "project_final.pptx");
+    const f1 = await finalizeDeck({ candidatePptxPath: origPath, outputPath: delivPath, antiSlop: "fail" });
+    assert.equal(f1.archivedPreviousPath, null, "First publish has no previous version to archive");
+
+    // Publish differing v2 -> archives v1 into `deliverables/history/project_final_v1_*.pptx`!
+    const f2 = await finalizeDeck({ candidatePptxPath: phase2Path, outputPath: delivPath, antiSlop: "fail" });
+    assert.ok(f2.archivedPreviousPath && f2.archivedPreviousPath.includes(`${path.sep}history${path.sep}project_final_v1_`), `Expected v1 archive path, got ${f2.archivedPreviousPath}`);
+    assert.equal(sha256(await fs.readFile(f2.archivedPreviousPath)), sha256(await fs.readFile(origPath)), "Archived v1 must match original bytes");
+
+    // Identical re-publish -> no duplicate backup spam!
+    const f2Dup = await finalizeDeck({ candidatePptxPath: phase2Path, outputPath: delivPath, antiSlop: "fail" });
+    assert.equal(f2Dup.archivedPreviousPath, null, "Re-publishing identical SHA-256 must not create duplicate history entry");
+
+    // Publish differing v3 -> archives v2 as `_v2_`!
+    const f3 = await finalizeDeck({ candidatePptxPath: origPath, outputPath: delivPath, antiSlop: "fail" });
+    assert.ok(f3.archivedPreviousPath && f3.archivedPreviousPath.includes(`${path.sep}history${path.sep}project_final_v2_`), `Expected v2 archive path, got ${f3.archivedPreviousPath}`);
+
+    // F6: CLI `inspect-ref` grid + exact `+12°` clockwise tilt detection (when Pillow is available)
+    const deckCliPath = path.join(REPO_ROOT, "skills/yuanmou-ppt/scripts/deck_cli.mjs");
+    const pyCheck = spawnSync("python3", ["-c", "import PIL"], { encoding: "utf8" });
+    if (pyCheck.status === 0) {
+      const tiltRefPng = path.join(tmpDir, "tilted_ref.png");
+      const genTiltPy = `
+from PIL import Image, ImageDraw
+bg = Image.new("RGBA", (1280, 720), (245, 243, 238, 255))
+card = Image.new("RGBA", (260, 440), (30, 64, 175, 255))
+d = ImageDraw.Draw(card)
+d.rectangle([0, 0, 259, 439], outline=(255, 255, 255, 255), width=12)
+# PIL rotate uses counter-clockwise positive; -12 in PIL = +12 deg clockwise in OOXML!
+rot = card.rotate(-12, expand=True, resample=Image.Resampling.BICUBIC)
+bg.alpha_composite(rot, (60, 140))
+bg.convert("RGB").save("${tiltRefPng.replace(/\\/g, "\\\\")}")
+`;
+      const gRes = spawnSync("python3", ["-c", genTiltPy], { encoding: "utf8" });
+      assert.equal(gRes.status, 0, gRes.stderr);
+
+      const inspOut = path.join(tmpDir, "ref_insp");
+      const iRes = spawnSync(process.execPath, [deckCliPath, "inspect-ref", "--ref", tiltRefPng, "--out", inspOut], { encoding: "utf8" });
+      assert.equal(iRes.status, 0, `deck_cli inspect-ref failed:\n${iRes.stderr}`);
+      const inspJson = JSON.parse(iRes.stdout);
+      assert.ok(inspJson.gridOverlayPng && (await fs.stat(inspJson.gridOverlayPng)).size > 1000);
+      assert.ok(inspJson.layoutSpecJson && (await fs.stat(inspJson.layoutSpecJson)).size > 100);
+      const leftZone = inspJson.crops.find((c) => c.name === "left_zone");
+      assert.ok(
+        leftZone && leftZone.dominantTiltDeg >= 10 && leftZone.dominantTiltDeg <= 14 && leftZone.tiltDirection === "clockwise",
+        `Expected left_zone clockwise +12° (±2°), got ${JSON.stringify(leftZone)}`
+      );
+    }
+
+    console.log("  [PASS] v0.4.0 Two-Stage Architecture verified! (placeInRotatedFrame, assembleDeck lossless merge, recolor/getSlot, auditMasterSlotIntegrity, z_order_text_occluded, history/ v1->v2 auto-archive, inspect-ref grid + +12° tilt)");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
   await testSkillUpdater();
   await testBrushMaskAndTypographyUpgrades();
   await testSelectionEngine2();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 TESTS PASSED!");
+  await testTwoStageArchitectureV040();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 + V0.4.0 ARCHITECTURE TESTS PASSED!");
 }
 
 main().catch((err) => {

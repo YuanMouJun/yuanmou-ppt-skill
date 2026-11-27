@@ -519,6 +519,9 @@ export class ImportedSlide {
           ...self._injectedElements.filter((e) => e instanceof ShapeElement || e instanceof ConnectorElement),
         ];
       },
+      getByName(name) {
+        return this.items.find((e) => e.name === name || e.id === name) || null;
+      },
       add(config = {}) {
         if (config.geometry === "connector") {
           const fromShape = self._resolveShapeRef(config.from);
@@ -557,6 +560,9 @@ export class ImportedSlide {
           ...self._elements.filter((e) => e.kind === "image"),
           ...self._injectedElements.filter((e) => e instanceof ImageElement),
         ];
+      },
+      getByName(name) {
+        return this.items.find((e) => e.name === name || e.id === name) || null;
       },
       add(options = {}) {
         const el = new ImageElement(self, self.presentation._nextOoxmlId(), options);
@@ -610,6 +616,56 @@ export class ImportedSlide {
       );
     }
     return null;
+  }
+
+  getSlot(nameOrId) {
+    if (!nameOrId) return null;
+    return (
+      this._elements.find((e) => e.name === nameOrId || e.id === nameOrId) ||
+      this._injectedElements.find((e) => e.name === nameOrId || e.id === nameOrId) ||
+      null
+    );
+  }
+
+  /**
+   * In-place theme recoloring for Phase-2 slot filling on a locked master slide.
+   * Swaps `<a:srgbClr val="OLD">` -> `<a:srgbClr val="NEW">` while preserving alpha,
+   * gradients, geometry, rotations, and keeping all element handles synced.
+   */
+  recolor(colorMap = {}) {
+    const entries = Object.entries(colorMap)
+      .map(([fromHex, toHex]) => [
+        String(fromHex || "").replace(/^#/, "").trim().toUpperCase(),
+        String(toHex || "").replace(/^#/, "").trim().toUpperCase(),
+      ])
+      .filter(([a, b]) => /^[0-9A-F]{6}$/.test(a) && /^[0-9A-F]{6}$/.test(b) && a !== b);
+    if (entries.length === 0) return this;
+
+    // Two-pass replacement via temporary sentinel avoids A->B + B->C collisions
+    const applyMap = (xmlStr) => {
+      let out = xmlStr;
+      entries.forEach(([fromHex], idx) => {
+        out = out.replace(
+          new RegExp(`(<a:srgbClr\\b[^>]*\\bval=")${fromHex}(")`, "gi"),
+          `$1__YM_CLR_${idx}__$2`
+        );
+      });
+      entries.forEach(([, toHex], idx) => {
+        out = out.replace(
+          new RegExp(`__YM_CLR_${idx}__`, "g"),
+          toHex
+        );
+      });
+      return out;
+    };
+
+    this._xml = applyMap(this._xml);
+    for (const el of this._elements) {
+      if (typeof el._rawXml === "string") {
+        el._rawXml = applyMap(el._rawXml);
+      }
+    }
+    return this;
   }
 
   compose(nodeTree, options = {}) {
@@ -1400,6 +1456,495 @@ export async function auditTemplateFidelity({
     passed: !issues.some((i) => i.severity === "fail"),
     slideCount: finDeck.slides.count,
     slideSize: finDeck.slideSize,
+    issues,
+  };
+}
+
+function guessMimeFromExt(ext) {
+  const e = String(ext || "").replace(/^\./, "").toLowerCase();
+  if (e === "png") return "image/png";
+  if (e === "jpg" || e === "jpeg") return "image/jpeg";
+  if (e === "gif") return "image/gif";
+  if (e === "webp") return "image/webp";
+  if (e === "svg") return "image/svg+xml";
+  if (e === "emf") return "image/x-emf";
+  if (e === "wmf") return "image/x-wmf";
+  if (e === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (e === "mp4") return "video/mp4";
+  if (e === "mp3") return "audio/mpeg";
+  return "application/octet-stream";
+}
+
+async function loadAnyDeckSource(src) {
+  if (!src) throw new Error("assembleDeck received an empty source");
+  if (src instanceof ImportedPresentation) {
+    return ImportedPresentation.load(src.toPptxBuffer());
+  }
+  if (typeof src.toPptxBuffer === "function") {
+    return ImportedPresentation.load(src.toPptxBuffer());
+  }
+  return ImportedPresentation.load(src);
+}
+
+function pickDefaultSlideLayoutTarget(baseDeck) {
+  const layoutParts = [...baseDeck._files.keys()]
+    .filter((k) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(k))
+    .sort((a, b) => {
+      const na = Number.parseInt(a.match(/(\d+)\.xml$/)?.[1] || "999", 10);
+      const nb = Number.parseInt(b.match(/(\d+)\.xml$/)?.[1] || "999", 10);
+      return na - nb;
+    });
+  if (layoutParts.length === 0) return "../slideLayouts/slideLayout1.xml";
+
+  // Prefer a blank layout (name contains "Blank"/"空白" or zero `<p:ph`) so imported slides don't inherit unwanted master placeholders
+  let bestPart = layoutParts[0];
+  let bestScore = -1;
+  for (const lp of layoutParts) {
+    const xml = baseDeck._readText(lp);
+    const cSldName = getAttr(xml.match(/<p:cSld\b[^>]*>/)?.[0] || "", "name") || "";
+    const phCount = (xml.match(/<p:ph\b/g) || []).length;
+    let score = 0;
+    if (/blank|空白/i.test(cSldName)) score += 100;
+    if (phCount === 0) score += 50;
+    else score += Math.max(0, 20 - phCount * 5);
+    if (score > bestScore) {
+      bestScore = score;
+      bestPart = lp;
+    }
+  }
+  return `../slideLayouts/${path.posix.basename(bestPart)}`;
+}
+
+/**
+ * Cross-PPTX Lossless Slide Assembler & Master Cloner (`assembleDeck`).
+ *
+ * Bridges Channel A (preserve untouched original slides XML) and Phase 1 -> Phase 2
+ * (clone verified `masters.pptx` slides for strict in-place slot filling):
+ * - Keeps slides from `base` 100% XML-lossless (e.g., untouched P01 cover & P20 back cover).
+ * - Imports/clones slides from any other `.pptx` source (e.g., Phase-1 verified `masters.pptx`
+ *   or newly built `Presentation`), deduplicating media by SHA-256 and remapping charts/workbooks
+ *   and `[Content_Types].xml` cleanly with zero dangling relationships.
+ * - Returns a live `ImportedPresentation` ready for pure in-place slot filling (`getSlot`, `.text.set`, `.replace`, `.recolor`).
+ */
+export async function assembleDeck({
+  base,
+  sources = {},
+  slides = [],
+  outPptxPath,
+}) {
+  if (!Array.isArray(slides) || slides.length === 0) {
+    throw new Error("assembleDeck requires a non-empty `slides` array of `{ from, slide }` specs");
+  }
+
+  const loadedSources = new Map();
+  for (const [key, src] of Object.entries(sources)) {
+    loadedSources.set(key, await loadAnyDeckSource(src));
+  }
+
+  let baseKey = null;
+  let baseDeck = null;
+  if (typeof base === "string" && loadedSources.has(base)) {
+    baseKey = base;
+    baseDeck = await loadAnyDeckSource(sources[base]);
+  } else if (base) {
+    baseKey = "__base__";
+    baseDeck = await loadAnyDeckSource(base);
+    loadedSources.set(baseKey, baseDeck);
+  } else {
+    const firstKey = slides[0]?.from || Object.keys(sources)[0];
+    if (!firstKey || !loadedSources.has(firstKey)) {
+      throw new Error("assembleDeck could not resolve a base deck from `base` or `sources`");
+    }
+    baseKey = firstKey;
+    baseDeck = await loadAnyDeckSource(sources[firstKey]);
+  }
+
+  const defaultLayoutTarget = pickDefaultSlideLayoutTarget(baseDeck);
+
+  // Snapshot base slides BEFORE replacing `ppt/slides/slide*.xml`
+  const baseSlideSnapshots = new Map();
+  for (const sl of baseDeck._slides) {
+    baseSlideSnapshots.set(sl.slideNumber, {
+      xml: sl._xml,
+      rels: sl._rels.filter((r) => !String(r.type || "").endsWith("/notesSlide") && !String(r.type || "").endsWith("/comments")),
+    });
+  }
+
+  // Clear old slide parts & notes from base package
+  for (const key of [...baseDeck._files.keys()]) {
+    if (
+      /^ppt\/slides\/slide\d+\.xml$/.test(key) ||
+      /^ppt\/slides\/_rels\/slide\d+\.xml\.rels$/.test(key) ||
+      key.startsWith("ppt/notesSlides/")
+    ) {
+      baseDeck._files.delete(key);
+    }
+  }
+
+  // Deduplicate imported media by SHA-256 so cloning a master 6 times does not bloat the ZIP 6x
+  const importedMediaBySha = new Map();
+  let foreignPartSeq = 1;
+
+  const importForeignChart = (srcDeck, chartPartPath) => {
+    const rawChartBuf = srcDeck._files.get(chartPartPath);
+    if (!rawChartBuf) return null;
+    while (baseDeck._files.has(`ppt/charts/ym_chart_${baseDeck._chartCounter}.xml`)) {
+      baseDeck._chartCounter++;
+    }
+    const idx = baseDeck._chartCounter++;
+    const newChartFile = `ym_chart_${idx}.xml`;
+    const newChartPath = `ppt/charts/${newChartFile}`;
+    baseDeck._files.set(newChartPath, Buffer.from(rawChartBuf));
+    baseDeck._ensureContentTypeOverride(
+      `/${newChartPath}`,
+      "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
+    );
+
+    const srcChartRelsPath = path.posix.join(
+      path.posix.dirname(chartPartPath),
+      "_rels",
+      `${path.posix.basename(chartPartPath)}.rels`
+    );
+    if (srcDeck._files.has(srcChartRelsPath)) {
+      const srcChartRels = parseRelsMap(srcDeck._readText(srcChartRelsPath));
+      const newChartRels = [];
+      for (const cr of srcChartRels) {
+        if (cr.targetMode === "External") {
+          newChartRels.push(cr);
+          continue;
+        }
+        const resolved = resolvePosixPart(chartPartPath, cr.target);
+        const subBuf = srcDeck._files.get(resolved);
+        if (!subBuf) continue;
+        const ext = path.posix.extname(resolved).replace(/^\./, "").toLowerCase() || "bin";
+        if (resolved.startsWith("ppt/embeddings/") || ext === "xlsx") {
+          const wbFile = `ym_asm_wb_${idx}_${foreignPartSeq++}.${ext}`;
+          baseDeck._files.set(`ppt/embeddings/${wbFile}`, Buffer.from(subBuf));
+          baseDeck._ensureContentTypeDefault(ext, guessMimeFromExt(ext));
+          newChartRels.push({ ...cr, target: `../embeddings/${wbFile}` });
+        } else if (resolved.startsWith("ppt/charts/")) {
+          const auxFile = `ym_asm_chartaux_${idx}_${foreignPartSeq++}.${ext}`;
+          baseDeck._files.set(`ppt/charts/${auxFile}`, Buffer.from(subBuf));
+          const ctMatch = srcDeck
+            ._readText("[Content_Types].xml")
+            .match(new RegExp(`<Override\\b[^>]*\\bPartName="/${resolved.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*\\bContentType="([^"]+)"`));
+          if (ctMatch) {
+            baseDeck._ensureContentTypeOverride(`/ppt/charts/${auxFile}`, ctMatch[1]);
+          }
+          newChartRels.push({ ...cr, target: auxFile });
+        }
+      }
+      if (newChartRels.length > 0) {
+        baseDeck._writeText(`ppt/charts/_rels/${newChartFile}.rels`, serializeRelsMap(newChartRels));
+      }
+    }
+    return `../charts/${newChartFile}`;
+  };
+
+  const extractInheritedBgXml = (srcDeck, srcSlide) => {
+    if (/<p:bg\b/.test(srcSlide._xml)) return "";
+    const layoutRel = srcSlide._rels.find((r) => String(r.type || "").endsWith("/slideLayout"));
+    if (!layoutRel) return "";
+    const layoutPath = resolvePosixPart(srcSlide.partPath, layoutRel.target);
+    const layoutXml = srcDeck._readText(layoutPath);
+    const layoutBg = layoutXml.match(/<p:bg\b[\s\S]*?<\/p:bg>/)?.[0];
+    if (layoutBg) return layoutBg;
+
+    const layoutRelsPath = path.posix.join(
+      path.posix.dirname(layoutPath),
+      "_rels",
+      `${path.posix.basename(layoutPath)}.rels`
+    );
+    const masterRel = parseRelsMap(srcDeck._readText(layoutRelsPath)).find((r) =>
+      String(r.type || "").endsWith("/slideMaster")
+    );
+    if (!masterRel) return "";
+    const masterPath = resolvePosixPart(layoutPath, masterRel.target);
+    return srcDeck._readText(masterPath).match(/<p:bg\b[\s\S]*?<\/p:bg>/)?.[0] || "";
+  };
+
+  // Build sequential slides `slide1.xml .. slideN.xml`
+  slides.forEach((spec, idx) => {
+    const newNo = idx + 1;
+    const fromKey = spec.from || baseKey;
+    const srcSlideNo = Number(spec.slide);
+    if (!Number.isInteger(srcSlideNo) || srcSlideNo < 1) {
+      throw new Error(`assembleDeck slide entry #${newNo} requires a positive integer \`slide\` (got ${spec.slide})`);
+    }
+
+    if (fromKey === baseKey) {
+      const snap = baseSlideSnapshots.get(srcSlideNo);
+      if (!snap) {
+        throw new Error(`assembleDeck: base source "${baseKey}" has no slide ${srcSlideNo}`);
+      }
+      baseDeck._writeText(`ppt/slides/slide${newNo}.xml`, snap.xml);
+      baseDeck._writeText(`ppt/slides/_rels/slide${newNo}.xml.rels`, serializeRelsMap(snap.rels));
+      return;
+    }
+
+    const srcDeck = loadedSources.get(fromKey);
+    if (!srcDeck) {
+      throw new Error(`assembleDeck: unknown source key "${fromKey}"`);
+    }
+    const srcSlide = srcDeck._slides[srcSlideNo - 1];
+    if (!srcSlide) {
+      throw new Error(`assembleDeck: source "${fromKey}" has no slide ${srcSlideNo} (has ${srcDeck._slides.length})`);
+    }
+
+    let slideXml = srcSlide._xml;
+    const inheritedBg = extractInheritedBgXml(srcDeck, srcSlide);
+    if (inheritedBg && !/<p:bg\b/.test(slideXml)) {
+      slideXml = slideXml.replace(/<p:cSld\b([^>]*)>/, `<p:cSld$1>${inheritedBg}`);
+    }
+
+    const remappedRels = [];
+    let hasLayoutRel = false;
+    for (const r of srcSlide._rels) {
+      const type = String(r.type || "");
+      if (type.endsWith("/notesSlide") || type.endsWith("/comments")) continue;
+      if (type.endsWith("/slideLayout")) {
+        remappedRels.push({ ...r, target: defaultLayoutTarget });
+        hasLayoutRel = true;
+        continue;
+      }
+      if (r.targetMode === "External") {
+        remappedRels.push({ ...r });
+        continue;
+      }
+
+      const resolvedPart = resolvePosixPart(srcSlide.partPath, r.target);
+      if (type.endsWith("/image") || type.endsWith("/media") || type.endsWith("/audio") || type.endsWith("/video")) {
+        const mediaBuf = srcDeck._files.get(resolvedPart);
+        if (!mediaBuf) continue;
+        const ext = path.posix.extname(resolvedPart).replace(/^\./, "").toLowerCase() || "png";
+        const sha = `${ext}:${createHash("sha256").update(mediaBuf).digest("hex")}`;
+        let newMediaFile = importedMediaBySha.get(sha);
+        if (!newMediaFile) {
+          newMediaFile = baseDeck._allocatePackageMedia({
+            bytes: mediaBuf,
+            ext: `.${ext}`,
+            contentType: guessMimeFromExt(ext),
+          });
+          importedMediaBySha.set(sha, newMediaFile);
+        }
+        remappedRels.push({ ...r, target: `../media/${newMediaFile}` });
+        continue;
+      }
+
+      if (type.endsWith("/chart")) {
+        const newChartTarget = importForeignChart(srcDeck, resolvedPart);
+        if (newChartTarget) {
+          remappedRels.push({ ...r, target: newChartTarget });
+        }
+        continue;
+      }
+
+      // Copy any other referenced internal binary/xml part cleanly to prevent dangling rels
+      const otherBuf = srcDeck._files.get(resolvedPart);
+      if (otherBuf) {
+        const ext = path.posix.extname(resolvedPart).replace(/^\./, "").toLowerCase() || "xml";
+        const dirName = path.posix.dirname(resolvedPart);
+        const auxName = `ym_asm_${newNo}_${foreignPartSeq++}.${ext}`;
+        const newPart = path.posix.join(dirName, auxName);
+        baseDeck._files.set(newPart, Buffer.from(otherBuf));
+        const relTarget = path.posix.relative("ppt/slides", newPart);
+        remappedRels.push({ ...r, target: relTarget });
+      }
+    }
+
+    if (!hasLayoutRel) {
+      let maxR = 0;
+      for (const rr of remappedRels) {
+        const mm = String(rr.id || "").match(/^rId(\d+)$/);
+        if (mm) maxR = Math.max(maxR, Number.parseInt(mm[1], 10));
+      }
+      remappedRels.push({
+        id: `rId${maxR + 1}`,
+        type: `${NS_R}/slideLayout`,
+        target: defaultLayoutTarget,
+      });
+    }
+
+    baseDeck._writeText(`ppt/slides/slide${newNo}.xml`, slideXml);
+    baseDeck._writeText(`ppt/slides/_rels/slide${newNo}.xml.rels`, serializeRelsMap(remappedRels));
+  });
+
+  // Update `ppt/_rels/presentation.xml.rels`
+  const presRels = parseRelsMap(baseDeck._readText("ppt/_rels/presentation.xml.rels")).filter(
+    (r) => !String(r.type || "").endsWith("/slide")
+  );
+  let maxRelNum = 0;
+  for (const r of presRels) {
+    const m = String(r.id || "").match(/^rId(\d+)$/);
+    if (m) maxRelNum = Math.max(maxRelNum, Number.parseInt(m[1], 10));
+  }
+
+  const newSldIdsXml = slides
+    .map((_, idx) => {
+      const newNo = idx + 1;
+      const rId = `rId${++maxRelNum}`;
+      presRels.push({
+        id: rId,
+        type: `${NS_R}/slide`,
+        target: `slides/slide${newNo}.xml`,
+      });
+      return `<p:sldId id="${256 + idx}" r:id="${rId}"/>`;
+    })
+    .join("");
+
+  baseDeck._writeText("ppt/_rels/presentation.xml.rels", serializeRelsMap(presRels));
+
+  let presXml = baseDeck._readText("ppt/presentation.xml");
+  presXml = presXml.replace(
+    /<p:sldIdLst>[\s\S]*?<\/p:sldIdLst>/,
+    `<p:sldIdLst>${newSldIdsXml}</p:sldIdLst>`
+  );
+  baseDeck._writeText("ppt/presentation.xml", presXml);
+
+  let ctXml = baseDeck._readText("[Content_Types].xml");
+  ctXml = ctXml.replace(
+    /<Override\b[^>]*\bPartName="\/ppt\/(?:slides\/slide\d+|notesSlides\/notesSlide\d+)\.xml"[^>]*\/>/g,
+    ""
+  );
+  const slideOverrides = slides
+    .map(
+      (_, idx) =>
+        `<Override PartName="/ppt/slides/slide${idx + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`
+    )
+    .join("");
+  ctXml = ctXml.replace(/<\/Types>/, `${slideOverrides}</Types>`);
+  baseDeck._writeText("[Content_Types].xml", ctXml);
+
+  baseDeck._gcUnreferencedPackageParts();
+
+  const outEntries = [{ name: "[Content_Types].xml", data: baseDeck._files.get("[Content_Types].xml") }];
+  for (const [name, data] of baseDeck._files.entries()) {
+    if (name !== "[Content_Types].xml") outEntries.push({ name, data });
+  }
+  const assembledBuf = buildZipBuffer(outEntries);
+
+  if (outPptxPath) {
+    const absOut = path.resolve(outPptxPath);
+    await fs.mkdir(path.dirname(absOut), { recursive: true });
+    await fs.writeFile(absOut, assembledBuf);
+  }
+
+  return ImportedPresentation.load(assembledBuf);
+}
+
+function parseRotationDegFromXml(blockXml) {
+  const xfrmTag = blockXml.match(/<(?:a|p):xfrm\b[^>]*>/)?.[0] || "";
+  const rotRaw = getAttr(xfrmTag, "rot");
+  if (!rotRaw) return 0;
+  let deg = (Number.parseInt(rotRaw, 10) || 0) / 60000;
+  deg = ((deg % 360) + 360) % 360;
+  if (deg > 180) deg -= 360;
+  return Number(deg.toFixed(2));
+}
+
+/**
+ * Phase-1 -> Phase-2 Structural Immutability Auditor (`auditMasterSlotIntegrity`).
+ * Enforces that Phase-2 content filling did NOT destroy Phase-1 verified master structure:
+ * - Image slot count must NOT drop below master's image slot count (blocks silently replacing photos with text boxes!).
+ * - All semantic `slot:*` named nodes from the master must remain intact.
+ * - Rotated `slot:*` or image frames (`|rot| >= 2 deg`) must NOT flip sign or drift beyond tolerance.
+ */
+export async function auditMasterSlotIntegrity({
+  masterPptxPath,
+  finalPptxPath,
+  slideMap = [],
+  angleToleranceDeg = 3,
+}) {
+  const masterDeck = await loadAnyDeckSource(masterPptxPath);
+  const finalDeck = await loadAnyDeckSource(finalPptxPath);
+
+  const mappings = Array.isArray(slideMap)
+    ? slideMap
+    : Object.entries(slideMap || {}).map(([s, m]) => ({ slide: Number(s), masterSlide: Number(m) }));
+
+  // Default 1:1 mapping when slideMap omitted and counts match
+  const effectiveMap =
+    mappings.length > 0
+      ? mappings
+      : masterDeck._slides.map((_, i) => ({ slide: i + 1, masterSlide: i + 1 }));
+
+  const issues = [];
+  for (const { slide, masterSlide } of effectiveMap) {
+    const mSlide = masterDeck._slides[masterSlide - 1];
+    const fSlide = finalDeck._slides[slide - 1];
+    if (!mSlide) {
+      issues.push({
+        severity: "fail",
+        code: "invalid_master_slide_ref",
+        slide,
+        masterSlide,
+        message: `Slide ${slide} references nonexistent masterSlide ${masterSlide}`,
+      });
+      continue;
+    }
+    if (!fSlide) {
+      issues.push({
+        severity: "fail",
+        code: "missing_final_slide",
+        slide,
+        masterSlide,
+        message: `Final deck is missing slide ${slide} mapped from masterSlide ${masterSlide}`,
+      });
+      continue;
+    }
+
+    const mPics = mSlide._elements.filter((e) => e.kind === "image" || e.hasImageFill);
+    const fPics = fSlide._elements.filter((e) => e.kind === "image" || e.hasImageFill);
+    if (fPics.length < mPics.length) {
+      issues.push({
+        severity: "fail",
+        code: "master_image_slot_dropped",
+        slide,
+        masterSlide,
+        masterImageCount: mPics.length,
+        finalImageCount: fPics.length,
+        message: `Slide ${slide} dropped image slot(s) from verified master #${masterSlide} (${fPics.length} < ${mPics.length}); Phase 2 must NOT replace photo slots with text boxes`,
+      });
+    }
+
+    const fByName = new Map(fSlide._elements.map((e) => [e.name, e]));
+    for (const mEl of mSlide._elements) {
+      const mRot = parseRotationDegFromXml(mEl._rawXml || "");
+      const isNamedSlot = /^slot[:_-]/i.test(mEl.name || "");
+      if (isNamedSlot && !fByName.has(mEl.name)) {
+        issues.push({
+          severity: "fail",
+          code: "master_named_slot_missing",
+          slide,
+          masterSlide,
+          slot: mEl.name,
+          message: `Slide ${slide} is missing required master slot "${mEl.name}" from master #${masterSlide}`,
+        });
+        continue;
+      }
+      const fMatch = fByName.get(mEl.name);
+      if (fMatch && Math.abs(mRot) >= 2) {
+        const fRot = parseRotationDegFromXml(fMatch._rawXml || "");
+        const diff = Math.abs(mRot - fRot);
+        if (diff > angleToleranceDeg) {
+          issues.push({
+            severity: "fail",
+            code: "master_rotation_drifted",
+            slide,
+            masterSlide,
+            slot: mEl.name,
+            masterRotationDeg: mRot,
+            finalRotationDeg: fRot,
+            message: `Slide ${slide} element "${mEl.name}" rotation drifted from master #${masterSlide} (${mRot}° -> ${fRot}°)`,
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    passed: !issues.some((i) => i.severity === "fail"),
+    checkedSlides: effectiveMap.length,
     issues,
   };
 }

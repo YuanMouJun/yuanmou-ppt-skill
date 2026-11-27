@@ -8,6 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { emuToPx } from "./units.mjs";
+import { rotatedBoundingBox } from "./geometry.mjs";
 import { buildPptxBuffer } from "./package-builder.mjs";
 import { readZipBuffer } from "./xml.mjs";
 
@@ -399,6 +400,12 @@ function extractTopLevelShapeBoxes(slideXml) {
     const cNv = blk.match(/<p:cNvPr\b[^>]*>/)?.[0] || "";
     const id = getAttr(cNv, "id") || "";
     const name = getAttr(cNv, "name") || tag;
+    const xfrmTag = blk.match(/<(?:a|p):xfrm\b([^>]*)>/)?.[1] || "";
+    const rotRaw = xfrmTag.match(/\brot="(-?\d+)"/)?.[1];
+    let rotation = rotRaw ? (Number.parseInt(rotRaw, 10) || 0) / 60000 : 0;
+    rotation = ((rotation % 360) + 360) % 360;
+    if (rotation > 180) rotation -= 360;
+
     const xfrm = blk.match(/<(?:a|p):xfrm\b[^>]*>([\s\S]*?)<\/(?:a|p):xfrm>/)?.[1] || "";
     const off = xfrm.match(/<a:off\b[^>]*\bx="(-?\d+)"[^>]*\by="(-?\d+)"/);
     const ext = xfrm.match(/<a:ext\b[^>]*\bcx="(-?\d+)"[^>]*\bcy="(-?\d+)"/);
@@ -408,8 +415,10 @@ function extractTopLevelShapeBoxes(slideXml) {
     const top = emuToPx(Number.parseInt(off[2], 10));
     const width = emuToPx(Number.parseInt(ext[1], 10));
     const height = emuToPx(Number.parseInt(ext[2], 10));
+    const aabb = rotatedBoundingBox({ left, top, width, height, rotation });
 
     const isPic = tag === "p:pic";
+    const blipEmbedId = isPic ? blk.match(/<a:blip\b[^>]*\br:embed="([^"]+)"/)?.[1] || null : null;
     const isTable = tag === "p:graphicFrame" && blk.includes("<a:tbl");
     const isChart = tag === "p:graphicFrame" && blk.includes(":chart");
     const isTextbox = /<p:cNvSpPr\b[^>]*\btxBox="1"/.test(blk);
@@ -427,7 +436,15 @@ function extractTopLevelShapeBoxes(slideXml) {
     const spPrNoLn = spPr.replace(/<a:ln\b[\s\S]*?<\/a:ln>/g, "");
     const hasGradOrBlipFill = /<a:(?:gradFill|blipFill|pattFill)\b/.test(spPrNoLn);
     const solidFillMatch = spPrNoLn.match(/<a:solidFill\b[^>]*>([\s\S]*?)<\/a:solidFill>/);
-    const hasSolidFill = Boolean(solidFillMatch) && !/<a:alpha\b[^>]*\bval="0"/.test(solidFillMatch[1]);
+    const alphaRaw = solidFillMatch?.[1]?.match(/<a:alpha\b[^>]*\bval="(\d+)"/)?.[1];
+    const fillOpacity = solidFillMatch
+      ? alphaRaw !== undefined
+        ? Number.parseInt(alphaRaw, 10) / 100000
+        : 1.0
+      : hasGradOrBlipFill
+        ? 1.0
+        : 0;
+    const hasSolidFill = Boolean(solidFillMatch) && fillOpacity > 0;
     const solidFillHex =
       !hasGradOrBlipFill && solidFillMatch && !/<a:alpha\b/.test(solidFillMatch[1])
         ? solidFillMatch[1].match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || null
@@ -488,6 +505,9 @@ function extractTopLevelShapeBoxes(slideXml) {
       top,
       width,
       height,
+      rotation,
+      aabb,
+      blipEmbedId,
       isPic,
       isTable,
       isChart,
@@ -496,7 +516,9 @@ function extractTopLevelShapeBoxes(slideXml) {
       adjVal,
       hasGradOrBlipFill,
       hasSolidFill,
+      fillOpacity,
       solidFillHex,
+      hasVisibleBorder,
       hasVisibleFillOrBorder,
       noWrap,
       hasNoAutofit,
@@ -510,7 +532,7 @@ function extractTopLevelShapeBoxes(slideXml) {
 
 function runGates2And4GeometryAndText(
   zipMap,
-  { antiSlop = "warn", checkTextOverflow = true, strictInShape = true, allowFullBgPic = false } = {}
+  { antiSlop = "warn", checkTextOverflow = true, strictInShape = true, allowFullBgPic = false, masterMode = false } = {}
 ) {
   const issues = [];
   const presXml = zipMap.get("ppt/presentation.xml")?.toString("utf8") || "";
@@ -816,18 +838,37 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Vertical text overflow check (when `<a:noAutofit/>` is set on a bounded box)
-      if (checkTextOverflow && it.plainText && it.hasNoAutofit && !it.noWrap && it.width >= 40 && it.height >= 24) {
+      // Vertical text overflow & single-character widow/orphan wrap check
+      if (checkTextOverflow && it.plainText && !it.noWrap && it.width >= 40 && it.height >= 24) {
         const innerW = Math.max(16, it.width - it.insets.l - it.insets.r);
         const innerH = Math.max(12, it.height - it.insets.t - it.insets.b);
         let estH = 0;
+        let widowFlagged = false;
         for (const p of it.paras) {
+          const cleanP = (p.text || "").trim();
           const fontPx = p.fontPt / 0.75;
-          const lineW = measureLinePx(p.text || " ", fontPx);
+          const lineW = measureLinePx(cleanP || " ", fontPx);
           const lines = Math.max(1, Math.ceil(lineW / (innerW * 1.06)));
           estH += lines * fontPx * p.lineMult;
+          if (!widowFlagged && !masterMode && lines >= 2 && cleanP.length >= 4 && innerW >= fontPx * 3.5) {
+            const remainderPx = lineW - (lines - 1) * innerW;
+            if (remainderPx > 0 && remainderPx <= fontPx * 1.55) {
+              const tail = cleanP.slice(-2);
+              if (/[\u4e00-\u9fff]/.test(tail)) {
+                widowFlagged = true;
+                issues.push({
+                  gate: "text_overflow",
+                  severity: "warn",
+                  code: "widow_orphan_line",
+                  slide: slideNo,
+                  element: it.name,
+                  message: `Slide ${slideNo} "${it.name}" risks single-character widow wrap ("...${cleanP.slice(-6)}") — widen box slightly or trim 1–2 chars`,
+                });
+              }
+            }
+          }
         }
-        if (estH > innerH * 1.32 && estH - innerH > 18) {
+        if (it.hasNoAutofit && estH > innerH * 1.32 && estH - innerH > 18) {
           issues.push({
             gate: "text_overflow",
             severity: "fail",
@@ -839,8 +880,8 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Anti-AI-Slop & Client Placeholder Leak check
-      if (antiSlop !== "off" && it.plainText) {
+      // Anti-AI-Slop & Client Placeholder Leak check (exempt in Phase-1 `masterMode` skeleton builds!)
+      if (!masterMode && antiSlop !== "off" && it.plainText) {
         for (const rule of CHINESE_AI_SLOP_PATTERNS) {
           rule.re.lastIndex = 0;
           const hit = rule.re.exec(it.plainText);
@@ -947,6 +988,69 @@ function runGates2And4GeometryAndText(
               elements: [pic.name, sp.name],
               message: `Slide ${slideNo} opaque box "${sp.name}" (#${sp.solidFillHex}) blocks ${Math.round(covRatio * 100)}% of background photo "${pic.name}" — consider fill: "none" or translucent fill for glass/frame overlays`,
             });
+          }
+        }
+      }
+    }
+
+    // 3c) Z-order Occlusion Check: later foreground opaque shape or opaque/framed image burying earlier text (e.g. phone frame slicing footer!)
+    {
+      const slideRelsXml = zipMap.get(`ppt/slides/_rels/slide${slideNo}.xml.rels`)?.toString("utf8") || "";
+      const relTargetById = new Map();
+      for (const rm of slideRelsXml.matchAll(/<Relationship\b[^>]*\/?>/g)) {
+        const rid = getAttr(rm[0], "Id");
+        const tgt = getAttr(rm[0], "Target");
+        if (rid && tgt) relTargetById.set(rid, tgt.toLowerCase());
+      }
+
+      for (let ti = 0; ti < items.length; ti++) {
+        const tb = items[ti];
+        if (tb.tag !== "p:sp" || tb.plainText.length < 2 || tb.width <= 12 || tb.height <= 12) continue;
+        const tbBox = tb.aabb;
+        const tbArea = Math.max(1, tbBox.width * tbBox.height);
+        const isEdgeChrome = tbBox.top <= 52 || tbBox.bottom >= slideH - 48;
+
+        for (let oi = ti + 1; oi < items.length; oi++) {
+          const ov = items[oi];
+          let isOpaqueOccluder = false;
+          if (ov.tag === "p:sp" && ov.fillOpacity >= 0.85 && !ov.plainText) {
+            isOpaqueOccluder = true;
+          } else if (ov.isPic) {
+            const relTarget = ov.blipEmbedId ? relTargetById.get(ov.blipEmbedId) || "" : "";
+            const isOpaqueJpeg = /\.(?:jpe?g|bmp|webp)$/i.test(relTarget);
+            const isFramedPic = ov.hasVisibleBorder;
+            let isOpaquePng = false;
+            if (!isOpaqueJpeg && !isFramedPic && relTarget.endsWith(".png")) {
+              const resolvedPic = resolvePosixTarget(`ppt/slides/slide${slideNo}.xml`, relTarget);
+              const pBuf = zipMap.get(resolvedPic);
+              // PNG IHDR byte 25 = colorType: 0 (Grayscale) or 2 (RGB) has NO alpha channel -> 100% opaque!
+              if (pBuf && pBuf.length > 26 && pBuf[0] === 0x89 && pBuf[1] === 0x50) {
+                const colorType = pBuf[25];
+                isOpaquePng = colorType === 0 || colorType === 2;
+              }
+            }
+            if (isOpaqueJpeg || isFramedPic || isOpaquePng) {
+              isOpaqueOccluder = true;
+            }
+          }
+          if (!isOpaqueOccluder) continue;
+
+          const ovBox = ov.aabb;
+          const ix = Math.max(0, Math.min(tbBox.right, ovBox.right) - Math.max(tbBox.left, ovBox.left));
+          const iy = Math.max(0, Math.min(tbBox.bottom, ovBox.bottom) - Math.max(tbBox.top, ovBox.top));
+          if (ix <= 6 || iy <= 6) continue;
+          const covRatio = (ix * iy) / tbArea;
+          if (covRatio >= 0.18) {
+            issues.push({
+              gate: "layout_geometry",
+              severity: "fail",
+              code: "z_order_text_occluded",
+              slide: slideNo,
+              elements: [tb.name, ov.name],
+              overlapPct: Math.round(covRatio * 100),
+              message: `Slide ${slideNo} foreground "${ov.name}" (drawn after "${tb.name}") occludes ${Math.round(covRatio * 100)}% of text "${tb.plainText.slice(0, 24)}" — draw chrome/text AFTER foreground images or move text out of overlap`,
+            });
+            break;
           }
         }
       }
@@ -1214,6 +1318,7 @@ export async function validateDeckBuffer(pptxBuffer, options = {}) {
     checkTextOverflow: options.checkTextOverflow !== false,
     strictInShape: options.strictInShape !== false,
     allowFullBgPic: Boolean(options.allowFullBgPic),
+    masterMode: Boolean(options.masterMode),
   });
   const gate3 = runGate3FontAvailability(zipMap, options.fontPolicy ?? "warn");
   const gate5 = runGate5DataEvidence(zipMap);
@@ -1251,9 +1356,52 @@ export async function validateDeckBuffer(pptxBuffer, options = {}) {
 }
 
 /**
+ * Non-destructive history preservation helper:
+ * If `targetPath` already exists and differs from `incomingSha256` (when supplied),
+ * archives the previous delivered file into `<dir>/history/<stem>_vN_<YYYYMMDD_HHMMSS><ext>`
+ * so users can always roll back to any prior delivered version without cluttering the project root.
+ */
+export async function archivePreviousDeliveredFile(targetPath, incomingSha256 = null) {
+  const absTarget = path.resolve(targetPath);
+  if (!existsSync(absTarget)) return null;
+  if (incomingSha256) {
+    const prevBuf = await fs.readFile(absTarget);
+    const prevSha = createHash("sha256").update(prevBuf).digest("hex");
+    if (prevSha === incomingSha256) return null;
+  }
+
+  const dir = path.dirname(absTarget);
+  const ext = path.extname(absTarget);
+  const stem = path.basename(absTarget, ext);
+  const historyDir = path.join(dir, "history");
+  await fs.mkdir(historyDir, { recursive: true });
+
+  const escapedStem = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const verRe = new RegExp(`^${escapedStem}_v(\\d+)(?:_\\d{8}_\\d{6})?${ext.replace(".", "\\.")}$`);
+  let maxVer = 0;
+  try {
+    for (const f of readdirSync(historyDir)) {
+      const m = f.match(verRe);
+      if (m) maxVer = Math.max(maxVer, Number.parseInt(m[1], 10));
+    }
+  } catch {
+    // ignore
+  }
+
+  const st = await fs.stat(absTarget).catch(() => null);
+  const d = st ? new Date(st.mtimeMs) : new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const archivedPath = path.join(historyDir, `${stem}_v${maxVer + 1}_${stamp}${ext}`);
+  await fs.copyFile(absTarget, archivedPath);
+  return archivedPath;
+}
+
+/**
  * Weapon 18: Atomic Staging-to-Final Publisher (`finalizeDeck`).
  * Accepts a `Presentation`, `ImportedPresentation`, `Buffer`, or candidate `.pptx` path,
- * runs all 5 quality gates, writes an isolated `.validation.json` receipt into `.yuanmou-finalizer/`,
+ * runs all 6 quality gate groups, writes an isolated `.validation.json` receipt into `.yuanmou-finalizer/`,
+ * automatically archives any differing prior delivered file into `<dir>/history/` (when `preserveHistory !== false`),
  * and atomically publishes `outputPath` ONLY if all gates pass!
  */
 export async function finalizeDeck({
@@ -1266,6 +1414,8 @@ export async function finalizeDeck({
   checkTextOverflow = true,
   strictInShape = true,
   allowFullBgPic = false,
+  masterMode = false,
+  preserveHistory = true,
 }) {
   if (!outputPath) {
     throw new Error("finalizeDeck requires `outputPath`");
@@ -1295,6 +1445,7 @@ export async function finalizeDeck({
     checkTextOverflow,
     strictInShape,
     allowFullBgPic,
+    masterMode,
   });
   const shortHash = report.sha256.slice(0, 8);
   const stem = path.basename(absOut, path.extname(absOut));
@@ -1319,6 +1470,11 @@ export async function finalizeDeck({
   }
 
   await fs.mkdir(path.dirname(absOut), { recursive: true });
+  const archivedPreviousPath =
+    preserveHistory !== false
+      ? await archivePreviousDeliveredFile(absOut, report.sha256)
+      : null;
+
   const tmpPublish = path.join(path.dirname(absOut), `.${stem}.${randomUUID().slice(0, 8)}.tmp.pptx`);
   await fs.writeFile(tmpPublish, buf);
   try {
@@ -1338,6 +1494,7 @@ export async function finalizeDeck({
     warnCount: report.warnCount,
     gates: report.gates,
     outputPath: absOut,
+    archivedPreviousPath,
     receiptPath,
     sha256: report.sha256,
     bytes: report.bytes,

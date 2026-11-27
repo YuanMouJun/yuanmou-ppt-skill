@@ -15,8 +15,11 @@ import {
   validateTemplatePlan,
   prepareStarterDeck,
   auditTemplateFidelity,
+  assembleDeck,
+  auditMasterSlotIntegrity,
   validateDeckBuffer,
   finalizeDeck,
+  archivePreviousDeliveredFile,
   renderDeckToPngs,
   buildShowcaseGalleryHtml,
   discoverRenderToolchain,
@@ -162,14 +165,125 @@ function parseCropSpecs(raw) {
     });
 }
 
+const PY_PDF_PROBE = `
+import json, sys
+
+cfg = json.loads(sys.argv[1])
+pdf_path = cfg["pdfPath"]
+page_no = int(cfg.get("pageNo", 1))
+
+try:
+    import fitz
+except Exception:
+    print(json.dumps({"available": False, "pdfKind": "unknown", "reason": "PyMuPDF not installed"}))
+    sys.exit(0)
+
+doc = fitz.open(pdf_path)
+if page_no < 1 or page_no > len(doc):
+    print(json.dumps({"available": True, "pageCount": len(doc), "error": f"Page {page_no} out of range 1..{len(doc)}"}))
+    sys.exit(0)
+
+page = doc[page_no - 1]
+pw, ph = float(page.rect.width) or 1280.0, float(page.rect.height) or 720.0
+sx, sy = 1280.0 / pw, 720.0 / ph
+
+text_dict = page.get_text("dict")
+text_items = []
+for blk in text_dict.get("blocks", []):
+    if blk.get("type") != 0:
+        continue
+    lines_txt = []
+    max_sz = 0.0
+    font_name = ""
+    color_hex = None
+    for ln in blk.get("lines", []):
+        spans = []
+        for sp in ln.get("spans", []):
+            t = sp.get("text", "").strip()
+            if not t:
+                continue
+            spans.append(t)
+            sz = float(sp.get("size", 0))
+            if sz > max_sz:
+                max_sz = sz
+                font_name = sp.get("font", "")
+                c_int = sp.get("color", 0)
+                if isinstance(c_int, int):
+                    color_hex = "#{:06X}".format(c_int & 0xFFFFFF)
+        if spans:
+            lines_txt.append("".join(spans))
+    joined = "\\n".join(lines_txt).strip()
+    if not joined:
+        continue
+    x0, y0, x1, y1 = blk["bbox"]
+    text_items.append({
+        "bbox": [round(x0 * sx, 1), round(y0 * sy, 1), round((x1 - x0) * sx, 1), round((y1 - y0) * sy, 1)],
+        "fontSizePt": round(max_sz * sy * 0.75, 1),
+        "font": font_name,
+        "color": color_hex,
+        "text": joined[:140],
+    })
+
+drawings = page.get_drawings()
+drawing_items = []
+for dr in drawings[:80]:
+    r = dr.get("rect")
+    if not r:
+        continue
+    w, h = (r.x1 - r.x0) * sx, (r.y1 - r.y0) * sy
+    if w < 4 and h < 4:
+        continue
+    fill = dr.get("fill")
+    stroke = dr.get("color")
+    to_hex = lambda c: "#{:02X}{:02X}{:02X}".format(int(c[0]*255), int(c[1]*255), int(c[2]*255)) if isinstance(c, (list, tuple)) and len(c) >= 3 else None
+    drawing_items.append({
+        "bbox": [round(r.x0 * sx, 1), round(r.y0 * sy, 1), round(w, 1), round(h, 1)],
+        "fill": to_hex(fill),
+        "stroke": to_hex(stroke),
+    })
+
+img_infos = page.get_image_info(xrefs=True)
+image_items = []
+for im in img_infos[:40]:
+    x0, y0, x1, y1 = im["bbox"]
+    image_items.append({
+        "bbox": [round(x0 * sx, 1), round(y0 * sy, 1), round((x1 - x0) * sx, 1), round((y1 - y0) * sy, 1)],
+        "pixelSize": [im.get("width", 0), im.get("height", 0)],
+    })
+
+if len(text_items) > 0 and len(drawing_items) >= 3:
+    kind = "vector"
+elif len(text_items) > 0 or len(drawing_items) >= 3:
+    kind = "hybrid"
+else:
+    kind = "raster"
+
+print(json.dumps({
+    "available": True,
+    "pageCount": len(doc),
+    "pageNo": page_no,
+    "pdfSize": [round(pw, 1), round(ph, 1)],
+    "pdfKind": kind,
+    "textBlockCount": len(text_items),
+    "drawingCount": len(drawings),
+    "imageCount": len(img_infos),
+    "vectorObjects": {
+        "texts": text_items[:60],
+        "drawings": drawing_items[:60],
+        "images": image_items[:30],
+    } if kind != "raster" else None,
+}, ensure_ascii=False))
+`;
+
 const PY_INSPECT_REF = `
-import json, os, sys
-from PIL import Image
+import json, math, os, sys
+from PIL import Image, ImageDraw
 
 cfg = json.loads(sys.argv[1])
 ref_path = cfg["refPath"]
 out_dir = cfg["outDir"]
 crops = cfg["crops"]
+pdf_probe = cfg.get("pdfProbe")
 os.makedirs(out_dir, exist_ok=True)
 
 im_raw = Image.open(ref_path).convert("RGB")
@@ -177,10 +291,10 @@ im = im_raw.resize((1280, 720), Image.Resampling.LANCZOS)
 
 if not crops:
     crops = [
-        {"name": "top_header", "x": 0, "y": 0, "w": 1280, "h": 200},
-        {"name": "left_zone", "x": 0, "y": 180, "w": 440, "h": 540},
-        {"name": "center_zone", "x": 420, "y": 180, "w": 440, "h": 540},
-        {"name": "right_zone", "x": 840, "y": 180, "w": 440, "h": 540},
+        {"name": "top_header", "x": 0, "y": 0, "w": 1280, "h": 180},
+        {"name": "left_zone", "x": 0, "y": 140, "w": 520, "h": 580},
+        {"name": "center_zone", "x": 420, "y": 140, "w": 440, "h": 580},
+        {"name": "right_zone", "x": 760, "y": 140, "w": 520, "h": 580},
     ]
 
 def rgb_to_hex(rgb):
@@ -194,6 +308,83 @@ def median_rgb(pixels):
     bs = sorted(p[2] for p in pixels)
     m = len(pixels) // 2
     return (rs[m], gs[m], bs[m])
+
+def measure_dominant_tilt(sub_rgb):
+    # Downscale moderately for fast, noise-resistant Sobel angle histogram
+    w, h = sub_rgb.size
+    scale = min(1.0, 440.0 / max(1, max(w, h)))
+    gw, gh = max(24, int(w * scale)), max(24, int(h * scale))
+    gray = sub_rgb.resize((gw, gh), Image.Resampling.BILINEAR).convert("L")
+    px = gray.load()
+    bins = {}
+    total_mag = 0.0
+    tilt_mag = 0.0
+    for y in range(2, gh - 2):
+        for x in range(2, gw - 2):
+            gx = (px[x+1, y-1] + 2*px[x+1, y] + px[x+1, y+1]) - (px[x-1, y-1] + 2*px[x-1, y] + px[x-1, y+1])
+            gy = (px[x-1, y+1] + 2*px[x, y+1] + px[x+1, y+1]) - (px[x-1, y-1] + 2*px[x, y-1] + px[x+1, y-1])
+            mag = math.hypot(gx, gy)
+            if mag < 140.0:
+                continue
+            # OOXML sign convention: +deg = clockwise (top leans right \\), -deg = counter-clockwise (top leans left /)
+            rel = ((math.degrees(math.atan2(gy, gx)) + 45.0) % 90.0) - 45.0
+            b = int(round(rel))
+            bins[b] = bins.get(b, 0.0) + mag
+            total_mag += mag
+            if abs(b) >= 3 and abs(b) <= 42:
+                tilt_mag += mag
+    if total_mag < 1e-3:
+        return {"dominantTiltDeg": 0, "tiltDirection": "upright", "tiltConfidence": 0.0}
+    # Check non-orthogonal peak first (detects tilted cards/phones inside horizontal/vertical frame!)
+    non_ortho = [(ang, sum(bins.get(ang + d, 0.0) for d in (-1, 0, 1))) for ang in range(-40, 41) if abs(ang) >= 3]
+    best_tilt_ang, best_tilt_val = max(non_ortho, key=lambda kv: kv[1])
+    tilt_share = best_tilt_val / max(1.0, total_mag)
+    if tilt_share >= 0.09 and best_tilt_val >= 28000.0:
+        direction = "clockwise" if best_tilt_ang > 0 else "counterclockwise"
+        return {
+            "dominantTiltDeg": int(best_tilt_ang),
+            "tiltDirection": direction,
+            "tiltConfidence": round(min(1.0, tilt_share * 2.5), 2),
+        }
+    return {"dominantTiltDeg": 0, "tiltDirection": "upright", "tiltConfidence": round(tilt_share, 2)}
+
+def measure_content_bbox(sub_rgb, bg_rgb, x0, y0):
+    sw, sh = sub_rgb.size
+    px = sub_rgb.load()
+    min_x, min_y, max_x, max_y = sw, sh, -1, -1
+    step = 2
+    for y in range(0, sh, step):
+        for x in range(0, sw, step):
+            r, g, b = px[x, y]
+            if abs(r - bg_rgb[0]) + abs(g - bg_rgb[1]) + abs(b - bg_rgb[2]) > 42:
+                if x < min_x: min_x = x
+                if y < min_y: min_y = y
+                if x > max_x: max_x = x
+                if y > max_y: max_y = y
+    if max_x < min_x or max_y < min_y:
+        return None
+    return [x0 + min_x, y0 + min_y, max_x - min_x + step, max_y - min_y + step]
+
+# 1) Generate 1280x720 coordinate grid ruler image + rotation sign legend
+grid_im = im.convert("RGBA")
+overlay = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
+draw = ImageDraw.Draw(overlay)
+for gx in range(100, 1280, 100):
+    draw.line([(gx, 0), (gx, 720)], fill=(37, 99, 235, 110), width=1)
+    draw.rectangle([gx + 2, 2, gx + 36, 16], fill=(15, 23, 42, 185))
+    draw.text((gx + 4, 3), str(gx), fill=(255, 255, 255, 240))
+for gy in range(100, 720, 100):
+    draw.line([(0, gy), (1280, gy)], fill=(37, 99, 235, 110), width=1)
+    draw.rectangle([2, gy + 2, 34, gy + 16], fill=(15, 23, 42, 185))
+    draw.text((4, gy + 3), str(gy), fill=(255, 255, 255, 240))
+draw.rectangle([0, 694, 540, 720], fill=(15, 23, 42, 200))
+draw.text((10, 700), "1280x720 GRID | OOXML rotation: +deg = CW right-lean (\\\\), -deg = CCW left-lean (/)", fill=(250, 204, 21, 255))
+grid_out = os.path.join(out_dir, "ref_grid_1280x720.png")
+Image.alpha_composite(grid_im, overlay).convert("RGB").save(grid_out, quality=92)
+
+# Estimate overall slide background color from corners
+corner_px = [im.getpixel((8, 8)), im.getpixel((1271, 8)), im.getpixel((8, 711)), im.getpixel((1271, 711))]
+slide_bg = median_rgb(corner_px)
 
 results = []
 for c in crops:
@@ -220,10 +411,16 @@ for c in crops:
     counts = sorted(q.getcolors(maxcolors=32) or [], reverse=True)[:5]
     total = float(sw * sh)
     dom = [{"hex": rgb_to_hex(col), "pct": round(cnt * 100.0 / total, 1)} for cnt, col in counts]
+    tilt = measure_dominant_tilt(sub)
+    cbbox = measure_content_bbox(sub, slide_bg, x0, y0)
 
     results.append({
         "name": c["name"],
         "box": [x0, y0, x1 - x0, y1 - y0],
+        "contentBbox": cbbox,
+        "dominantTiltDeg": tilt["dominantTiltDeg"],
+        "tiltDirection": tilt["tiltDirection"],
+        "tiltConfidence": tilt["tiltConfidence"],
         "cropPng2x": out_png,
         "topHex": rgb_to_hex(median_rgb(top_px)),
         "midHex": rgb_to_hex(median_rgb(mid_px)),
@@ -232,12 +429,21 @@ for c in crops:
         "dominantColors": dom,
     })
 
-print(json.dumps({
+spec = {
     "refPng": ref_path,
+    "gridOverlayPng": grid_out,
     "sourceSize": list(im_raw.size),
     "normalizedCanvas": [1280, 720],
+    "estimatedBackgroundHex": rgb_to_hex(slide_bg),
+    "rotationConvention": "+deg = clockwise (top leans right), -deg = counter-clockwise (top leans left)",
+    "pdfProbe": pdf_probe,
     "crops": results,
-}, ensure_ascii=False))
+}
+spec_path = os.path.join(out_dir, "ref_layout_spec.json")
+with open(spec_path, "w", encoding="utf-8") as f:
+    json.dump(spec, f, ensure_ascii=False, indent=2)
+spec["layoutSpecJson"] = spec_path
+print(json.dumps(spec, ensure_ascii=False))
 `;
 
 const PY_DIFF = `
@@ -364,17 +570,62 @@ print(json.dumps({"qaSheetPng": out_png, "slideCount": n, "grid": [rows, cols]})
 
 const PY_MULTI_COMPARE = `
 import json, math, os, sys
-from PIL import Image, ImageChops, ImageStat
+from PIL import Image, ImageChops, ImageFilter, ImageStat
 
 cfg = json.loads(sys.argv[1])
 refs = cfg["refs"]
 gens = cfg["gens"]
 out_dir = cfg["outDir"]
 batch_size = int(cfg.get("batchSize", 4))
+xray_mode = cfg.get("xrayMode", "flagged")  # "all" | "flagged" | "none"
 pairs_dir = os.path.join(out_dir, "compare_pairs")
 os.makedirs(pairs_dir, exist_ok=True)
 
+def calc_edge_similarity(ri, gi):
+    # Resize to 320x180 grayscale and compare edge maps (immune to identical white/cream background inflation!)
+    re = ri.resize((320, 180), Image.Resampling.BILINEAR).convert("L").filter(ImageFilter.FIND_EDGES)
+    ge = gi.resize((320, 180), Image.Resampling.BILINEAR).convert("L").filter(ImageFilter.FIND_EDGES)
+    rp = list(re.getdata())
+    gp = list(ge.getdata())
+    inter = 0.0
+    union = 0.0
+    for a, b in zip(rp, gp):
+        if a > 28 or b > 28:
+            inter += min(a, b)
+            union += max(a, b)
+    if union < 1e-3:
+        return 100.0
+    return round(min(100.0, 100.0 * inter / union), 1)
+
+def measure_zone_tilt(im_rgb, box):
+    sub = im_rgb.crop(box)
+    gw, gh = 260, 260
+    gray = sub.resize((gw, gh), Image.Resampling.BILINEAR).convert("L")
+    px = gray.load()
+    bins = {}
+    total_mag = 0.0
+    for y in range(2, gh - 2):
+        for x in range(2, gw - 2):
+            gx = (px[x+1, y-1] + 2*px[x+1, y] + px[x+1, y+1]) - (px[x-1, y-1] + 2*px[x-1, y] + px[x-1, y+1])
+            gy = (px[x-1, y+1] + 2*px[x, y+1] + px[x+1, y+1]) - (px[x-1, y-1] + 2*px[x, y-1] + px[x+1, y-1])
+            mag = math.hypot(gx, gy)
+            if mag < 150.0:
+                continue
+            rel = ((math.degrees(math.atan2(gy, gx)) + 45.0) % 90.0) - 45.0
+            b = int(round(rel))
+            bins[b] = bins.get(b, 0.0) + mag
+            total_mag += mag
+    if total_mag < 1e-3:
+        return 0, 0.0
+    non_ortho = [(ang, sum(bins.get(ang + d, 0.0) for d in (-1, 0, 1))) for ang in range(-40, 41) if abs(ang) >= 4]
+    best_ang, best_val = max(non_ortho, key=lambda kv: kv[1])
+    share = best_val / max(1.0, total_mag)
+    if share >= 0.10 and best_val >= 22000.0:
+        return int(best_ang), round(share, 3)
+    return 0, round(share, 3)
+
 pair_items = []
+angle_mismatches = []
 n = min(len(refs), len(gens))
 pw, ph = 960, 540
 gap = 14
@@ -385,18 +636,57 @@ for i in range(n):
     diff = ImageChops.difference(ri, gi)
     mae = sum(ImageStat.Stat(diff).mean) / 3.0
     sim = round(max(0.0, 100.0 * (1.0 - mae / 255.0)), 1)
+    edge_sim = calc_edge_similarity(ri, gi)
+
+    # Check left & right half dominant tilt angles (catches reversed phone/card rotation immediately!)
+    slide_angle_issues = []
+    for zname, zbox in [("left_zone", (0, 70, pw // 2, ph)), ("right_zone", (pw // 2, 70, pw, ph))]:
+        ref_deg, ref_sh = measure_zone_tilt(ri, zbox)
+        if abs(ref_deg) >= 4:
+            gen_deg, gen_sh = measure_zone_tilt(gi, zbox)
+            delta = abs(ref_deg - gen_deg)
+            if delta >= 5:
+                rec = {
+                    "slide": i + 1,
+                    "refName": os.path.basename(refs[i]),
+                    "zone": zname,
+                    "refDeg": ref_deg,
+                    "genDeg": gen_deg,
+                    "deltaDeg": delta,
+                    "signFlipped": (ref_deg * gen_deg) < 0,
+                }
+                slide_angle_issues.append(rec)
+                angle_mismatches.append(rec)
+
     pair = Image.new("RGB", (pw * 2 + gap * 3, ph + gap * 2), (15, 23, 42))
     pair.paste(ri, (gap, gap))
     pair.paste(gi, (pw + gap * 2, gap))
     out_jpg = os.path.join(pairs_dir, f"pair_{i+1:02d}.jpg")
     pair.save(out_jpg, format="JPEG", quality=88, optimize=True)
+
+    xray_jpg = None
+    if xray_mode == "all":
+        xw, xh = 640, 360
+        rx = ri.resize((xw, xh), Image.Resampling.LANCZOS)
+        gx = gi.resize((xw, xh), Image.Resampling.LANCZOS)
+        ov = Image.blend(rx, gx, alpha=0.5)
+        xp = Image.new("RGB", (xw * 3 + 32, xh + 20), (15, 23, 42))
+        xp.paste(rx, (8, 10))
+        xp.paste(ov, (xw + 16, 10))
+        xp.paste(gx, (xw * 2 + 24, 10))
+        xray_jpg = os.path.join(pairs_dir, f"xray_{i+1:02d}.jpg")
+        xp.save(xray_jpg, format="JPEG", quality=90, optimize=True)
+
     pair_items.append({
         "slide": i + 1,
         "refName": os.path.basename(refs[i]),
         "genName": os.path.basename(gens[i]),
         "similarityPct": sim,
+        "edgeSimilarityPct": edge_sim,
         "mae": round(mae, 2),
+        "angleIssues": slide_angle_issues if slide_angle_issues else None,
         "pairJpg": out_jpg,
+        "xrayJpg": xray_jpg,
     })
 
 batches = []
@@ -418,7 +708,44 @@ for b_idx in range(0, n, batch_size):
         "path": bp,
     })
 
-print(json.dumps({"pairs": pair_items, "compareBatches": batches}, ensure_ascii=False))
+# Build 50% X-Ray Overlay batches ("all" for verify-master, or "flagged" for worst-edge / angle-mismatched pages!)
+xray_batches = []
+if xray_mode == "all":
+    xray_targets = pair_items
+elif xray_mode == "flagged":
+    flagged_slides = {m["slide"] for m in angle_mismatches}
+    for it in sorted(pair_items, key=lambda x: x["edgeSimilarityPct"])[:4]:
+        flagged_slides.add(it["slide"])
+    xray_targets = [it for it in pair_items if it["slide"] in flagged_slides]
+else:
+    xray_targets = []
+
+xw, xh = 640, 360
+for xb_idx in range(0, len(xray_targets), batch_size):
+    chunk = xray_targets[xb_idx:xb_idx + batch_size]
+    xsheet = Image.new("RGB", (xw * 3 + 32, len(chunk) * (xh + 12) + 12), (15, 23, 42))
+    for r, item in enumerate(chunk):
+        ri = Image.open(refs[item["slide"] - 1]).convert("RGB").resize((xw, xh), Image.Resampling.LANCZOS)
+        gi = Image.open(gens[item["slide"] - 1]).convert("RGB").resize((xw, xh), Image.Resampling.LANCZOS)
+        ov = Image.blend(ri, gi, alpha=0.5)
+        y = 12 + r * (xh + 12)
+        xsheet.paste(ri, (8, y))
+        xsheet.paste(ov, (xw + 16, y))
+        xsheet.paste(gi, (xw * 2 + 24, y))
+    xbp = os.path.join(out_dir, f"xray_batch_{len(xray_batches) + 1}.jpg")
+    xsheet.save(xbp, format="JPEG", quality=90, optimize=True)
+    xray_batches.append({
+        "batch": len(xray_batches) + 1,
+        "slides": [c["slide"] for c in chunk],
+        "path": xbp,
+    })
+
+print(json.dumps({
+    "pairs": pair_items,
+    "compareBatches": batches,
+    "xrayBatches": xray_batches,
+    "angleMismatches": angle_mismatches,
+}, ensure_ascii=False))
 `;
 
 const PY_BUILD_PDF = `
@@ -507,6 +834,10 @@ async function main() {
       "readonly-source": { type: "string" },
       "source-sha256": { type: "string" },
       map: { type: "string" },
+      plan: { type: "string" },
+      master: { type: "string" },
+      "master-map": { type: "string" },
+      "no-preserve-history": { type: "boolean" },
       out: { type: "string" },
       dpi: { type: "string" },
       page: { type: "string" },
@@ -679,6 +1010,42 @@ async function main() {
     return;
   }
 
+  if (cmd === "assemble") {
+    if (!values.plan || !values.out) {
+      throw new Error("assemble requires --plan <assemble.json> --out <starter.pptx>");
+    }
+    const planPath = path.resolve(values.plan);
+    const planDir = path.dirname(planPath);
+    const rawPlan = JSON.parse(await fs.readFile(planPath, "utf8"));
+    const resolvedSources = {};
+    for (const [k, v] of Object.entries(rawPlan.sources || {})) {
+      resolvedSources[k] = path.isAbsolute(v) ? v : path.resolve(planDir, v);
+    }
+    const baseSpec =
+      rawPlan.base && !resolvedSources[rawPlan.base] && !path.isAbsolute(rawPlan.base)
+        ? path.resolve(planDir, rawPlan.base)
+        : rawPlan.base;
+    const assembled = await assembleDeck({
+      base: baseSpec,
+      sources: resolvedSources,
+      slides: rawPlan.slides || [],
+      outPptxPath: values.out,
+    });
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          assembledPptx: path.resolve(values.out),
+          slideCount: assembled.slides.count,
+          slideSize: assembled.slideSize,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   if (cmd === "audit-fidelity") {
     const res = await auditTemplateFidelity({
       sourcePptxPath: values.source,
@@ -715,10 +1082,143 @@ async function main() {
     const rawRef = values.ref || positionals[1] || "";
     const outDir = path.resolve(values.out || "./ref_inspect");
     const pageNo = values.page ? Number(values.page) : 1;
+    let pdfProbe = null;
+    if (path.extname(rawRef).toLowerCase() === ".pdf" && toolchain.python3) {
+      try {
+        pdfProbe = runPythonVision(PY_PDF_PROBE, { pdfPath: path.resolve(rawRef), pageNo }, toolchain.python3);
+      } catch {
+        pdfProbe = { available: false, pdfKind: "unknown" };
+      }
+    }
     const refPath = await ensureReferenceImagePath(rawRef, outDir, pageNo, toolchain);
     const crops = parseCropSpecs(values.crops);
-    const res = runPythonVision(PY_INSPECT_REF, { refPath, outDir, crops }, toolchain.python3);
+    const res = runPythonVision(PY_INSPECT_REF, { refPath, outDir, crops, pdfProbe }, toolchain.python3);
     console.log(JSON.stringify(res, null, 2));
+    return;
+  }
+
+  // Phase 1 Hard Gate: Verify Pure Layout Masters (`masters.pptx`) against references with 50% X-Ray Overlays,
+  // Edge Structure Similarity, and Dominant Tilt Angle Delta BEFORE Phase-2 content filling begins!
+  if (cmd === "verify-master") {
+    const masterPath = path.resolve(values.pptx || positionals[1] || "");
+    if (!existsSync(masterPath)) {
+      throw new Error(`verify-master requires an existing --pptx <masters.pptx> (got: ${masterPath})`);
+    }
+    const outDir = path.resolve(values.out || path.join(path.dirname(masterPath), "qa_master"));
+    await fs.mkdir(outDir, { recursive: true });
+
+    const buf = await fs.readFile(masterPath);
+    const validation = await validateDeckBuffer(buf, {
+      antiSlop: "off",
+      fontPolicy: values["font-policy"] || "warn",
+      allowFullBgPic: Boolean(values["allow-full-bg-pic"]),
+      masterMode: true,
+    });
+    if (!validation.passed) {
+      const summary = validation.issues
+        .filter((i) => i.severity === "fail")
+        .map((i) => `  - [${i.gate}/${i.code}] ${i.message}`)
+        .join("\n");
+      throw new Error(`verify-master blocked by static gates (${validation.failCount} failure(s)):\n${summary}`);
+    }
+
+    // Extract per-master slot inventory so Phase-2 `auditMasterSlotIntegrity` has a signed baseline
+    const { inspection } = await inspectTemplateDeck({ pptxPath: masterPath });
+    const masterInventory = inspection.records.map((rec) => ({
+      masterSlide: rec.slide,
+      imageCount: rec.elements.filter((e) => e.kind === "image" || e.hasImageFill).length,
+      textCount: rec.elements.filter((e) => e.kind === "shape" || e.kind === "textbox").length,
+      namedSlots: rec.elements.filter((e) => /^slot[:_-]/i.test(e.name || "")).map((e) => ({ name: e.name, kind: e.kind })),
+    }));
+
+    if (!depInfo.canRender) {
+      if (values["require-render"]) assertRenderDeps(depInfo);
+      const manifestPath = path.join(outDir, "master_verified.json");
+      const receipt = {
+        schema: "yuanmou.master.verified/v1",
+        passed: true,
+        verificationMode: "code-gates-only",
+        masterPptx: masterPath,
+        masterSha256: validation.sha256,
+        masterInventory,
+        angleAuditPassed: true,
+        angleMismatches: [],
+      };
+      await fs.writeFile(manifestPath, JSON.stringify(receipt, null, 2) + "\n", "utf8");
+      console.log(JSON.stringify({ ...receipt, manifestPath }, null, 2));
+      return;
+    }
+
+    const renderRes = await renderDeckToPngs(masterPath, {
+      outDir: path.join(outDir, "master_slides_png"),
+      dpi: values.dpi ? Number(values.dpi) : 220,
+    });
+    const renderedPngs = numericSortPaths(renderRes.pngFiles || renderRes.pngPaths || []);
+
+    let refFiles = [];
+    if (values["ref-dir"]) {
+      const refDirAbs = path.resolve(values["ref-dir"]);
+      refFiles = numericSortPaths(
+        (await fs.readdir(refDirAbs))
+          .filter((f) => /\.(png|jpe?g|webp)$/i.test(f))
+          .map((f) => path.join(refDirAbs, f))
+      );
+    } else if (values.ref) {
+      const pageNo = values.page ? Number(values.page) : 1;
+      refFiles = [await ensureReferenceImagePath(values.ref, outDir, pageNo, toolchain)];
+    }
+
+    let multi = null;
+    let comparePdf = null;
+    const pdfOut = values.pdf ? path.resolve(values.pdf) : path.join(outDir, "master_xray_compare.pdf");
+    if (refFiles.length > 0 && renderedPngs.length > 0 && toolchain.hasPillow) {
+      multi = runPythonVision(
+        PY_MULTI_COMPARE,
+        {
+          refs: refFiles,
+          gens: renderedPngs,
+          outDir,
+          batchSize: 4,
+          xrayMode: "all",
+        },
+        toolchain.python3
+      );
+      comparePdf = runPythonVision(
+        PY_BUILD_PDF,
+        {
+          outPdf: pdfOut,
+          pages: multi.pairs.map((p) => ({
+            label: `Master ${String(p.slide).padStart(2, "0")}  |  左：原图 (${p.refName}) ｜ 中：50% X光叠图 ｜ 右：纯骨架母版  |  边缘结构 ${p.edgeSimilarityPct}%`,
+            imgPath: p.xrayJpg || p.pairJpg,
+          })),
+        },
+        toolchain.python3
+      );
+    }
+
+    const angleMismatches = multi?.angleMismatches || [];
+    const avgEdgeSimilarityPct = multi?.pairs?.length
+      ? Number((multi.pairs.reduce((acc, x) => acc + x.edgeSimilarityPct, 0) / multi.pairs.length).toFixed(1))
+      : null;
+    const manifestPath = path.join(outDir, "master_verified.json");
+    const receipt = {
+      schema: "yuanmou.master.verified/v1",
+      passed: validation.passed && angleMismatches.length === 0,
+      verificationMode: "full-visual-xray",
+      masterPptx: masterPath,
+      masterSha256: validation.sha256,
+      masterCount: renderedPngs.length,
+      avgEdgeSimilarityPct,
+      angleAuditPassed: angleMismatches.length === 0,
+      angleMismatches,
+      xrayBatches: multi?.xrayBatches || [],
+      compareBatches: multi?.compareBatches || [],
+      masterXrayPdf: comparePdf,
+      masterInventory,
+      manifestPath,
+    };
+    await fs.writeFile(manifestPath, JSON.stringify(receipt, null, 2) + "\n", "utf8");
+    console.log(JSON.stringify(receipt, null, 2));
     return;
   }
 
@@ -785,9 +1285,44 @@ async function main() {
       sourceIntegrity = { path: path.resolve(values["readonly-source"]), sha256: actualSha, intact: true };
     }
 
-    // 2) Atomic 6-group (15-check) validation (publish `--final` if supplied, else validate candidate)
+    // 1b) Optional Phase-1 -> Phase-2 Master Slot Integrity audit (blocks dropping image slots or drifting rotation angles!)
+    let masterAudit = null;
+    if (values.master) {
+      let slideMap = [];
+      if (values["master-map"]) {
+        const rawMap = values["master-map"].trim();
+        if (existsSync(path.resolve(rawMap))) {
+          slideMap = JSON.parse(await fs.readFile(path.resolve(rawMap), "utf8"));
+        } else {
+          slideMap = rawMap
+            .split(/[,;\s]+/)
+            .filter(Boolean)
+            .map((tok) => {
+              const [s, m] = tok.split(":").map((n) => Number(n.trim()));
+              return { slide: s, masterSlide: m };
+            })
+            .filter((x) => Number.isInteger(x.slide) && Number.isInteger(x.masterSlide));
+        }
+      }
+      masterAudit = await auditMasterSlotIntegrity({
+        masterPptxPath: values.master,
+        finalPptxPath: candidatePath,
+        slideMap,
+      });
+      if (!masterAudit.passed) {
+        const msg = masterAudit.issues
+          .filter((i) => i.severity === "fail")
+          .map((i) => `  - [${i.code}] ${i.message}`)
+          .join("\n");
+        throw new Error(`verify blocked by Phase-1/Phase-2 master slot integrity audit:\n${msg}`);
+      }
+    }
+
+    // 2) Atomic 6-group validation (publish `--final` with automatic history archival if supplied, else validate candidate)
+    const preserveHistory = !Boolean(values["no-preserve-history"]);
     let validation;
     let targetPptx = candidatePath;
+    let archivedPreviousPptx = null;
     if (values.final) {
       const finRes = await finalizeDeck({
         candidatePptxPath: candidatePath,
@@ -795,9 +1330,11 @@ async function main() {
         antiSlop: values["anti-slop"] || "fail",
         fontPolicy: values["font-policy"] || "warn",
         allowFullBgPic: Boolean(values["allow-full-bg-pic"]),
+        preserveHistory,
       });
       validation = finRes.validation;
       targetPptx = finRes.outputPath;
+      archivedPreviousPptx = finRes.archivedPreviousPath || null;
     } else {
       const buf = await fs.readFile(candidatePath);
       validation = await validateDeckBuffer(buf, {
@@ -826,6 +1363,8 @@ async function main() {
             verificationMode: "code-gates-only",
             visualVerified: false,
             pptx: targetPptx,
+            archivedPreviousPptx,
+            masterAudit,
             gates: validation.gates,
             failCount: validation.failCount,
             warnCount: validation.warnCount,
@@ -836,11 +1375,12 @@ async function main() {
               missingDeps: depInfo.missing,
               installHint: depInfo.installHint,
               notice:
-                "All 6 static gate groups (15 checks) passed and PPTX was published, but visual rendering was skipped due to missing render dependencies. Report this truthfully and do NOT fabricate visual previews.",
+                "All 6 static gate groups passed and PPTX was published, but visual rendering was skipped due to missing render dependencies. Report this truthfully and do NOT fabricate visual previews.",
             },
             renderedSlides: [],
             qaSheetPng: null,
             compareBatches: [],
+            xrayBatches: [],
             comparePdf: null,
             diff: null,
           },
@@ -871,15 +1411,21 @@ async function main() {
       );
     }
 
-    // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + multi-page QA PDF & compare_batch JPGs (zero HTML)
+    // 5) Optional reference diff (single --ref OR multi-page --ref-dir) + multi-page QA PDF & compare_batch/xray_batch JPGs (zero HTML)
     let diffRes = null;
     let compareBatches = [];
+    let xrayBatches = [];
     let comparePdf = null;
+    let archivedPreviousPdf = null;
     const pdfOut = values.pdf
       ? path.resolve(values.pdf)
       : values.gallery
         ? path.resolve(values.gallery.replace(/\.html?$/i, ".pdf"))
         : path.join(outDir, "qa_compare.pdf");
+
+    if (preserveHistory && values.pdf && existsSync(pdfOut)) {
+      archivedPreviousPdf = await archivePreviousDeliveredFile(pdfOut);
+    }
 
     if (values["ref-dir"] && renderedPngs.length > 0 && toolchain.hasPillow) {
       const refDirAbs = path.resolve(values["ref-dir"]);
@@ -899,6 +1445,7 @@ async function main() {
           gens: genFiles,
           outDir,
           batchSize: 4,
+          xrayMode: "flagged",
         },
         toolchain.python3
       );
@@ -908,18 +1455,28 @@ async function main() {
         avgSimilarityPct: Number(
           (multi.pairs.reduce((acc, x) => acc + x.similarityPct, 0) / Math.max(1, multi.pairs.length)).toFixed(1)
         ),
+        avgEdgeSimilarityPct: Number(
+          (multi.pairs.reduce((acc, x) => acc + x.edgeSimilarityPct, 0) / Math.max(1, multi.pairs.length)).toFixed(1)
+        ),
+        angleMismatches: multi.angleMismatches || [],
         lowestPages: [...multi.pairs]
-          .sort((a, b) => a.similarityPct - b.similarityPct)
+          .sort((a, b) => a.edgeSimilarityPct - b.edgeSimilarityPct)
           .slice(0, 5)
-          .map((x) => ({ slide: x.slide, ref: x.refName, similarityPct: x.similarityPct })),
+          .map((x) => ({
+            slide: x.slide,
+            ref: x.refName,
+            edgeSimilarityPct: x.edgeSimilarityPct,
+            similarityPct: x.similarityPct,
+          })),
       };
       compareBatches = multi.compareBatches;
+      xrayBatches = multi.xrayBatches || [];
       comparePdf = runPythonVision(
         PY_BUILD_PDF,
         {
           outPdf: pdfOut,
           pages: multi.pairs.map((p) => ({
-            label: `Slide ${String(p.slide).padStart(2, "0")}  |  左：原模板 (${p.refName})   vs   右：原生可编辑成稿  |  相似度 ${p.similarityPct}%`,
+            label: `Slide ${String(p.slide).padStart(2, "0")}  |  左：原模板 (${p.refName})   vs   右：原生可编辑成稿  |  边缘结构 ${p.edgeSimilarityPct}%`,
             imgPath: p.pairJpg,
           })),
         },
@@ -974,6 +1531,9 @@ async function main() {
           verificationMode: "full-visual",
           visualVerified: true,
           pptx: targetPptx,
+          archivedPreviousPptx,
+          archivedPreviousPdf,
+          masterAudit,
           gates: validation.gates,
           failCount: validation.failCount,
           warnCount: validation.warnCount,
@@ -982,6 +1542,7 @@ async function main() {
           renderedSlides: renderedPngs,
           qaSheetPng: qaSheet?.qaSheetPng || null,
           compareBatches,
+          xrayBatches,
           comparePdf,
           diff: diffRes,
         },
@@ -993,7 +1554,7 @@ async function main() {
   }
 
   throw new Error(
-    `Unknown command "${cmd}". Expected: check-env | check-update | update | verify | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
+    `Unknown command "${cmd}". Expected: check-env | check-update | update | verify-master | verify | assemble | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
   );
 }
 

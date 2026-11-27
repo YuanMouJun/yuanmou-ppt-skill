@@ -432,3 +432,79 @@ export function buildRoundedTrapezoidPath({
     commands: buildRoundedPolygonCommands(pts, radius),
   };
 }
+
+/**
+ * Computes exact OOXML `{ left, top, width, height, rotation }` for a child element positioned
+ * inside a rotated parent frame (e.g., phone top notch, tilted poster badge, angled caption pill).
+ *
+ * Sign convention (matches PowerPoint / OOXML):
+ * - `rotation > 0`: clockwise (top leans right `\`)
+ * - `rotation < 0`: counter-clockwise (top leans left `/`)
+ *
+ * `localChild` coordinates (`left`, `top`, `width`, `height`) are specified relative to the
+ * parent's UNROTATED top-left corner `(0, 0)`.
+ */
+export function placeInRotatedFrame(parentBox, localChild) {
+  const pLeft = Number(parentBox?.left ?? parentBox?.position?.left ?? 0);
+  const pTop = Number(parentBox?.top ?? parentBox?.position?.top ?? 0);
+  const pW = Number(parentBox?.width ?? parentBox?.position?.width ?? 0);
+  const pH = Number(parentBox?.height ?? parentBox?.position?.height ?? 0);
+  const pRot = Number(parentBox?.rotation ?? parentBox?.rotate ?? parentBox?.position?.rotation ?? 0);
+
+  const cLeft = Number(localChild?.left ?? 0);
+  const cTop = Number(localChild?.top ?? 0);
+  const cW = Number(localChild?.width ?? 0);
+  const cH = Number(localChild?.height ?? 0);
+  const cRotOffset = Number(localChild?.rotationOffset ?? 0);
+
+  const pcx = pLeft + pW / 2;
+  const pcy = pTop + pH / 2;
+  const dx = cLeft + cW / 2 - pW / 2;
+  const dy = cTop + cH / 2 - pH / 2;
+
+  const rad = (pRot * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+
+  const wcx = pcx + dx * cos - dy * sin;
+  const wcy = pcy + dx * sin + dy * cos;
+
+  return {
+    left: Number((wcx - cW / 2).toFixed(2)),
+    top: Number((wcy - cH / 2).toFixed(2)),
+    width: cW,
+    height: cH,
+    rotation: Number((pRot + cRotOffset).toFixed(2)),
+  };
+}
+
+/**
+ * Computes the axis-aligned bounding box (AABB) of a possibly rotated rectangle in slide px.
+ */
+export function rotatedBoundingBox(box) {
+  const left = Number(box?.left ?? 0);
+  const top = Number(box?.top ?? 0);
+  const width = Number(box?.width ?? 0);
+  const height = Number(box?.height ?? 0);
+  const rot = Number(box?.rotation ?? 0);
+  if (!rot || Math.abs(rot % 360) < 1e-6) {
+    return { left, top, right: left + width, bottom: top + height, width, height };
+  }
+  const cx = left + width / 2;
+  const cy = top + height / 2;
+  const hw = width / 2;
+  const hh = height / 2;
+  const rad = (rot * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const rx = hw * cos + hh * sin;
+  const ry = hw * sin + hh * cos;
+  return {
+    left: cx - rx,
+    top: cy - ry,
+    right: cx + rx,
+    bottom: cy + ry,
+    width: rx * 2,
+    height: ry * 2,
+  };
+}
