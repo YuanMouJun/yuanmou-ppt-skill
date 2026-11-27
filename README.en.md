@@ -94,16 +94,11 @@ A complete 23-slide marketing proposal reconstructed from cross-industry referen
 <p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-grid.jpg" width="92%" alt="23-Slide Commercial Campaign Overview"></p>
 <p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-craft.jpg" width="75%" alt="Native Brush Masks and Diamond Geometry Craft"></p>
 
-### Lossless Legacy `.pptx` Template Surgery (`35.4 MB → 1.05 MB`)
+### High-Density Consulting Frameworks & Lossless `.pptx` Surgery
 
-Read existing corporate `.pptx` anchors in place, preserve brand masters and photo masks pixel-for-pixel, inject dual embedded Excel charts plus a row-merged native table, and strip 97% of orphaned OPC media.
+Match dense strategy diagrams—omni-channel growth matrices, multi-tier seeding funnels, and search loops—from the zero-login 16,000+ layout library, or feed existing corporate `.pptx` templates for lossless in-place text/image replacement, embedded Excel chart injection, and 97% orphaned-media slimming.
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/demo-template-surgery.gif" width="82%" alt="Lossless Legacy PPTX Surgery Wipe Demo"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-surgery-clean.jpg" width="82%" alt="Lossless Legacy PPTX Surgery Before and After"></p>
-
-### High-Density Consulting Frameworks (16,000+ Free Layout Library)
-
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="78%" alt="Multi-Industry Commercial Consulting Frameworks"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="82%" alt="Multi-Industry Commercial Consulting Frameworks"></p>
 
 ---
 

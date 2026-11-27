@@ -98,20 +98,11 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 <p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-grid.jpg" width="92%" alt="渊眸电视 23 页全套原生商业方案精选 12 页"></p>
 <p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-craft.jpg" width="75%" alt="水墨飞白切图、45度菱形裁图与九宫格多图画廊特写"></p>
 
-### 既有 `.pptx` 公司母本无损手术（`35.4 MB → 1.05 MB`）
-
-> 「别重画公司老模板，保留原版母版和左侧色块骨架，把右侧老旧单图原地升级成双真 Excel 图表加合并数据表，顺便把文件瘦身」
-
-引擎直接解析原 `.pptx` 锚点并原位修改，不破坏原母版样式与图片蒙版；同时自动执行冗余媒体回收，35.4 MB 臃肿母本无损抽页升级后直接瘦身至 **1.05 MB（-97%）**。
-
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/demo-template-surgery.gif" width="82%" alt="既有 PPTX 母本无损手术动态对比：35.4 MB 瘦身至 1.05 MB"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-surgery-clean.jpg" width="82%" alt="既有 PPTX 母本无损手术前后静态对照"></p>
-
 ### 1.6W+ 商业版式库 · 高密度咨询结构图样张
 
-给咨询顾问、品牌市场部和 Agency 准备的高密度策略结构页（全链路增长闭环矩阵、多阶投放漏斗与搜索回环图等，示例统一脱敏为「渊眸」品牌），开箱免登录即可按槽位指纹毫秒级同构挑版。
+给咨询顾问、品牌市场部和 Agency 准备的高密度策略结构页（全域增长三阶闭环矩阵、多阶投放漏斗与搜索回环图、跨行业品牌视觉页，示例统一脱敏为「渊眸」品牌），开箱免登录即可按槽位指纹毫秒级同构挑版；也支持对既有公司 `.pptx` 母本原位换字换图、注入双真 Excel 图表并自动清理冗余媒体瘦身。
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="78%" alt="多行业商业版式与高密度咨询结构图样张"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="82%" alt="多行业商业版式与高密度咨询结构图样张"></p>
 
 ---
 
