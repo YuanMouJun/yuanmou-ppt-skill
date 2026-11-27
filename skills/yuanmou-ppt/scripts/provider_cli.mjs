@@ -653,6 +653,11 @@ async function main() {
       "slide-label": { type: "string" },
       plan: { type: "string" },
       picks: { type: "string" },
+      deck: { type: "string" },
+      pages: { type: "string" },
+      "min-pages": { type: "string" },
+      "min-aesthetic": { type: "string" },
+      "body-only": { type: "boolean" },
       sku: { type: "string" },
       cid: { type: "string" },
       kind: { type: "string" },
@@ -997,6 +1002,72 @@ async function main() {
     return;
   }
 
+  if (cmd === "search-decks") {
+    const t0 = performance.now();
+    const res = await provider.searchDecks({
+      keywords: values.keywords || positionals[1] || "",
+      excludeKeywords: values["exclude-keywords"],
+      tone: values.tone || "any",
+      minPages: values["min-pages"] !== undefined ? Number(values["min-pages"]) : 3,
+      minAesthetic: values["min-aesthetic"] !== undefined ? Number(values["min-aesthetic"]) : undefined,
+      limit: values.limit ? Number(values.limit) : 20,
+    });
+    const searchMs = Number((performance.now() - t0).toFixed(1));
+    console.log(JSON.stringify({ mode, searchMs, ...res }, null, 2));
+    return;
+  }
+
+  if (cmd === "deck-outline") {
+    const deckArg = values.deck || positionals[1] || "";
+    if (!deckArg) {
+      throw new Error("deck-outline requires --deck <deckId|file_name> [--pages 1,2,5-8] [--fetch-previews] [--out <board.html>]");
+    }
+    const t0 = performance.now();
+    const res = await provider.getDeckOutline({
+      deck: deckArg,
+      pages: values.pages,
+      includeNonBody: !Boolean(values["body-only"]),
+      limit: values.limit ? Number(values.limit) : 120,
+    });
+    const searchMs = Number((performance.now() - t0).toFixed(1));
+    if (res.supported && res.pages.length > 0 && (values["fetch-previews"] || values.out || values["contact-sheet"])) {
+      await fetchPreviewsForItems(provider, res.pages, { concurrency: 4, paceMs: 120 });
+    }
+    let boardPath = null;
+    const outlineSections = res.pages.map((p) => ({
+      pageId: `p${p.slideNo}`,
+      pageBadge: `P${p.slideNo}`,
+      pageTitle: p.title,
+      brief: `${p.pageType}${p.archetype ? ` · ${p.archetype}` : ""}`,
+      candidates: [p],
+    }));
+    if (res.supported && res.pages.length > 0 && values.out) {
+      boardPath = await buildMultiPageSelectionBoardHtml(outlineSections, values.out, {
+        portable: Boolean(values.portable),
+        chromePolicy: values["chrome-policy"] || "keep_all",
+      });
+    }
+    const sheet =
+      res.supported && res.pages.length > 0
+        ? await maybeBuildContactSheet(outlineSections, values["contact-sheet"])
+        : { path: null, skipped: null };
+    console.log(
+      JSON.stringify(
+        {
+          mode,
+          searchMs,
+          selectionBoardHtml: boardPath,
+          contactSheet: sheet.path,
+          contactSheetSkipped: sheet.skipped || undefined,
+          ...res,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   if (cmd === "search-reports") {
     const items = await provider.searchReports({
       keyword: values.keywords || positionals[1] || "",
@@ -1022,7 +1093,7 @@ async function main() {
   }
 
   throw new Error(
-    `Unknown subcommand "${cmd}". Expected: connect | status | sync-index | search-slides | batch-search | build-blueprint | build-board | search-reports | fetch-asset`
+    `Unknown subcommand "${cmd}". Expected: connect | status | sync-index | search-decks | deck-outline | search-slides | batch-search | build-blueprint | build-board | search-reports | fetch-asset`
   );
 }
 

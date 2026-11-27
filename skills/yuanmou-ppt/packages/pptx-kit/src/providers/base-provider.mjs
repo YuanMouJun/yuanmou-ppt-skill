@@ -191,6 +191,14 @@ export class SlideSourceProvider {
     return [];
   }
 
+  async searchDecks(_filter = {}) {
+    return { supported: false, reason: `Provider "${this.id}" does not support deck-level filename search`, count: 0, decks: [] };
+  }
+
+  async getDeckOutline(_filter = {}) {
+    return { supported: false, reason: `Provider "${this.id}" does not support deck outline inspection`, deck: null, pages: [] };
+  }
+
   async searchReports(_query = {}) {
     return [];
   }

@@ -21,6 +21,8 @@ import {
   clearSlideIndexCache,
   loadPagesSnapshot,
   querySlideIndexDb,
+  queryDecksByFilename,
+  queryDeckOutline,
 } from "./sqlite-index.mjs";
 
 const PROVIDER_FACTORIES = new Map([
@@ -147,4 +149,6 @@ export {
   clearSlideIndexCache,
   loadPagesSnapshot,
   querySlideIndexDb,
+  queryDecksByFilename,
+  queryDeckOutline,
 };

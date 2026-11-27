@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-version: 0.3.0
+version: 0.3.1
 description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
 ---
 
@@ -17,6 +17,7 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 | **检查更新 / 升级本技能**（如“更新技能 / 检查新版本”） | 运行 `node "<SKILL_DIR>/scripts/deck_cli.mjs" check-update` 或 `update`（国内直连镜像 + SHA-256 增量校验） |
 | **只要 Markdown（`.md`）/ 纯文本逐页大纲与要点**（未要求生成 `.pptx`） | 直接按咨询结构（MECE / 结论前置）与第 4 节 Anti-Slop 写出最终 `.md` 到目标目录（如 `./output/`），**不启动 `.pptx` 构建与渲染** |
 | **既有 `.pptx` 母本原位改版** | 走 **通道 A**（`inspectTemplateDeck → prepareStarterDeck → 原位换字换图 → auditTemplateFidelity`），严禁新建空白页重画 |
+| **复用整套成熟模板**（如“找一套成熟发布会/BP 模板直接套用”） | 先跑 **`search-decks`** 按文件名毫秒直查整套目录 → **`deck-outline`** 看单套页序并按需拉图确认；若库内确无匹配整套模板，**先如实告知并征询是否改用单页混搭或停止**，严禁盲扫全库单页或偷换品类硬塞 |
 | **已指定参考图 / 截图 / PDF 1:1 复刻**（或仅调色/局部修形） | 跳过选版海选，直接走 **通道 B（4 类视觉页型分流 + 原生复刻）** |
 | **一句话主题 / 纯文稿生成整套 `.pptx`**（若同时要 `.md` 则先落盘 `.md`） | 走 **第 2 节（咨询策划 + Selection Engine 2.0 双档选版 → `deck_blueprint.json`）→ 通道 B**：用户要一键直出时后台跑 **`--auto-pick`** 静默锁高定骨架直出，不打扰用户；纯离线无本地库时按 `references/offline-layout-patterns.md` 高定语法卡直进通道 B |
 
@@ -37,6 +38,10 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
    - **深度定制（交互看板档）**：`<=10` 页一步直出 ~15KB 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人加 `--portable`）；`>12` 页长全案建议先挑 3 页定调再批配剩余页；交互模式下未获确认前不提前重绘。选版返回 `fallbackRecommended: true` 时改用 `references/offline-layout-patterns.md` 原生绘制。
 
 ```bash
+# 整套模板文件名直查（<10ms 查本地完整库，不拉全库单页）：先按文件名锁整套，再查目录按页拉图
+node <SKILL_DIR>/scripts/provider_cli.mjs search-decks --keywords "发布会" --exclude-keywords "结案,种草" --limit 15
+node <SKILL_DIR>/scripts/provider_cli.mjs deck-outline --deck <deckId或文件名片段> --pages "1,2,5-8" --fetch-previews --out ./work/deck_preview.html
+
 # 极速静默档（一键直出推荐）：<0.3s 全套自动选版 + 防撞版 + 输出 deck_blueprint.json
 node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
 

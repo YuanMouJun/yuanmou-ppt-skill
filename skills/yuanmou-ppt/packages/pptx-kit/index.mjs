@@ -81,6 +81,8 @@ export {
   clearSlideIndexCache,
   loadPagesSnapshot,
   querySlideIndexDb,
+  queryDecksByFilename,
+  queryDeckOutline,
   registerSourceProvider,
   listSourceProviders,
   createSourceProvider,

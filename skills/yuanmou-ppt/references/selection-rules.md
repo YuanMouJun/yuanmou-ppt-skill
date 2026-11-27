@@ -100,7 +100,32 @@ node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --out
 
 ---
 
-## 5. 母版外框三层拆解铁律与 `deck_blueprint.json` 衔接
+## 5. 整套模板文件名直查（`search-decks` → `deck-outline`）
+
+当用户明确要求**“直接找一套成熟整套模板复用排版与逻辑”**（而不是跨套单页拼装）时，**必须先按文件名整套直查**，绝不把全库数万页拉进内存盲扫：
+
+1. **第一步：`search-decks`（SQLite 原生分组聚合，`<10ms`）**
+   - `--keywords`：空格分隔为 **AND** 逻辑，逗号 `/` `|` 分隔为 **OR** 逻辑（如 `"电视,手机,硬件 发布会"`）；
+   - `--exclude-keywords`：排除干扰文件名（如 `"结案,种草,代理,招商"`）；
+   - `--tone dark|light|any`、`--min-pages 8`、`--min-aesthetic 3.5`：按深浅色页数、整套平均审美与页数排序。
+2. **第二步：`deck-outline`（查单套逐页目录，按需只拉选定页预览图）**
+   - `--deck <deckId|文件名片段>`：按 `deckId`（`full_sha256` 前缀）或文件名子串锁定唯一整套，按 `physical_page` 升序返回每页标题、页型、原型与布局摘要；
+   - `--pages "1,2,10-15"`：仅拉取关键样页，配合 `--fetch-previews` / `--out ./work/deck_preview.html` 看图确认；加 `--body-only` 可仅看正文页。
+3. **诚实兜底与脱敏兼容**
+   - 若返回 `count: 0`（或确认命中文件均为活动营销方案而非目标品类的整套模板），**立即如实告知用户库内暂无该品类完整模板**，询问改用单页混搭还是暂停，严禁硬塞错类模板；
+   - 公开脱敏体验库不含原文件名字段，调用 `search-decks` / `deck-outline` 会优雅返回 `supported: false`，此时改走第 4 节单页同构 `batch-search`。
+
+```bash
+# 1) <10ms 按文件名检索候选整套（不拉全库单页）
+node <SKILL_DIR>/scripts/provider_cli.mjs search-decks --keywords "发布会" --exclude-keywords "结案,种草" --min-pages 8 --limit 15
+
+# 2) 查看指定整套目录，仅对关键页按需拉图生成预览看板
+node <SKILL_DIR>/scripts/provider_cli.mjs deck-outline --deck <deckId或文件名片段> --pages "1,2,10-14" --fetch-previews --out ./work/deck_preview.html
+```
+
+---
+
+## 6. 母版外框三层拆解铁律与 `deck_blueprint.json` 衔接
 
 复刻前必须读取 `deck_blueprint.json` 中的 `chromeAction` 与 `copyPolicy`，严格区分 3 层元素防误抹：
 

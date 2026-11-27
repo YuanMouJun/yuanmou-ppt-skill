@@ -39,6 +39,8 @@ import {
   normalizeCapacityTier,
   clearSlideIndexCache,
   querySlideIndexDb,
+  queryDecksByFilename,
+  queryDeckOutline,
 } from "../../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1238,7 +1240,125 @@ async function testSelectionEngine2() {
     const portHtml = await fs.readFile(boardPort, "utf8");
     assert.ok(portHtml.includes("data:image/png;base64,"), "--portable board must inline base64 images");
 
-    console.log(`  [PASS] Selection Engine 2.0 verified! (20-page snapshot: ${batchMs.toFixed(1)}ms, auto-pick + blueprint + 15KB hardlink board + --portable)`);
+    // E10: Ultra-fast deck-level filename search (`search-decks`) & single-deck outline (`deck-outline`)
+    // 10a) Sanitized DB (no file_name / full_sha256) gracefully returns `{ supported: false }` without throwing
+    const unsupDecks = await queryDecksByFilename(dbPath, { keywords: "发布会" });
+    assert.equal(unsupDecks.supported, false);
+    assert.equal(unsupDecks.count, 0);
+    const unsupOutline = await queryDeckOutline(dbPath, { deck: "abc123456789" });
+    assert.equal(unsupOutline.supported, false);
+    const cliUnsup = spawnSync(
+      process.execPath,
+      [cliPath, "search-decks", "--provider", "local", "--keywords", "发布会"],
+      { env: { ...process.env, YUANMOU_LOCAL_DIR: tmpDir, YUANMOU_OFFLINE: "1" }, encoding: "utf8" }
+    );
+    assert.equal(cliUnsup.status, 0, `CLI search-decks on sanitized DB should not crash:\n${cliUnsup.stderr}`);
+    assert.equal(JSON.parse(cliUnsup.stdout).supported, false);
+
+    // 10b) Full local index DB with `file_name` + `full_sha256` + `physical_page` (<50ms direct SQL)
+    const fullDir = path.join(tmpDir, "full_local");
+    const fullPrevDir = path.join(fullDir, "previews");
+    await fs.mkdir(fullPrevDir, { recursive: true });
+    const fullDbPath = path.join(fullDir, "ppt-index.db");
+    const fdb = new DatabaseSync(fullDbPath);
+    fdb.exec(`
+      CREATE TABLE pages (
+        content_page_id TEXT PRIMARY KEY,
+        full_sha256 TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        physical_page INTEGER NOT NULL,
+        page_type TEXT,
+        business_purpose TEXT,
+        business_topic TEXT,
+        raw_title TEXT,
+        layout TEXT,
+        raw_layout TEXT,
+        preview_file TEXT,
+        preview_path TEXT,
+        archetype TEXT,
+        transferability TEXT,
+        capacity_tier TEXT,
+        aesthetic_tier INTEGER,
+        tone_chrome TEXT,
+        image_slots INTEGER,
+        text_slots INTEGER,
+        result_slots INTEGER
+      );
+    `);
+    const fins = fdb.prepare(`INSERT INTO pages VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const fullSeed = [
+      // Deck A: Dark flagship hardware Keynote (4 pages)
+      ["CP_tv_1", "a1b2c3d4e5f600001111222233334444", "2026旗舰智能电视新品发布会Keynote.pptx", 1, "封面页", "作品展示", "硬件发布会", "光影重构视界", "暗黑居中", "全屏暗黑主视觉", "CP_tv_1.png", "previews/CP_tv_1.png", "hero_statement", "universal", "headline", 5, "dark:frameless", 1, 2, 0],
+      ["CP_tv_2", "a1b2c3d4e5f600001111222233334444", "2026旗舰智能电视新品发布会Keynote.pptx", 2, "目录页", "作品展示", "硬件发布会", "三大核心突破", "三列目录", "暗黑三栏目录", "CP_tv_2.png", "previews/CP_tv_2.png", "editorial_freeform", "universal", "compact", 5, "dark:frameless", 0, 3, 0],
+      ["CP_tv_3", "a1b2c3d4e5f600001111222233334444", "2026旗舰智能电视新品发布会Keynote.pptx", 3, "正文页", "作品展示", "硬件发布会", "万级分区MiniLED", "左图右数", "左侧控光剖面+右侧4000nits大数字", "CP_tv_3.png", "previews/CP_tv_3.png", "hero_statement", "universal", "headline", 5, "dark:frameless", 1, 3, 0],
+      ["CP_tv_4", "a1b2c3d4e5f600001111222233334444", "2026旗舰智能电视新品发布会Keynote.pptx", 4, "正文页", "洞察分析", "硬件发布会", "全系售价与参数对比", "对比表", "三型号核心参数与售价对比表", "CP_tv_4.png", "previews/CP_tv_4.png", "comparison_table", "universal", "tabular", 5, "dark:frameless", 0, 6, 0],
+      // Deck B: Marketing agency launch event plan (3 pages, should be excluded by excludeKeywords="营销,结案")
+      ["CP_mkt_1", "ff00ee11dd223344556677889900aabb", "某品牌新品发布会全案营销传播方案.pptx", 1, "封面页", "执行策略", "营销方案", "整合传播", "白底封面", "白底营销封面", "CP_mkt_1.png", "previews/CP_mkt_1.png", "hero_statement", "universal", "headline", 4, "light:frameless", 1, 2, 0],
+      ["CP_mkt_2", "ff00ee11dd223344556677889900aabb", "某品牌新品发布会全案营销传播方案.pptx", 2, "正文页", "执行策略", "营销方案", "KOL种草节奏", "泳道甘特", "三波段种草排期", "CP_mkt_2.png", "previews/CP_mkt_2.png", "swimlane_gantt", "universal", "tabular", 4, "light:frameless", 0, 6, 0],
+      ["CP_mkt_3", "ff00ee11dd223344556677889900aabb", "某品牌新品发布会全案营销传播方案.pptx", 3, "正文页", "结案复盘", "营销方案", "预期曝光KPI", "指标卡", "KPI目标汇总", "CP_mkt_3.png", "previews/CP_mkt_3.png", "kpi_scorecard", "universal", "compact", 4, "light:frameless", 0, 4, 2],
+      // Deck C: Tiny 2-page teaser (should be filtered by minPages=3)
+      ["CP_tiny_1", "11223344556677889900aabbccddeeff", "电视发布会预告.pptx", 1, "封面页", "作品展示", "预告", "敬请期待", "居中", "预告封面", "CP_tiny_1.png", "previews/CP_tiny_1.png", "hero_statement", "universal", "headline", 5, "dark:frameless", 1, 1, 0],
+      ["CP_tiny_2", "11223344556677889900aabbccddeeff", "电视发布会预告.pptx", 2, "封底页", "作品展示", "预告", "谢谢", "居中", "预告封底", "CP_tiny_2.png", "previews/CP_tiny_2.png", "hero_statement", "universal", "headline", 5, "dark:frameless", 0, 1, 0],
+    ];
+    for (const r of fullSeed) {
+      fins.run(...r);
+      await fs.writeFile(path.join(fullPrevDir, r[10]), tinyPng);
+    }
+    fdb.close();
+
+    const tDeck0 = performance.now();
+    const deckRes = await queryDecksByFilename(fullDbPath, {
+      keywords: "电视,手机 发布会",
+      excludeKeywords: "营销,结案",
+      tone: "dark",
+      minPages: 3,
+      limit: 10,
+    });
+    const deckMs = performance.now() - tDeck0;
+    assert.equal(deckRes.supported, true);
+    assert.equal(deckRes.count, 1, "AND/OR keywords + excludeKeywords + minPages should isolate the flagship TV Keynote");
+    assert.equal(deckRes.decks[0].deckId, "a1b2c3d4e5f6");
+    assert.equal(deckRes.decks[0].darkPages, 4);
+    assert.ok(deckMs < 50, `Direct SQL deck search should take <50ms, got ${deckMs.toFixed(1)}ms`);
+
+    const outlineSlice = await queryDeckOutline(fullDbPath, {
+      deck: "a1b2c3d4e5f6",
+      pages: "1,3-4",
+    });
+    assert.equal(outlineSlice.supported, true);
+    assert.equal(outlineSlice.deck.totalPages, 4);
+    assert.deepEqual(outlineSlice.pages.map((p) => p.slideNo), [1, 3, 4]);
+
+    const outlineBodyOnly = await queryDeckOutline(fullDbPath, {
+      deck: "旗舰智能电视",
+      includeNonBody: false,
+    });
+    assert.deepEqual(outlineBodyOnly.pages.map((p) => p.slideNo), [3, 4]);
+
+    const cliDecks = spawnSync(
+      process.execPath,
+      [cliPath, "search-decks", "--provider", "local", "--keywords", "发布会", "--exclude-keywords", "营销", "--min-pages", "3"],
+      { env: { ...process.env, YUANMOU_LOCAL_DIR: fullDir, YUANMOU_OFFLINE: "1" }, encoding: "utf8" }
+    );
+    assert.equal(cliDecks.status, 0, `CLI search-decks failed:\n${cliDecks.stderr}`);
+    const cliDecksJson = JSON.parse(cliDecks.stdout);
+    assert.equal(cliDecksJson.supported, true);
+    assert.equal(cliDecksJson.count, 1);
+
+    const deckBoardOut = path.join(fullDir, "deck_preview.html");
+    const cliOutline = spawnSync(
+      process.execPath,
+      [cliPath, "deck-outline", "--provider", "local", "--deck", "a1b2c3d4e5f6", "--pages", "1,3", "--fetch-previews", "--out", deckBoardOut],
+      { env: { ...process.env, YUANMOU_LOCAL_DIR: fullDir, YUANMOU_OFFLINE: "1" }, encoding: "utf8" }
+    );
+    assert.equal(cliOutline.status, 0, `CLI deck-outline failed:\n${cliOutline.stderr}`);
+    const cliOutlineJson = JSON.parse(cliOutline.stdout);
+    assert.equal(cliOutlineJson.supported, true);
+    assert.equal(cliOutlineJson.returnedPages, 2);
+    assert.ok(cliOutlineJson.selectionBoardHtml && cliOutlineJson.selectionBoardHtml.endsWith("deck_preview.html"));
+    assert.ok(cliOutlineJson.pages[0].localPreviewPath && cliOutlineJson.pages[0].localPreviewPath.endsWith("CP_tv_1.png"));
+
+    console.log(`  [PASS] Selection Engine 2.0 verified! (20-page snapshot: ${batchMs.toFixed(1)}ms, deck-search: ${deckMs.toFixed(1)}ms, auto-pick + blueprint + 15KB board + --portable + search-decks + deck-outline)`);
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

@@ -7,7 +7,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { promisify } from "node:util";
 import { SlideSourceProvider, atomicReplaceFile, defaultCacheRoot, sha256File } from "./base-provider.mjs";
-import { querySlideIndexDb } from "./sqlite-index.mjs";
+import { querySlideIndexDb, queryDecksByFilename, queryDeckOutline } from "./sqlite-index.mjs";
 
 const gunzipAsync = promisify(zlib.gunzip);
 const DEFAULT_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours ephemeral preview TTL (prevents stale local bias)
@@ -198,6 +198,32 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       }
     }
     return querySlideIndexDb(this.trialIndexDbPath, filter, "local");
+  }
+
+  async _resolveActiveDbPath() {
+    const colocatedDb = this._findColocatedDb();
+    if (colocatedDb) return colocatedDb;
+    if (!this.enablePublicTrial) return "";
+    if (!existsSync(this.trialIndexDbPath)) {
+      try {
+        await this.syncSlideIndex();
+      } catch {
+        return "";
+      }
+    }
+    return existsSync(this.trialIndexDbPath) ? this.trialIndexDbPath : "";
+  }
+
+  async searchDecks(filter = {}) {
+    const dbPath = await this._resolveActiveDbPath();
+    if (!dbPath) return { supported: false, reason: "No local index DB configured", count: 0, decks: [] };
+    return queryDecksByFilename(dbPath, filter, "local");
+  }
+
+  async getDeckOutline(filter = {}) {
+    const dbPath = await this._resolveActiveDbPath();
+    if (!dbPath) return { supported: false, reason: "No local index DB configured", deck: null, pages: [] };
+    return queryDeckOutline(dbPath, filter, "local");
   }
 
   async searchReports(query = {}) {

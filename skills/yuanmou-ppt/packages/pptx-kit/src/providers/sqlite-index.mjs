@@ -1,6 +1,6 @@
 // Copyright (c) 2026 渊眸策略 (Yuanmou Strategy). Licensed under the Apache License, Version 2.0 (SPDX-License-Identifier: Apache-2.0).
 
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -528,10 +528,12 @@ async function runSqliteQuery(dbPath, sql, params = []) {
 // Auto-invalidates whenever DB file mtimeMs or size changes on disk.
 // ============================================================================
 const SNAPSHOT_CACHE = new Map();
+const DECK_CATALOG_CACHE = new Map();
 const MAX_SNAPSHOT_CACHE_ENTRIES = 3;
 
 export function clearSlideIndexCache() {
   SNAPSHOT_CACHE.clear();
+  DECK_CATALOG_CACHE.clear();
 }
 
 export async function loadPagesSnapshot(dbPath) {
@@ -1366,4 +1368,333 @@ async function queryLegacySlidesSchema(dbPath, filter = {}, providerId = "zsxq")
     r2ObjectKey: r.r2_object_key || undefined,
     previewKey: r.preview_key || undefined,
   }));
+}
+
+function parsePageRangeSpec(spec) {
+  if (!spec || String(spec).trim().toLowerCase() === "all") return null;
+  const out = new Set();
+  for (const part of String(spec).split(/[,，\s]+/)) {
+    const clean = part.trim();
+    if (!clean) continue;
+    const range = clean.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (range) {
+      const a = Number(range[1]);
+      const b = Number(range[2]);
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      for (let n = lo; n <= hi; n++) out.add(n);
+    } else if (/^\d+$/.test(clean)) {
+      out.add(Number(clean));
+    }
+  }
+  return out.size > 0 ? out : null;
+}
+
+/**
+ * Loads (or builds once per DB mtime+size) a tiny ~150KB deck-level summary catalog
+ * (`<dbPath>.decks-cache.json`) so repeated CLI invocations of `search-decks` and
+ * filename-based `deck-outline` run in <5ms instead of re-scanning a 180MB SQLite table.
+ * Never mutates the DB; silently skips disk cache if directory is read-only.
+ */
+async function loadDeckCatalog(dbPath) {
+  if (!dbPath || !existsSync(dbPath)) {
+    return { supported: false, reason: "Index DB not found", decks: [] };
+  }
+  const absPath = path.resolve(dbPath);
+  const st = statSync(absPath);
+  const memKey = `${absPath}|${st.mtimeMs}|${st.size}`;
+  const memHit = DECK_CATALOG_CACHE.get(memKey);
+  if (memHit) return memHit;
+
+  const sidecarPath = `${absPath}.decks-cache.json`;
+  if (existsSync(sidecarPath)) {
+    try {
+      const parsed = JSON.parse(readFileSync(sidecarPath, "utf8"));
+      if (
+        parsed?.schemaVersion === 1 &&
+        parsed.mtimeMs === st.mtimeMs &&
+        parsed.size === st.size &&
+        Array.isArray(parsed.decks)
+      ) {
+        const res = { supported: true, decks: parsed.decks, fromCache: true };
+        DECK_CATALOG_CACHE.set(memKey, res);
+        return res;
+      }
+    } catch {
+      // corrupt or stale sidecar -> rebuild cleanly
+    }
+  }
+
+  const tableRows = await runSqliteQuery(absPath, "SELECT name FROM sqlite_master WHERE type='table'");
+  const tableSet = new Set(tableRows.map((r) => r.name));
+  if (!tableSet.has("pages")) {
+    return { supported: false, reason: "Deck filename search requires unified pages schema", decks: [] };
+  }
+
+  const colRows = await runSqliteQuery(absPath, "PRAGMA table_info(pages)");
+  const colSet = new Set(colRows.map((c) => c.name));
+  if (!colSet.has("file_name") || !colSet.has("full_sha256")) {
+    return {
+      supported: false,
+      reason: "Current index DB is sanitized (no file_name column). Deck-level filename search is available on private/local full indexes.",
+      decks: [],
+    };
+  }
+
+  const hasAes = colSet.has("aesthetic_tier");
+  const hasTc = colSet.has("tone_chrome");
+  const hasPrevPath = colSet.has("preview_path");
+  const aesExpr = hasAes ? "ROUND(AVG(coalesce(aesthetic_tier, 3)), 2)" : "NULL";
+  const darkExpr = hasTc
+    ? "SUM(CASE WHEN tone_chrome LIKE 'dark:%' THEN 1 ELSE 0 END)"
+    : "SUM(CASE WHEN background LIKE '%黑%' OR background LIKE '%深%' THEN 1 ELSE 0 END)";
+  const lightExpr = hasTc
+    ? "SUM(CASE WHEN tone_chrome LIKE 'light:%' THEN 1 ELSE 0 END)"
+    : "SUM(CASE WHEN white_background = 1 OR background LIKE '%白%' THEN 1 ELSE 0 END)";
+  const prevExpr = hasPrevPath
+    ? "SUM(CASE WHEN coalesce(preview_path, '') != '' THEN 1 ELSE 0 END)"
+    : "COUNT(*)";
+
+  const rows = await runSqliteQuery(
+    absPath,
+    `
+      SELECT
+        full_sha256,
+        file_name,
+        COUNT(*) AS total_pages,
+        SUM(CASE WHEN page_type = '正文页' THEN 1 ELSE 0 END) AS body_pages,
+        ${darkExpr} AS dark_pages,
+        ${lightExpr} AS light_pages,
+        ${aesExpr} AS avg_aes,
+        ${prevExpr} AS has_previews,
+        MIN(CASE WHEN physical_page = 1 THEN content_page_id END) AS cover_cid
+      FROM pages
+      WHERE coalesce(file_name, '') != ''
+      GROUP BY full_sha256, file_name
+    `
+  );
+
+  const decks = rows.map((r) => ({
+    deckId: String(r.full_sha256 || "").slice(0, 12),
+    fullSha256: r.full_sha256,
+    fileName: r.file_name,
+    totalPages: Number(r.total_pages) || 0,
+    bodyPages: Number(r.body_pages) || 0,
+    darkPages: Number(r.dark_pages) || 0,
+    lightPages: Number(r.light_pages) || 0,
+    avgAestheticTier: r.avg_aes !== null && r.avg_aes !== undefined ? Number(r.avg_aes) : null,
+    hasPreviewsCount: Number(r.has_previews) || 0,
+    coverContentPageId: r.cover_cid || null,
+  }));
+
+  try {
+    const tmpSidecar = `${sidecarPath}.${process.pid}.tmp`;
+    writeFileSync(
+      tmpSidecar,
+      JSON.stringify({ schemaVersion: 1, mtimeMs: st.mtimeMs, size: st.size, decks }),
+      "utf8"
+    );
+    renameSync(tmpSidecar, sidecarPath);
+  } catch {
+    // read-only directory -> fine, in-memory cache still works
+  }
+
+  for (const k of [...DECK_CATALOG_CACHE.keys()]) {
+    if (k.startsWith(`${absPath}|`) || DECK_CATALOG_CACHE.size >= MAX_SNAPSHOT_CACHE_ENTRIES) {
+      DECK_CATALOG_CACHE.delete(k);
+    }
+  }
+  const res = { supported: true, decks, fromCache: false };
+  DECK_CATALOG_CACHE.set(memKey, res);
+  return res;
+}
+
+/**
+ * Ultra-fast (<5ms warm) deck-level search by `file_name` without loading tens of thousands of slide rows.
+ * On sanitized public index DBs (which omit `file_name` for privacy), returns `{ supported: false }`.
+ */
+export async function queryDecksByFilename(dbPath, filter = {}, providerId = "local") {
+  const catalog = await loadDeckCatalog(dbPath);
+  if (!catalog.supported) {
+    return { supported: false, reason: catalog.reason, count: 0, decks: [] };
+  }
+
+  const {
+    keywords,
+    excludeKeywords,
+    tone = "any",
+    minPages = 3,
+    minAesthetic,
+    limit = 20,
+  } = filter;
+
+  // Space-separated groups are ANDed; comma-separated terms inside a group are ORed
+  const kwRaw = Array.isArray(keywords) ? keywords.join(" ") : String(keywords || "").trim();
+  const andGroups = kwRaw
+    ? kwRaw
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((grp) =>
+          grp
+            .split(/[,，|｜/]+/)
+            .map((t) => t.trim().toLowerCase())
+            .filter(Boolean)
+        )
+        .filter((g) => g.length > 0)
+    : [];
+  const negTerms = splitTerms(excludeKeywords).map((t) => t.toLowerCase());
+  const minP = Math.max(1, Number(minPages) || 1);
+  const hasMinAes = typeof minAesthetic === "number" && Number.isFinite(minAesthetic);
+
+  const matched = [];
+  for (const d of catalog.decks) {
+    if (d.totalPages < minP) continue;
+    if (hasMinAes && (d.avgAestheticTier ?? 3) < minAesthetic) continue;
+    const fnameLower = String(d.fileName || "").toLowerCase();
+    if (andGroups.length > 0 && !andGroups.every((orTerms) => orTerms.some((t) => fnameLower.includes(t)))) {
+      continue;
+    }
+    if (negTerms.length > 0 && negTerms.some((nt) => fnameLower.includes(nt))) {
+      continue;
+    }
+    matched.push(d);
+  }
+
+  matched.sort((a, b) => {
+    const aesA = a.avgAestheticTier ?? 3;
+    const aesB = b.avgAestheticTier ?? 3;
+    if (tone === "dark") {
+      return b.darkPages - a.darkPages || aesB - aesA || b.totalPages - a.totalPages;
+    }
+    if (tone === "light") {
+      return b.lightPages - a.lightPages || aesB - aesA || b.totalPages - a.totalPages;
+    }
+    return aesB - aesA || b.totalPages - a.totalPages;
+  });
+
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 20));
+  const decks = matched.slice(0, safeLimit).map((d) => ({
+    provider: providerId,
+    deckId: d.deckId,
+    fullSha256: d.fullSha256,
+    fileName: d.fileName,
+    totalPages: d.totalPages,
+    bodyPages: d.bodyPages,
+    darkPages: d.darkPages,
+    lightPages: d.lightPages,
+    avgAestheticTier: d.avgAestheticTier ?? undefined,
+    hasPreviewsCount: d.hasPreviewsCount,
+    coverContentPageId: d.coverContentPageId || undefined,
+  }));
+
+  return { supported: true, count: decks.length, decks };
+}
+
+/**
+ * Ultra-fast (<10ms) ordered page outline for a single deck (by `full_sha256` prefix or `file_name`),
+ * supporting optional page range selection (`--pages "1,2,5-10"`) so only inspected slides fetch previews.
+ */
+export async function queryDeckOutline(dbPath, filter = {}, providerId = "local") {
+  const catalog = await loadDeckCatalog(dbPath);
+  if (!catalog.supported) {
+    return { supported: false, reason: catalog.reason, deck: null, pages: [] };
+  }
+
+  const deckSpec = String(filter.deck || "").trim();
+  if (!deckSpec) {
+    throw new Error("queryDeckOutline requires `deck` (full_sha256 prefix or file_name substring)");
+  }
+
+  const specLower = deckSpec.toLowerCase();
+  const isHexPrefix = /^[0-9a-f]{6,64}$/i.test(deckSpec);
+  let target = null;
+  if (isHexPrefix) {
+    const hexHits = catalog.decks
+      .filter((d) => String(d.fullSha256 || "").toLowerCase().startsWith(specLower))
+      .sort((a, b) => b.totalPages - a.totalPages);
+    target = hexHits[0] || null;
+  }
+  if (!target) {
+    const nameHits = catalog.decks
+      .filter((d) => String(d.fileName || "").toLowerCase().includes(specLower))
+      .sort((a, b) => b.totalPages - a.totalPages);
+    target = nameHits[0] || null;
+  }
+  if (!target) {
+    return { supported: true, deck: null, pages: [], reason: `No deck matched "${deckSpec}"` };
+  }
+
+  const colRows = await runSqliteQuery(dbPath, "PRAGMA table_info(pages)");
+  const colSet = new Set(colRows.map((c) => c.name));
+  const wantedCols = [
+    "content_page_id",
+    "physical_page",
+    "page_type",
+    "business_purpose",
+    "business_topic",
+    "raw_title",
+    "layout",
+    "raw_layout",
+    "preview_file",
+    "preview_path",
+    "archetype",
+    "transferability",
+    "capacity_tier",
+    "aesthetic_tier",
+    "tone_chrome",
+    "image_slots",
+    "text_slots",
+    "result_slots",
+    "restore_note",
+    "feishu_file_token",
+  ].filter((c) => colSet.has(c));
+
+  const includeNonBody = filter.includeNonBody !== false;
+  const rows = await runSqliteQuery(
+    dbPath,
+    `SELECT ${wantedCols.join(", ")} FROM pages WHERE full_sha256 = ? ORDER BY physical_page ASC`,
+    [target.fullSha256]
+  );
+
+  const pageRange = parsePageRangeSpec(filter.pages);
+  const safeLimit = Math.max(1, Math.min(300, Number(filter.limit) || 120));
+  const pages = [];
+  for (const r of rows) {
+    if (!includeNonBody && isNonContentPageType(r.page_type)) continue;
+    if (pageRange && !pageRange.has(Number(r.physical_page))) continue;
+    const rawPrev = r.preview_file || r.preview_path || `${r.content_page_id}.png`;
+    pages.push({
+      provider: providerId,
+      slideNo: r.physical_page,
+      contentPageId: r.content_page_id,
+      pageType: r.page_type || "正文页",
+      title: r.raw_title || r.business_topic || r.layout || `第 ${r.physical_page} 页`,
+      purpose: r.business_purpose || undefined,
+      archetype: r.archetype || undefined,
+      transferability: r.transferability || undefined,
+      capacityTier: r.capacity_tier || undefined,
+      aestheticTier: r.aesthetic_tier ?? undefined,
+      toneChrome: r.tone_chrome || undefined,
+      imageCount: r.image_slots ?? 0,
+      textSlots: r.text_slots ?? 0,
+      resultCount: r.result_slots ?? 0,
+      layoutSummary: r.raw_layout || r.layout || "",
+      restoreNote: r.restore_note || undefined,
+      previewFile: path.basename(String(rawPrev).replace(/\\/g, "/")),
+      feishuFileToken: r.feishu_file_token || undefined,
+    });
+    if (pages.length >= safeLimit) break;
+  }
+
+  return {
+    supported: true,
+    deck: {
+      deckId: target.deckId,
+      fullSha256: target.fullSha256,
+      fileName: target.fileName,
+      totalPages: target.totalPages,
+    },
+    returnedPages: pages.length,
+    pages,
+  };
 }
