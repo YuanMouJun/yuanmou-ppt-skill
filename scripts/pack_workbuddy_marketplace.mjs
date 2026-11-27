@@ -45,7 +45,7 @@ examples_en:
 | **只要 Markdown（\`.md\`）/ 纯文本逐页大纲与要点**（未要求生成 \`.pptx\`） | 直接按咨询结构（MECE / 结论前置）与第 4 节去 AI 腔规范写出最终 \`.md\` 到用户目标目录（如 \`./output/\`），**不启动 \`.pptx\` 构建与渲染** |
 | **既有 \`.pptx\` 母本原位改版** | 走 **通道 A**（\`inspectTemplateDeck → prepareStarterDeck → 原位换字换图 → auditTemplateFidelity\`），严禁新建空白页重画 |
 | **已给参考图 / 截图 / PDF 1:1 复刻** | 直接走 **通道 B（原生矢量与水墨蒙版复刻）** |
-| **一句话主题 / 纯文稿生成整套 \`.pptx\`**（若同时要 \`.md\` 则先落盘 \`.md\`） | 走 **第 2 节策划 → 通道 B**；若未配置本地模板库或要求一键直出，跳过选版直出 |
+| **一句话主题 / 纯文稿生成整套 \`.pptx\`**（若同时要 \`.md\` 则先落盘 \`.md\`） | 走 **第 2 节策划与离线高定语法卡（\`@references/offline-layout-patterns.md\`）→ 通道 B**；若配置了本地模板库（\`YUANMOU_LOCAL_DIR\`）可按需跑 \`batch-search --auto-pick\` 选版 |
 
 ## 1. 核心工程铁律
 
@@ -54,11 +54,11 @@ examples_en:
 3. **只读保护、重做隔离与「先落盘、再精修」**：要求源文件不动时严格只读（可用 \`verify --readonly-source\` 校验 SHA-256）；重做或换风格时严禁跨旧目录偷拿废弃配图；构建脚本用 \`await deck.save("./work/candidate.pptx")\` 写出候选包并由 \`deck_cli.mjs verify --final ./output/final.pptx\` 单次完成门禁与发布，再做 1～2 轮视觉微调覆盖更新。
 4. **真机渲染自检与无依赖优雅降级**：所有 \`.pptx\` 成稿必须跑 \`deck_cli.mjs verify\`。本机具备 LibreOffice + Poppler（或 \`pypdfium2\`）时强制真机渲染并看图精修；**若缺渲染依赖，严禁私自上网下载安装包/字体，严禁修改技能脚本，严禁用自绘近似图冒充真机渲染**——\`verify\` 自动完成 **6 大门禁组 · 15 项静态代码检查**并原子发布 \`--final\`（返回 \`verificationMode: "code-gates-only"\` 与 \`visualVerified: false\`），桌面端提示安装复验，受限沙箱在交付说明首行如实注明未执行真机渲染。
 
-## 2. 内容策划与版式规划
+## 2. 内容策划与高定版式规划
 
 1. **一句话主题从零策划**：无现成文稿时，按 MECE 与金字塔原理拆出结论前置的逐页大纲、核心论点、正文文案、配图与图表建议（严禁编造真实客户战绩，示意数据明确标注口径）。
-2. **按逻辑单元拆页**：不把 Markdown 章节或原页机械等同于 1 页 PPT；明确每页页型、图示逻辑与是否需表格/图表。
-3. **可选本地模板检索**：仅当本机配置了自有模板索引目录（\`YUANMOU_LOCAL_DIR\`）且用户需要选版时，调用 \`node <SKILL_DIR>/scripts/provider_cli.mjs batch-search\`；否则直接跳过选版进入通道 B。
+2. **先定文案策略与离线高定语法卡**：区分 \`distill\`（提案/发布/述职：版式优先随版精炼）与 \`preserve\`（执行手册/消融表/标书：硬信息保真，超载拆页）；**纯离线无本地模板库时，按 \`@references/offline-layout-patterns.md\` 8 大高定排版语法卡（信息屋、多层架构、泳道甘特、活动时刻表、科研管线、三线消融表、暗黑巨幕、一页纸 Bento）弹性构图**，拒绝千篇一律圆角卡片。
+3. **可选本地模板检索**：当本机配置自有模板索引目录（\`YUANMOU_LOCAL_DIR\`）时，查阅 \`@references/selection-rules.md\` 调用 \`node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json\`（或 \`--out ./work/selection_board.html\` 交互选版）。
 
 ## 3. 双制作通道
 

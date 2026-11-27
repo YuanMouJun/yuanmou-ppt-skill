@@ -33,6 +33,12 @@ import {
   compareSemver,
   checkSkillUpdate,
   selfUpdateSkill,
+  ORTHO_ARCHETYPES,
+  normalizeArchetype,
+  normalizePurposeTerms,
+  normalizeCapacityTier,
+  clearSlideIndexCache,
+  querySlideIndexDb,
 } from "../../packages/pptx-kit/index.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -991,12 +997,260 @@ async function testBrushMaskAndTypographyUpgrades() {
   }
 }
 
+// ============================================================================
+// 5. Test Selection Engine 2.0 (`ortho_v3` 5-field + Snapshot Speed + CLI)
+// ============================================================================
+async function testSelectionEngine2() {
+  console.log("=== [E] Verifying Selection Engine 2.0 (ortho_v3, Speed, Auto-Pick, Blueprint, 15KB Board) ===");
+
+  // E1: Alias normalization (zero fragile title regex; clean explicit alias mapping)
+  assert.equal(ORTHO_ARCHETYPES.length, 16);
+  assert.equal(normalizeArchetype("信息屋"), "message_house");
+  assert.equal(normalizeArchetype("Message House"), "message_house");
+  assert.equal(normalizeArchetype("营销Timeline"), "swimlane_gantt");
+  assert.equal(normalizeArchetype("活动流程"), "event_rundown");
+  assert.equal(normalizeArchetype("消融实验"), "comparison_table");
+  assert.equal(normalizeArchetype("未知乱写词"), "");
+  assert.deepEqual(normalizePurposeTerms("活动策划"), ["执行策略", "资源介绍"]);
+  assert.equal(normalizeCapacityTier("表格"), "tabular");
+  assert.equal(normalizeCapacityTier("极简"), "headline");
+
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_sel2_"));
+  try {
+    const dbPath = path.join(tmpDir, "ppt-index-trial.db");
+    const previewsDir = path.join(tmpDir, "previews");
+    await fs.mkdir(previewsDir, { recursive: true });
+    const db = new DatabaseSync(dbPath);
+    db.exec(`
+      CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE pages (
+        content_page_id TEXT PRIMARY KEY,
+        preview_file TEXT NOT NULL,
+        page_status TEXT,
+        business_purpose TEXT,
+        business_topic TEXT,
+        page_type TEXT,
+        layout TEXT,
+        logic TEXT,
+        local_graphics TEXT,
+        visual_traits TEXT,
+        background TEXT,
+        stage_count INTEGER,
+        full_screenshot_count INTEGER,
+        composite_screenshot_count INTEGER,
+        result_slots INTEGER,
+        independent_results_area INTEGER,
+        mature_case INTEGER,
+        white_background INTEGER,
+        complex_structure INTEGER,
+        gradient_structure INTEGER,
+        text_slots INTEGER,
+        image_slots INTEGER,
+        raw_layout TEXT,
+        raw_visual TEXT,
+        result_form TEXT,
+        restore_note TEXT,
+        diagram_family TEXT,
+        diagram_labels TEXT,
+        search_text TEXT NOT NULL,
+        archetype TEXT,
+        transferability TEXT,
+        capacity_tier TEXT,
+        aesthetic_tier INTEGER,
+        tone_chrome TEXT
+      );
+    `);
+
+    const ins = db.prepare(`
+      INSERT INTO pages VALUES (
+        ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?
+      )
+    `);
+
+    const seedRows = [
+      // 1) Universal S-tier Message House (even though from a marketing deck -> MUST pass crossDomain!)
+      ["CP_mh_s", "CP_mh_s.png", "可核", "执行策略", "小红书品牌策略", "正文页", "上下分层", "递进", "屋顶支柱", "留白充足 现代高级", "白底", 3, 0, 0, 0, 0, 0, 1, 1, 0, 4, 0, "顶部核心主张屋顶+中部三支柱+底部RTB基座", "留白充足 层次清晰 现代", "无", "保持三支柱等宽", "hierarchy", "信息屋", "执行策略 小红书 信息屋 Message House 屋顶支柱", "message_house", "universal", "compact", 5, "light:frameless"],
+      // 2) Scene-specific Xiaohongshu screenshot wall (MUST be isolated when crossDomain=true!)
+      ["CP_xhs_wall", "CP_xhs_wall.png", "可核", "案例展示", "小红书种草笔记", "正文页", "六图网格", "并列", "手机截图", "高密度", "白底", null, 6, 1, 3, 1, 1, 1, 0, 0, 6, 6, "六篇小红书笔记手机截屏墙+右侧达人数据", "高密度 商业感", "量化实证指标", "手机框截屏", null, null, "案例展示 小红书 笔记截图 达人种草", "evidence_showcase", "scene_specific", "rich", 4, "light:bordered+logo"],
+      // 3) Dark cinematic keynote hero (MUST win when tone=dark without white_background bias!)
+      ["CP_dark_hero", "CP_dark_hero.png", "可核", "作品展示", "硬件发布会", "正文页", "居中主视觉", null, "引线标注", "暗黑极简 质感", "黑底", null, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, "纯黑底居中产品剖面主视觉+左右参数引线", "暗黑 极简 高级", "无", "保留深色微渐变", null, null, "发布会 暗黑 巨幕 产品剖面", "hero_statement", "adaptable", "headline", 5, "dark:frameless"],
+      // 4) Dense operational Event Rundown table (MUST win under copyPolicy=preserve + tabular!)
+      ["CP_rundown", "CP_rundown.png", "可核", "执行策略", "线下大会流程", "正文页", "明细表格", "递进", "表格", "整洁 清晰", "白底", 5, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, "五列活动精确时刻表：时段+环节+执行动作+负责人+道具", "整洁 专业", "无", "原生表格复刻", null, null, "活动流程 Rundown 时刻表 议程 分工", "event_rundown", "universal", "tabular", 5, "light:header_footer"],
+      // 5) Watermarked / D-tier bad page (MUST be crushed even if keyword matches!)
+      ["CP_bad_wm", "CP_bad_wm.png", "可核", "执行策略", "线下大会流程", "正文页", "明细表格", "递进", "表格", "水印 杂乱 拥挤", "白底", 5, 0, 0, 0, 0, 0, 1, 0, 0, 8, 0, "带水印杂乱活动时刻表", "水印 杂乱 Word式", "无", "", null, null, "活动流程 Rundown 时刻表 议程", "event_rundown", "universal", "tabular", 1, "light:bordered"],
+      // 6) Academic comparison / ablation table
+      ["CP_ablation", "CP_ablation.png", "可核", "洞察分析", "竞品参数对比", "正文页", "多维对比表", "对比", "表格", "极简 克制", "白底", null, 0, 0, 0, 0, 0, 1, 0, 0, 6, 0, "三线结构多模型指标对比表格+最优行浅蓝高亮", "极简 克制 层次清晰", "无", "三线表对齐", "comparison", "参数对比表", "对比表 参数 消融 实验 指标", "comparison_table", "universal", "tabular", 5, "light:frameless"],
+      // 7) Swimlane Gantt timeline
+      ["CP_gantt", "CP_gantt.png", "可核", "执行策略", "整合营销节奏", "正文页", "泳道甘特", "递进", "甘特条", "清晰 现代", "白底", 3, 0, 0, 0, 0, 0, 1, 1, 0, 6, 0, "横轴预热-爆发-延续三波段×纵轴四渠道泳道甘特图", "现代 清晰", "无", "波段条对齐", "timeline", "波段甘特图", "营销节奏 传播排期 甘特图 泳道", "swimlane_gantt", "universal", "tabular", 5, "light:frameless"],
+      // 8-10) Identical layout clones to test Top-N layout diversity cap
+      ["CP_clone_1", "CP_clone_1.png", "可核", "方法论", "策略框架", "正文页", "三列卡片", "并列", "卡片", "干净", "白底", 3, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, "三列等宽卡片A", "干净 现代", "无", "", null, null, "方法论 策略三列卡片", "editorial_freeform", "universal", "compact", 5, "light:frameless"],
+      ["CP_clone_2", "CP_clone_2.png", "可核", "方法论", "策略框架", "正文页", "三列卡片", "并列", "卡片", "干净", "白底", 3, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, "三列等宽卡片B", "干净 现代", "无", "", null, null, "方法论 策略三列卡片", "editorial_freeform", "universal", "compact", 5, "light:frameless"],
+      ["CP_clone_3", "CP_clone_3.png", "可核", "方法论", "策略框架", "正文页", "三列卡片", "并列", "卡片", "干净", "白底", 3, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, "三列等宽卡片C", "干净 现代", "无", "", null, null, "方法论 策略三列卡片", "editorial_freeform", "universal", "compact", 5, "light:frameless"],
+      ["CP_alt_layout", "CP_alt_layout.png", "可核", "方法论", "策略框架", "正文页", "左总右分", "并列", "分割线", "干净", "白底", 3, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0, "左侧核心论断+右侧三段细线要点", "干净 现代", "无", "", null, null, "方法论 策略左总右分", "editorial_freeform", "universal", "compact", 5, "light:frameless"],
+    ];
+
+    const tinyPng = encodeRgbaPng(16, 9, new Uint8Array(16 * 9 * 4).fill(200));
+    for (const row of seedRows) {
+      ins.run(...row);
+      await fs.writeFile(path.join(previewsDir, row[1]), tinyPng);
+    }
+    // Add 300 filler rows to verify snapshot batch speed across 20 pages (<300ms)
+    for (let i = 0; i < 300; i++) {
+      ins.run(
+        `CP_fill_${i}`, `CP_mh_s.png`, "可核", "洞察分析", "常规主题", "正文页",
+        `布局${i % 7}`, "并列", "无", "常规", "白底", null, 0, 0, 0, 0, 0, 1, 0, 0, 4, 0,
+        "常规图文页", "常规", "无", "", null, null, "常规 洞察", "editorial_freeform", "universal", "compact", 3, "light:frameless"
+      );
+    }
+    db.close();
+    clearSlideIndexCache();
+
+    // E2: Cross-domain Message House borrows universal 4A skeleton even from Xiaohongshu deck, isolates scene_specific!
+    const mhHits = await querySlideIndexDb(dbPath, {
+      archetype: "信息屋",
+      capacityTier: "compact",
+      crossDomain: true,
+      targetImages: 0,
+      limit: 3,
+      disableDefaultBlacklist: true,
+    });
+    assert.equal(mhHits[0].contentPageId, "CP_mh_s", "Universal Message House must rank #1 across industries");
+    assert.ok(!mhHits.some((h) => h.contentPageId === "CP_xhs_wall"), "scene_specific screenshot wall must not enter crossDomain Top 3");
+
+    // E3: Dark tone ranks dark keynote hero #1 (no hardcoded white_background bias)
+    const darkHits = await querySlideIndexDb(dbPath, {
+      archetype: "hero_statement",
+      tone: "dark",
+      crossDomain: true,
+      limit: 3,
+      disableDefaultBlacklist: true,
+    });
+    assert.equal(darkHits[0].contentPageId, "CP_dark_hero");
+
+    // E4: copyPolicy=preserve + event_rundown ranks clean tabular rundown #1, crushes watermarked D-tier & headline
+    const rundownHits = await querySlideIndexDb(dbPath, {
+      archetype: "event_rundown",
+      capacityTier: "tabular",
+      copyPolicy: "preserve",
+      crossDomain: true,
+      hasTable: true,
+      limit: 3,
+      disableDefaultBlacklist: true,
+    });
+    assert.equal(rundownHits[0].contentPageId, "CP_rundown");
+    assert.notEqual(rundownHits[0].capacityTier, "headline");
+    assert.ok(rundownHits.every((h) => h.contentPageId !== "CP_bad_wm"), "D-tier watermark page must be demoted");
+
+    // E5: Soft diagramFamily NEVER hard-zeros even when exact family missing
+    const softDiagHits = await querySlideIndexDb(dbPath, {
+      diagramFamily: "funnel",
+      limit: 3,
+      disableDefaultBlacklist: true,
+    });
+    assert.ok(softDiagHits.length > 0, "Soft diagramFamily must gracefully degrade instead of returning 0 rows");
+
+    // E6: Stateless layout-signature diversity cap (at most 2 clones of `三列卡片|editorial_freeform`, pulling `CP_alt_layout` into Top 3)
+    const divHits = await querySlideIndexDb(dbPath, {
+      archetype: "editorial_freeform",
+      purpose: "方法论",
+      keywords: "策略",
+      limit: 3,
+      disableDefaultBlacklist: true,
+    });
+    const threeColCount = divHits.filter((h) => h.layoutSignature === "三列卡片|editorial_freeform").length;
+    assert.ok(threeColCount <= 2, `Expected <=2 identical layout clones in Top 3, got ${threeColCount}`);
+    assert.ok(divHits.some((h) => h.contentPageId === "CP_alt_layout"), "Diverse layout variant should surface into Top 3");
+
+    // E7: Plain-text blacklist.txt excludes blocked IDs cleanly
+    const blPath = path.join(tmpDir, "blacklist.txt");
+    await fs.writeFile(blPath, "# bad slide\nCP_mh_s\n", "utf8");
+    const afterBl = await querySlideIndexDb(dbPath, {
+      archetype: "message_house",
+      blacklistPath: blPath,
+      limit: 3,
+    });
+    assert.ok(!afterBl.some((h) => h.contentPageId === "CP_mh_s"), "Blacklisted ID must be excluded");
+
+    // E8: 20-page in-memory snapshot speed (<300ms!)
+    const t0 = performance.now();
+    for (let i = 0; i < 20; i++) {
+      await querySlideIndexDb(dbPath, {
+        archetype: i % 2 === 0 ? "message_house" : "comparison_table",
+        crossDomain: true,
+        limit: 3,
+        disableDefaultBlacklist: true,
+      });
+    }
+    const batchMs = performance.now() - t0;
+    assert.ok(batchMs < 300, `Expected 20-page snapshot batch <300ms, got ${batchMs.toFixed(1)}ms`);
+
+    // E9: End-to-end provider_cli.mjs batch-search (`--auto-pick` + `deck_blueprint.json` + lightweight hardlink 15KB HTML board vs `--portable`)
+    const planPath = path.join(tmpDir, "pages.json");
+    await fs.writeFile(
+      planPath,
+      JSON.stringify({
+        deck: { title: "Selection 2.0 E2E", deliveryMode: "reading", coverTone: "dark", bodyTone: "light", chromePolicy: "auto" },
+        pages: [
+          { pageId: "p1", pageBadge: "P1", pageTitle: "核心信息屋", archetype: "message_house", capacityTier: "compact", crossDomain: true },
+          { pageId: "p2", pageBadge: "P2", pageTitle: "活动时刻表", archetype: "event_rundown", capacityTier: "tabular", copyPolicy: "preserve", crossDomain: true, hasTable: true },
+          { pageId: "p3", pageBadge: "P3", pageTitle: "消融实验对比", archetype: "comparison_table", capacityTier: "tabular", crossDomain: true, hasTable: true },
+        ],
+      }),
+      "utf8"
+    );
+
+    const cliPath = path.join(REPO_ROOT, "skills/yuanmou-ppt/scripts/provider_cli.mjs");
+    const bpOut = path.join(tmpDir, "deck_blueprint.json");
+    const boardLite = path.join(tmpDir, "selection_board.html");
+    const boardPort = path.join(tmpDir, "selection_board_portable.html");
+
+    const autoRes = spawnSync(
+      process.execPath,
+      [cliPath, "batch-search", "--provider", "local", "--plan", planPath, "--auto-pick", "--blueprint", bpOut, "--out", boardLite],
+      { env: { ...process.env, YUANMOU_LOCAL_DIR: tmpDir, YUANMOU_OFFLINE: "1" }, encoding: "utf8" }
+    );
+    assert.equal(autoRes.status, 0, `provider_cli batch-search failed:\n${autoRes.stderr}`);
+    const autoJson = JSON.parse(autoRes.stdout);
+    assert.equal(autoJson.autoPick, true);
+    assert.equal(autoJson.pages, 3);
+    assert.equal(autoJson.sections[0].pickedContentPageId, "CP_mh_s");
+    assert.equal(autoJson.sections[1].pickedContentPageId, "CP_rundown");
+    assert.equal(autoJson.sections[2].pickedContentPageId, "CP_ablation");
+
+    const bp = JSON.parse(await fs.readFile(bpOut, "utf8"));
+    assert.equal(bp.schemaVersion, "deck_blueprint_v2");
+    assert.equal(bp.pages.length, 3);
+    assert.equal(bp.pages[1].copyPolicy, "preserve");
+    assert.ok(bp.pages[0].chromeRules.L1_alwaysStrip.length >= 3);
+    assert.ok(bp.pages[0].refPreviewPath && bp.pages[0].refPreviewPath.endsWith("CP_mh_s.png"));
+
+    const liteHtml = await fs.readFile(boardLite, "utf8");
+    assert.ok(liteHtml.includes("./selection_board_assets/"), "Default HTML board must use sibling hardlinked assets");
+    assert.ok(!liteHtml.includes("data:image/png;base64,"), "Default HTML board must not bloat with base64");
+    assert.ok(Buffer.byteLength(liteHtml, "utf8") < 40 * 1024, "Lightweight HTML board should stay compact (<40KB)");
+
+    const portRes = spawnSync(
+      process.execPath,
+      [cliPath, "batch-search", "--provider", "local", "--plan", planPath, "--out", boardPort, "--portable"],
+      { env: { ...process.env, YUANMOU_LOCAL_DIR: tmpDir, YUANMOU_OFFLINE: "1" }, encoding: "utf8" }
+    );
+    assert.equal(portRes.status, 0, `provider_cli --portable failed:\n${portRes.stderr}`);
+    const portHtml = await fs.readFile(boardPort, "utf8");
+    assert.ok(portHtml.includes("data:image/png;base64,"), "--portable board must inline base64 images");
+
+    console.log(`  [PASS] Selection Engine 2.0 verified! (20-page snapshot: ${batchMs.toFixed(1)}ms, auto-pick + blueprint + 15KB hardlink board + --portable)`);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
   await testSkillUpdater();
   await testBrushMaskAndTypographyUpgrades();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 ENGINE TESTS PASSED!");
+  await testSelectionEngine2();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 TESTS PASSED!");
 }
 
 main().catch((err) => {

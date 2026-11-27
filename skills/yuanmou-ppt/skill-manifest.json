@@ -1,12 +1,12 @@
 {
   "name": "yuanmou-ppt",
-  "version": "0.2.0",
-  "highlights": "全面升级美术馆作品集级中英README与无外壳苹果风0.2发布片、新增《光影与混凝土》建筑画册与《深空之眼》纯黑天文科普两套原生PPTX展品（三套主展品均附真.pptx源件可双击验Excel）",
-  "fileCount": 31,
+  "version": "0.3.0",
+  "highlights": "上线 Selection Engine 2.0（5维正交跨行业精准选版、内存快照毫秒批量检索、--auto-pick 静默选版与 deck_blueprint.json、纯Node 15KB硬链接轻量看板及8大离线高定语法卡），同步升级14,337页零404 R2开源试用库",
+  "fileCount": 33,
   "files": {
-    "SKILL.md": "30af968fb95d6f3a019406cb8dbf33587b2e31ce9e8d07e7612a88aec9865f3a",
+    "SKILL.md": "fe2e90211ce3375449628189e5e54dd9ee762c6cea9c6c52fce14184e2852b8a",
     "agents/openai.yaml": "7ba1487c19fc86ed00a67b37db870294bf76ca2cca9e54d32ce96d09aff48e59",
-    "packages/pptx-kit/index.mjs": "d1562b8622f0eb87f5cb88b2a25e6b8f29140ce73099fd2f72f0d9f6c5c30bd4",
+    "packages/pptx-kit/index.mjs": "d52e5d1db883efd8272b40b6b684ddcfd439abad4f6c3743e894a7a875f335a1",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
     "packages/pptx-kit/src/charts.mjs": "b6af2af2eda09dfe1e23a13edd50db58fc153c203251eb87b05c830229a36b74",
     "packages/pptx-kit/src/compose.mjs": "f069e467685271bc13e20ab8d4249c9284d1eb43436bdb42643e92b4ddeeda2f",
@@ -18,9 +18,9 @@
     "packages/pptx-kit/src/presentation.mjs": "deb5a32df233b52dee79af253e1ce0162eecef12d58376d200359c9dc3fa2d73",
     "packages/pptx-kit/src/providers/base-provider.mjs": "1d32fead0ef4d8df2d39b9aaa55c8efbf94f92bc32bda3efa5e2734ff84135cc",
     "packages/pptx-kit/src/providers/feishu-provider.mjs": "f0e3d29c81b1f1125624f10bca54d3c6555a3ad44e8bcfb0095d87bbb9c59c99",
-    "packages/pptx-kit/src/providers/index.mjs": "83ce29792bb562d19e2640583b0a16b0027182e399d5a7b31360af2e8022ed3a",
+    "packages/pptx-kit/src/providers/index.mjs": "7148c00974b62789819b6eed47468c67efd7ccb1c2bc3a0e6f749a75b1890a5c",
     "packages/pptx-kit/src/providers/local-provider.mjs": "da8a46d17915ec4ba0fbc7a2b376d81ceab3e7e65691ea2f512a457a6d06efd8",
-    "packages/pptx-kit/src/providers/sqlite-index.mjs": "1ed5cacad38457aa8a53b93e366390a02737be095cf1c6e731650385596598f2",
+    "packages/pptx-kit/src/providers/sqlite-index.mjs": "9b75dabbf82cd78deb5b72cc1d6050e01550fc952bdcf61fabe626b96818388d",
     "packages/pptx-kit/src/providers/yuanmou-cloud-provider.mjs": "cdca59e0b5926b7c571f6a57f4770908fbb62bf0efb732e746b22202572f77ba",
     "packages/pptx-kit/src/providers/zsxq-provider.mjs": "53e4d202a7291849b66a7b64cc41bf52d3f1d60c976ecf1b6dafa7d9a9938958",
     "packages/pptx-kit/src/render.mjs": "52ed8f38dee2b1fe5c876d60bdb0ad67ce1fd3d1575995572777c40821234d7b",
@@ -29,11 +29,13 @@
     "packages/pptx-kit/src/tables.mjs": "29a7f16c3324d296fcce0572f14b2db610c87fdb39dc0315201ece3efa0428d6",
     "packages/pptx-kit/src/tokens.mjs": "a87559c8f9d1117676573407f5a310a06b5ff543aa01b397dc09ea99a1c50073",
     "packages/pptx-kit/src/units.mjs": "7aba5619a8858e27c7cbdbd89468d42a8590663adfa50b85668563986f8bafa9",
-    "packages/pptx-kit/src/updater.mjs": "d78de83a790d51077a3c312681eb4ada741d97765efb2a891ee770c0bfe75d37",
+    "packages/pptx-kit/src/updater.mjs": "0e27986feca6771aec89d31bd452c705cf2079e7bd1951e36f683995788597ba",
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
+    "references/offline-layout-patterns.md": "c2266d6812db4824b5d985789813c473f76af32bba778e06b1e77114150962ed",
+    "references/selection-rules.md": "9ad00cb61c23709f9ea973c150d71fea4aa024487f4e3d69b0ec3d3a2fe1e789",
     "references/structure-and-text.md": "100e521ce3806d2ca30bbf59467a554ef5d741f54fd00079f931fb5e3901fee0",
     "scripts/deck_cli.mjs": "10060df158c549b429ebf294e63ff157db1653dd226af571c73a0aa5cb76d491",
     "scripts/kit.mjs": "8e6c2e8a738956d364c0df6b308007a8041d179359adccef1779ca37f46b7af3",
-    "scripts/provider_cli.mjs": "b5bc497d447a18680bd6f907db812d66d77a9d9a02e8b81c3ccf7678a90ae9d6"
+    "scripts/provider_cli.mjs": "abcb33f1412cf051f7fb7310ec7dc0d19e99979e67ac56c019abfe963bec8d02"
   }
 }

@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { atomicReplaceFile, defaultCacheRoot } from "./providers/base-provider.mjs";
 
-export const KIT_VERSION = "0.2.0";
+export const KIT_VERSION = "0.3.0";
 export const GITHUB_REPO = "YuanMouJun/yuanmou-ppt-skill";
 
 // Flipped to `true` automatically by `pack_workbuddy_marketplace.mjs` so platform-hosted packages

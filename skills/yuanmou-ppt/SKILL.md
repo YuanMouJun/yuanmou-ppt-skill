@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-version: 0.2.0
+version: 0.3.0
 description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库 / 10W+ 飞书云盘版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
 ---
 
@@ -18,7 +18,7 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 | **只要 Markdown（`.md`）/ 纯文本逐页大纲与要点**（未要求生成 `.pptx`） | 直接按咨询结构（MECE / 结论前置）与第 4 节 Anti-Slop 写出最终 `.md` 到目标目录（如 `./output/`），**不启动 `.pptx` 构建与渲染** |
 | **既有 `.pptx` 母本原位改版** | 走 **通道 A**（`inspectTemplateDeck → prepareStarterDeck → 原位换字换图 → auditTemplateFidelity`），严禁新建空白页重画 |
 | **已指定参考图 / 截图 / PDF 1:1 复刻**（或仅调色/局部修形） | 跳过选版海选，直接走 **通道 B（4 类视觉页型分流 + 原生复刻）** |
-| **一句话主题 / 纯文稿生成整套 `.pptx`**（若同时要 `.md` 则先落盘 `.md`） | 走 **第 2 节（咨询策划 + 可选同构选版）→ 通道 B**；若用户要求一键直出或离线无可用模板库，跳过选版直进通道 B |
+| **一句话主题 / 纯文稿生成整套 `.pptx`**（若同时要 `.md` 则先落盘 `.md`） | 走 **第 2 节（咨询策划 + Selection Engine 2.0 双档选版 → `deck_blueprint.json`）→ 通道 B**：用户要一键直出时后台跑 **`--auto-pick`** 静默锁高定骨架直出，不打扰用户；纯离线无本地库时按 `references/offline-layout-patterns.md` 高定语法卡直进通道 B |
 
 ## 1. 核心铁律（不翻源码、不绕路）
 
@@ -27,17 +27,24 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 3. **只读保护、重做隔离与「先落盘、再精修」**：要求原稿不动时严禁改写原件（可用 `verify --readonly-source` 锁哈希）；**用户要求从头重做或换风格时，严禁跨旧工作目录偷拿废弃配图**。构建脚本用 `await deck.save("./work/candidate.pptx")` 写出候选包，把唯一一次门禁校验与落盘 `--final` 交给 `deck_cli.mjs verify`（避免重复校验）；**首轮过代码门禁后立刻把正式成稿落盘到用户目标目录（如 `./output/final.pptx`），再做 1～2 轮视觉精修覆盖更新**。
 4. **强制视觉自检 + 无依赖离线降级（代码全绿 ≠ 视觉达标）**：所有 `.pptx` 必跑 `deck_cli.mjs verify`。本机具备 **LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)** 时强制真机渲染并审图返工；**若缺渲染依赖，严禁上网下载安装包/字体或自绘近似假图冒充真机渲染**——`verify` 自动完成 **6 组 15 项静态代码门禁**并原子落盘 `--final`（返回 `verificationMode: "code-gates-only"`, `visualVerified: false`），桌面端提示用户安装复验，受限沙箱则在交付说明首行如实标注未做真机渲染。
 
-## 2. 从零策划与全库同构选版（仅无参考图/非一键直出时执行）
+## 2. 从零策划与 Selection Engine 2.0 双向选版（按需详查 `references/selection-rules.md`）
 
-**严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；若用户明确要求一键直出，或纯离线且无可用本地模板库，直接完成策划后跳过选版进入通道 B：
+**严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；纯离线且无本地索引库时，直接按 `references/offline-layout-patterns.md` 高定语法卡进通道 B：
 
-1. **一句话主题策划与槽位拆解**：无现成文稿时，按 MECE / 金字塔原理 / 结论前置策划逐页大纲、核心论点、去 AI 腔文案、配图与图表建议（严禁编造真实客户战绩）；逐页提炼槽位指纹：`purpose`（支持逗号多词如 `"执行策略,方法论"`）、`diagramFamily`（`flow/funnel/timeline/hierarchy/cycle/branch/radial/matrix/comparison`）、`targetImages`、`targetTextSlots`、`targetResults`、`whiteBackground` 及是否需表格/图表。
-2. **1 条命令出多页单选看板（默认自动探活 `feishu` -> `local` 免登录库，纯离线设 `YUANMOU_OFFLINE=1`）**：多页（4～6 页/批）写 `pages.json` 跑 **`batch-search`**，输出**严格单选、默认不勾选、支持左原稿对照与一键复制**的交互 HTML 看板（选版需单选交互故用 HTML；交互模式下未获用户确认前不提前重绘）：
+1. **内容轻体检与策略定调（不追原稿字数，先定文案策略与原型）**：无现成文稿时按 MECE / 结论前置策划逐页大纲与去 AI 腔文案（严禁编造战绩）。整套先锁定 `deliveryMode`（演讲/阅读）、**解耦 `coverTone` 与 `bodyTone`**（封面可暗黑、正文默认浅底）及 `copyPolicy`（`distill` 版式优先随版精炼 vs `preserve` 执行手册/消融表硬信息保真，超载主动建议拆页）；逐页标注标准 `archetype`（16 大跨行结构原型，见 `references/selection-rules.md`）、`capacityTier`（`headline/compact/rich/tabular`）与非社媒场景 `crossDomain: true`（跨行借用 `universal` 万能骨架并隔离 `scene_specific` 截图墙）。
+2. **双档极速选版与 `deck_blueprint.json` 衔接（`<0.3s` 内存快照 + 相邻防撞版 + L1/L2/L3 母版脱壳）**：
+   - **一键直出（极速静默档 `--auto-pick`）**：后台毫秒选定全套 Top-1 高审美骨架并产出 `deck_blueprint.json`，AI 静默核图后直进通道 B（零选版打扰、全程享顶级模板库加持）；
+   - **深度定制（交互看板档）**：`<=10` 页一步直出 ~15KB 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人加 `--portable`）；`>12` 页长全案建议先挑 3 页定调再批配剩余页；交互模式下未获确认前不提前重绘。选版返回 `fallbackRecommended: true` 时改用 `references/offline-layout-patterns.md` 原生绘制。
 
 ```bash
-node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --fetch-previews --out ./selection_board.html
-node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --purpose "执行策略,方法论" --diagram-family funnel \
-  --target-images 0 --target-text-slots 4 --white-background --fetch-previews --limit 3 --out ./selection_board.html
+# 极速静默档（一键直出推荐）：<0.3s 全套自动选版 + 防撞版 + 输出 deck_blueprint.json
+node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
+
+# 交互看板档（深度定制推荐）：默认生成 ~15KB 同级硬链接轻量看板（外发加 --portable）
+node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --out ./work/selection_board.html --limit 3
+
+# 单页精准检索（支持 --archetype / --capacity / --copy-policy / --tone / --cross-domain）
+node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_house --capacity compact --cross-domain --limit 4
 ```
 
 ## 3. 双制作通道

@@ -8,7 +8,20 @@ import { LocalStandaloneProvider } from "./local-provider.mjs";
 import { FeishuDriveProvider } from "./feishu-provider.mjs";
 import { ZsxqPlanetProvider } from "./zsxq-provider.mjs";
 import { YuanmouCloudR2Provider } from "./yuanmou-cloud-provider.mjs";
-import { SLIDE_INDEX_DDL, querySlideIndexDb } from "./sqlite-index.mjs";
+import {
+  SLIDE_INDEX_DDL,
+  ORTHO_ARCHETYPES,
+  ARCHETYPE_AFFINITY,
+  OFFLINE_PATTERN_HINTS,
+  normalizeArchetype,
+  normalizePurposeTerms,
+  normalizeCapacityTier,
+  deriveRuntimeOrtho,
+  loadBlacklistIds,
+  clearSlideIndexCache,
+  loadPagesSnapshot,
+  querySlideIndexDb,
+} from "./sqlite-index.mjs";
 
 const PROVIDER_FACTORIES = new Map([
   ["local", (opts) => new LocalStandaloneProvider(opts)],
@@ -123,5 +136,15 @@ export {
   ZsxqPlanetProvider,
   YuanmouCloudR2Provider,
   SLIDE_INDEX_DDL,
+  ORTHO_ARCHETYPES,
+  ARCHETYPE_AFFINITY,
+  OFFLINE_PATTERN_HINTS,
+  normalizeArchetype,
+  normalizePurposeTerms,
+  normalizeCapacityTier,
+  deriveRuntimeOrtho,
+  loadBlacklistIds,
+  clearSlideIndexCache,
+  loadPagesSnapshot,
   querySlideIndexDb,
 };
