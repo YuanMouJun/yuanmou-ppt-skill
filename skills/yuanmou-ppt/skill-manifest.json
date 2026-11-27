@@ -1,10 +1,10 @@
 {
   "name": "yuanmou-ppt",
-  "version": "0.1.9",
-  "highlights": "全新美术馆级中英双语README、3条影院风演示动图（双击弹真Excel/多行业高光展映/旧母版手术）、6大行业脱敏高光展板、可下载验真AURA 01源PPTX及soffice/Python渲染探活加固",
+  "version": "0.2.0",
+  "highlights": "全面升级美术馆作品集级中英README与无外壳苹果风0.2发布片、新增《光影与混凝土》建筑画册与《深空之眼》纯黑天文科普两套原生PPTX展品（三套主展品均附真.pptx源件可双击验Excel）",
   "fileCount": 31,
   "files": {
-    "SKILL.md": "9e5fb208a79846bc29f9941f685c5fb3befd73ba7d88c2c10000fe7aee1af365",
+    "SKILL.md": "30af968fb95d6f3a019406cb8dbf33587b2e31ce9e8d07e7612a88aec9865f3a",
     "agents/openai.yaml": "7ba1487c19fc86ed00a67b37db870294bf76ca2cca9e54d32ce96d09aff48e59",
     "packages/pptx-kit/index.mjs": "d1562b8622f0eb87f5cb88b2a25e6b8f29140ce73099fd2f72f0d9f6c5c30bd4",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
@@ -29,7 +29,7 @@
     "packages/pptx-kit/src/tables.mjs": "29a7f16c3324d296fcce0572f14b2db610c87fdb39dc0315201ece3efa0428d6",
     "packages/pptx-kit/src/tokens.mjs": "a87559c8f9d1117676573407f5a310a06b5ff543aa01b397dc09ea99a1c50073",
     "packages/pptx-kit/src/units.mjs": "7aba5619a8858e27c7cbdbd89468d42a8590663adfa50b85668563986f8bafa9",
-    "packages/pptx-kit/src/updater.mjs": "3e9708fadb6332136c00240039ae4f303c19173230d1dab3d2c3fba7556a8caa",
+    "packages/pptx-kit/src/updater.mjs": "d78de83a790d51077a3c312681eb4ada741d97765efb2a891ee770c0bfe75d37",
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
     "references/structure-and-text.md": "100e521ce3806d2ca30bbf59467a554ef5d741f54fd00079f931fb5e3901fee0",
     "scripts/deck_cli.mjs": "10060df158c549b429ebf294e63ff157db1653dd226af571c73a0aa5cb76d491",

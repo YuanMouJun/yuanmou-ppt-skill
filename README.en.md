@@ -1,201 +1,153 @@
+<sub>🌐 <a href="./README.md">中文</a> · <b>English</b> · <a href="https://ppt.resourcehub.dpdns.org">Website</a></sub>
+
 <div align="center">
 
-# Yuanmou PPT · 渊眸 PPT
+# Yuanmou PPT · 渊眸
 
-**Stop shipping static HTML screenshots. Deliver 100% native, editable `.pptx` decks.**
+> *"Type. Hit enter. A native editable `.pptx` lands in your lap."*
+> *「打字。回车。一份能在 PowerPoint 里直接改数的成品 PPT。」*
 
-<sub>One-sentence commercial deck planning · 1:1 screenshot & PDF vector redraw · Lossless legacy `.pptx` surgery · Real embedded `.xlsx` Excel charts</sub>
+[![License](https://img.shields.io/badge/License-Apache--2.0-161514?style=flat-square)](./LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/npm%20dependencies-0-C85A32?style=flat-square)](#quick-install)
+[![Skills](https://img.shields.io/badge/skills.sh-Compatible-161514?style=flat-square)](#quick-install)
 
-<p>
-  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D22.5-161514?style=flat-square" alt="Node.js >= 22.5" /></a>
-  <a href="#quick-install"><img src="https://img.shields.io/badge/npm%20dependencies-0-C85A32?style=flat-square" alt="Zero Dependencies" /></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-161514?style=flat-square" alt="Apache-2.0" /></a>
-</p>
+<br>
 
-<p>
-  <a href="./README.md">中文</a> ·
-  <strong>English</strong> ·
-  <a href="https://ppt.resourcehub.dpdns.org">Website</a> ·
-  <a href="#showcase">Showcase</a> ·
-  <a href="#quick-install">Quick Install</a> ·
-  <a href="./test-prompts.json">Test Prompts</a> ·
-  <a href="./SECURITY.md">Security</a>
-</p>
+**Write one sentence in your AI agent. Get back a real, editable `.pptx`.**
 
-<br />
+<br>
 
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/hero-yuanmou-ppt.gif" width="94%" alt="Yuanmou PPT: One-sentence native PPTX generation with double-click editable embedded Excel charts" />
-  <br />
-  <sub>One prompt → 5-slide native <code>.pptx</code> launch deck → double-click any bar chart in PowerPoint / WPS to pop open its embedded <code>Microsoft_Excel_Worksheet.xlsx</code> and live-update values.<br />Inspect the real deck yourself: <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/yuanmou-aura-01-flagship-sample.pptx"><strong>yuanmou-aura-01-flagship-sample.pptx</strong></a> (6 gate groups / 15 checks: 0 fail, 0 warn)</sub>
-</p>
+Not flat AI screenshots. Not fragile HTML exports that break inside PowerPoint or WPS. Every headline, vector line, photo slot, table cell, and **double-click `.xlsx` Excel chart** is native ECMA-376 OOXML—ready for real client edits the second it finishes.
+
+Give it a single topic to plan and build from scratch using **16,000+ real commercial layouts**, hand it a complex screenshot or PDF for 1:1 native vector redraw, or feed it a bloated 35 MB corporate `.pptx` template for lossless in-place upgrades and 97% file slimming.
+
+**Every deck in the main gallery below was generated natively by `@yuanmou/pptx-kit`—complete with downloadable `.pptx` source files so you can open them and double-click the charts yourself.**
+
+```bash
+npx skills add YuanMouJun/yuanmou-ppt-skill
+```
+
+Agent-agnostic—works with Claude Code, Cursor, OpenAI Codex, Antigravity, WorkBuddy, Trae, Qoder, CodeBuddy, and OpenClaw.
+
+[Gallery](#gallery) · [Enterprise Workflows](#enterprise-workflows) · [Quick Install](#quick-install) · [Comparison](#why-not-html-or-screenshot-slides) · [Security](./SECURITY.md)
 
 </div>
 
 ---
 
-## Why Yuanmou PPT?
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/launch-yuanmou-0.2.gif" alt="Yuanmou PPT 0.2 Launch Film" width="100%">
+</p>
 
-Most AI slide generators look slick in a browser preview and break the moment a real client asks for edits:
+<p align="center"><sub>
+  ▲ 0.2 Launch Film · 11s · Native OOXML decks with real embedded <code>.xlsx</code> Excel workbooks editable inside PowerPoint &amp; WPS
+</sub></p>
 
-1. **Image-generated or screenshot slides are dead pixels.** Changing one Q3 metric or chart color forces a full redraw.
-2. **HTML-to-PPTX converters drift in PowerPoint & WPS.** Fonts shift, tables clip, and charts flatten into uneditable PNGs.
-3. **Editing existing corporate `.pptx` templates is fragile.** Naive scripts destroy master gradients, break custom photo masks, and leave 30+ MB of orphaned media behind.
+---
 
-`yuanmou-ppt-skill` (`@yuanmou/pptx-kit`) is a **zero-dependency, pure Node.js native OOXML engine**. It writes standard ECMA-376 vectors, `<a:alpha>` translucent gradients, merged `<a:tbl>` tables, and real embedded `ppt/embeddings/*.xlsx` Excel workbooks—enforced by **6 gate groups (15 automated checks)** and side-by-side rendered visual QA.
+## Gallery
 
-Works out of the box with **Claude Code, OpenAI Codex, Cursor, Antigravity, WorkBuddy, Trae, Qoder, CodeBuddy, and OpenClaw**.
+Every deck below passed all **6 gate groups (15 static OOXML & layout checks)** with `0 fail, 0 warn` and was rendered directly at 260 DPI from the real `.pptx`. Download any source file below to inspect the vectors and double-click the embedded Excel charts.
+
+### PPT · *Sound as Architecture* — AURA 01 Spatial Acoustics Launch
+
+> "Build a dark industrial-design product launch deck for a CNC-milled spatial acoustic speaker, with an annotated cutaway slide and double-click editable acoustic benchmark charts."
+
+A museum-monograph pacing: a fine 20 Hz–40 kHz spectrum ruler anchors the full-bleed bronze sculpture cover; Slide 2 pins six whisper-thin callout leaders directly onto the copper waveguide cutaway on pure `#000000`; Slide 3 embeds two real `.xlsx` Excel charts beside a Swiss spec table; Slides 4–5 close with materiality macro swatches and a clean three-stage architecture grid. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-aura-01-flagship-sample.pptx)
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-cover.jpg" width="100%" alt="AURA 01 Launch Cover"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-pages.jpg" width="100%" alt="AURA 01 Interior Slides 2-5"></p>
+
+### PPT · *Light & Concrete* — Minimalist Architectural Monograph
+
+> "Create a restrained architectural lecture deck on raw concrete and natural daylight, inspired by museum exhibition catalogs."
+
+Strict monochrome discipline—black, raw concrete grey, warm gallery paper, and one quiet ochre accent—leaving 68% of the canvas to open air and shadow. Slide 3 embeds a live Excel daylight luminance curve across 12 hours (`06:00–18:00`) paired with hairline typographic time notes instead of heavy boxes. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-arch-monograph-sample.pptx)
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-cover.jpg" width="100%" alt="Light and Concrete Cover"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-pages.jpg" width="100%" alt="Light and Concrete Interior Slides"></p>
+
+### PPT · *Eye of Deep Space* — Seeing Light From 13 Billion Years Ago
+
+> "Build a pitch-black scientific keynote explaining how an infrared space telescope sees through interstellar dust."
+
+Pure `#000000` canvas, photography as the sole protagonist, and optical callouts drawn straight onto the gold-coated hexagonal mirror array. Slide 3 pairs visible-light dust obscuration against infrared clarity above a `0.4–28 μm` spectrum bar; Slide 4 closes with stark monumental figures and an obsidian native table. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-cosmos-keynote-sample.pptx)
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-cosmos-pages.jpg" width="100%" alt="Eye of Deep Space Science Keynote"></p>
+
+### Editorial Range · Luxury Beauty & Smart EV Highlights
+
+> "Match two opposite industries—luxury skincare and smart EV launches—with distinct commercial layout languages from the 16,000+ layout library."
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-luxury-duo.jpg" width="85%" alt="Luxury Beauty and Smart EV Editorial Highlights"></p>
+
+---
+
+## Enterprise Workflows
+
+Beyond exhibition aesthetics, `@yuanmou/pptx-kit` is engineered for the three hardest everyday agency and corporate jobs:
+
+### 23-Slide Commercial Campaign Deck · Yuanmou TV
+
+A complete 23-slide marketing proposal reconstructed from cross-industry reference layouts (`0 fail, 0 warn`), featuring native dry-brush photo slices, 45° diamond photo frames (each right-clickable to swap photos in PowerPoint), and vector H5 form mockups.
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-grid.jpg" width="92%" alt="23-Slide Commercial Campaign Overview"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-craft.jpg" width="75%" alt="Native Brush Masks and Diamond Geometry Craft"></p>
+
+### Lossless Legacy `.pptx` Template Surgery (`35.4 MB → 1.05 MB`)
+
+Read existing corporate `.pptx` anchors in place, preserve brand masters and photo masks pixel-for-pixel, inject dual embedded Excel charts plus a row-merged native table, and strip 97% of orphaned OPC media.
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/demo-template-surgery.gif" width="82%" alt="Lossless Legacy PPTX Surgery Wipe Demo"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-surgery-clean.jpg" width="82%" alt="Lossless Legacy PPTX Surgery Before and After"></p>
+
+### High-Density Consulting Frameworks (16,000+ Free Layout Library)
+
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-industry-highlights.jpg" width="78%" alt="Multi-Industry Commercial Consulting Frameworks"></p>
 
 ---
 
 ## Quick Install
 
-### One-line install (recommended)
-
 ```bash
-npx skills@latest add https://github.com/YuanMouJun/yuanmou-ppt-skill
+npx skills add YuanMouJun/yuanmou-ppt-skill
 ```
+
+Requires only **Node.js `>= 22.5`** (zero npm dependencies, ~1.2 MB clone). Copy starter prompts directly from [`test-prompts.json`](./test-prompts.json).
 
 <details>
-<summary><strong>Other install options (ZIP drag-and-drop / local git clone / self-update)</strong></summary>
+<summary><strong>More install options (ZIP drag-and-drop / local clone / optional LibreOffice visual QA)</strong></summary>
 
-<br />
+<br>
 
-**Option A · Desktop Client ZIP Import (Zero CLI)**
-Download `yuanmou-ppt-skill.zip` from [Latest Releases](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/latest) and drag-drop it into your AI client's Skills manager.
-
-**Option B · Clone & Multi-Agent Install (~1.2 MB, 0 npm dependencies)**
-```bash
-git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
-cd yuanmou-ppt-skill
-node scripts/install.mjs --target all
-# Or pick targets: --target claude,codex,cursor,antigravity,workbuddy,trae,qoder,codebuddy,openclaw,agents
-```
-
-**Option C · Environment Check & Verified Incremental Update**
-```bash
-node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env
-npm run test:m3
-node <SKILL_DIR>/scripts/deck_cli.mjs update
-```
+- **Zero-CLI ZIP Import**: Download `yuanmou-ppt-skill.zip` from [Latest Releases](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/latest) and drag-drop into your AI client.
+- **Clone & Multi-Agent Install**:
+  ```bash
+  git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
+  cd yuanmou-ppt-skill
+  node scripts/install.mjs --target all
+  ```
+- **Optional Local Visual QA**: Install `LibreOffice + Poppler` (`brew install --cask libreoffice && brew install poppler`) for 260 DPI slide rendering and side-by-side visual diff PDFs (runs cleanly in `code-gates-only` mode when absent).
 
 </details>
 
-### Requirements
-
-- **Required: Node.js `>= 22.5`** (uses built-in `node:sqlite` & `node:zlib`; zero `npm install` needed to build `.pptx` files and pass all 15 static QA gates).
-- **Recommended: LibreOffice (`soffice`) + Poppler (`pdftoppm` or `pypdfium2`)** for real-engine PNG rendering and side-by-side visual QA PDFs (automatically degrades cleanly to `code-gates-only` mode in restricted sandboxes):
-  ```bash
-  # macOS
-  brew install --cask libreoffice && brew install poppler
-  # Ubuntu / Debian
-  sudo apt update && sudo apt install -y libreoffice poppler-utils
-  # Windows
-  winget install TheDocumentFoundation.LibreOffice
-  ```
-
 ---
 
-## Showcase
+## Why Not HTML or Screenshot Slides?
 
-Every plate below is rendered directly at 260 DPI from a **real `.pptx` file generated by `@yuanmou/pptx-kit`**—never stitched web screenshots or flat AI images.
-
-### 01 · AURA 01 Spatial Acoustics Launch Deck (5 Native Slides)
-
-Built from a single product brief in a dark museum monograph aesthetic—combining a full-bleed cover with native vector frequency ruler, precision hardware cutaway callouts, two real embedded `.xlsx` acoustic charts + Swiss data table, materiality swatches, and a 3-stage architectural grid (`fail=0, warn=0`).
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-aura-cover.jpg" width="100%" alt="AURA 01 Cover Slide" />
-</p>
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-aura-pages.jpg" width="100%" alt="AURA 01 2x2 Interior Slides" />
-  <br />
-  <sub>Verify editability yourself: download <a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/yuanmou-aura-01-flagship-sample.pptx"><strong>yuanmou-aura-01-flagship-sample.pptx</strong></a> and double-click Slide 3's charts in PowerPoint or WPS.</sub>
-</p>
-
----
-
-### 02 · Multi-Industry Highlight Gallery (16,000+ Free / 100,000+ Library)
-
-Beyond dark hardware launches, the built-in **16,000+ zero-login commercial layout library** (plus optional 100,000+ Feishu catalog) spans luxury cosmetics, smart EV campaigns, corporate milestones, omni-channel growth funnels, and dense consulting frameworks—shown below across 6 unified desensitized *Yuanmou* brand highlights:
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/demo-industry-reel.gif" width="94%" alt="Yuanmou PPT Multi-Industry Highlight Reel across 6 commercial styles" />
-</p>
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-industry-highlights.jpg" width="100%" alt="Multi-Industry 2x2 Highlight Plate: Luxury Beauty, Smart EV, Growth Matrix, Seeding Mix Framework" />
-</p>
-
----
-
-### 03 · Yuanmou TV "100 Days of Living Room Cinema" (23-Slide Campaign Deck)
-
-A complete 23-slide commercial marketing proposal generated from a cross-industry reference layout (fully desensitized, `fail=0, warn=0`). Every organic brush slice, 45° diamond photo mask, interactive H5 registration mockup, and timeline callout remains independently editable in PowerPoint.
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-yuanmou-tv-grid.jpg" width="100%" alt="23-Slide Commercial Campaign Overview Grid" />
-</p>
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-yuanmou-tv-craft.jpg" width="92%" alt="Native Brush Masks and Diamond Geometry Craft" />
-</p>
-
----
-
-### 04 · Lossless Legacy `.pptx` Template Surgery (`35.4 MB → 1.05 MB`)
-
-Instead of rebuilding legacy company decks from scratch, the surgery pipeline reads existing slide anchors, preserves brand geometry and photo crop masks in place, injects dual embedded Excel charts plus a row-merged native table, and strips orphaned OPC media for a **97% file-size reduction**.
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/demo-template-surgery.gif" width="92%" alt="Lossless Legacy PPTX Surgery Before and After Wipe Demo" />
-</p>
-
-<p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-surgery-before-after.jpg" width="100%" alt="Lossless Template Surgery Before vs After Comparison" />
-</p>
-
----
-
-## Comparison
-
-| Dimension | Image / Screenshot AI PPT | HTML-to-PPTX Converters | `python-pptx` Scripts | **`yuanmou-ppt-skill`** |
+| Dimension | Image / Screenshot AI PPT | HTML-to-PPTX Converters | `python-pptx` | **`yuanmou-ppt-skill`** |
 | :--- | :--- | :--- | :--- | :--- |
-| **Native Editability** | Flat image, uneditable | Layout drift after export | Native editable | **100% native OOXML shapes, text, tables & charts** |
-| **Double-Click Excel Charts** | Static PNG | Static PNG / Canvas | Complex setup, CJK issues | **Zero-dep embedded `ppt/embeddings/*.xlsx` workbooks** |
-| **Legacy `.pptx` Editing** | Not supported | Not supported | Often breaks masks/masters | **5-step lossless surgery + mask retention + 97% slimming** |
-| **1:1 Screenshot Redraw** | Style approximation only | CSS-dependent | Lacks alpha/mask primitives | **`<a:alpha>` glass layers + brush masks + 50% X-Ray diff** |
-| **Runtime Footprint** | External image APIs | Headless browser runtime | 50–400 MB Python/C deps | **0 npm dependencies (Node >=22.5 only), ~1.2 MB repo** |
-| **Built-In Quality Gates** | Manual inspection | Manual inspection | None built in | **6 gate groups (15 static checks) + visual diff PDF** |
+| **Native Editability** | Flat dead pixels | Layout drift on export | Native editable | **100% native OOXML text, shapes & tables** |
+| **Double-Click Excel Charts** | Static PNG | Static PNG / Canvas | Complex CJK setup | **Zero-dep embedded `.xlsx` Excel workbooks** |
+| **Legacy `.pptx` Editing** | Not supported | Not supported | Fragile on masks | **Lossless in-place surgery + 97% slimming** |
+| **1:1 Screenshot Redraw** | Rough approximation | CSS-bound | Missing alpha/masks | **`<a:alpha>` glass + brush masks + X-Ray diff** |
+| **Footprint** | External image APIs | Headless browser | 50–400 MB deps | **0 npm dependencies, ~1.2 MB repo** |
+| **Automated QA** | Manual eye check | Manual eye check | None built in | **6 gate groups (15 checks) + diff PDF** |
 
 ---
 
-## Ready-to-Use Prompts
+## Limitations, Security & License
 
-Copy any prompt below—or inspect all 6 workflows in [`test-prompts.json`](./test-prompts.json):
-
-```text
-# 1. One-sentence flagship product launch deck
-Plan and build a 5-slide flagship industrial-design product launch deck for a minimalist acoustic speaker in a dark museum aesthetic, including an annotated hardware cutaway slide, real double-click-editable Excel benchmark charts, a materiality swatch monograph, and a clean 3-stage architecture slide. Output a native editable .pptx.
-
-# 2. 1:1 screenshot / PDF redraw to native PPTX
-Convert this reference screenshot 1:1 into a native editable .pptx (preserving layout hierarchy, masks, and palette while swapping in my Q3 metrics), and verify alignment with a 50% X-Ray overlay diff.
-
-# 3. Lossless corporate .pptx surgery
-Update slides 3–5 of template.pptx in place while preserving the master styling, photo masks, and left-column skeleton, inject an embedded Excel dual-series bar chart plus a row-merged native table on the right, and strip unused media.
-```
-
----
-
-## Limitations & Transparent Security
-
-- **Local Rendering Is Optional but Strongly Recommended**: `.pptx` synthesis and all 15 static QA checks run with zero external dependencies (`code-gates-only` fallback), while pixel-level visual QA PDFs require local `LibreOffice + Poppler`.
-- **Chart Coverage**: Covers the 95% most frequent business charts (column, bar, line, area, pie, doughnut + merged native tables); exotic 3D charts and dual-axis combo charts are on the roadmap.
-- **Local-First & Zero Telemetry**: Your briefs, documents, images, and `.pptx` files are **never uploaded**. Every optional read-only network endpoint and cache directory is audited transparently in **[`SECURITY.md`](./SECURITY.md)**.
-
----
-
-## License
-
-Licensed under the OSI-approved **[Apache License 2.0](./LICENSE)**—free for personal, enterprise, and commercial use (retain attribution in [`NOTICE`](./NOTICE) on redistribution).
+- **Honest Scope**: Covers the 95% most common business charts (column, bar, line, area, pie, doughnut + merged tables); exotic 3D charts and dual-axis combos are still in progress.
+- **Local-First & Zero Telemetry**: Your briefs, images, and `.pptx` files **never leave your machine**. Every optional read-only endpoint and cache path is documented transparently in **[`SECURITY.md`](./SECURITY.md)**.
+- **License**: **[Apache License 2.0](./LICENSE)**—free for personal, enterprise, and commercial use (retain [`NOTICE`](./NOTICE) attribution on redistribution).

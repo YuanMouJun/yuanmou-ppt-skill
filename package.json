@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.1.9",
-  "latestHighlights": "全新美术馆级中英双语README、3条影院风演示动图（双击弹真Excel/多行业高光展映/旧母版手术）、6大行业脱敏高光展板、可下载验真AURA 01源PPTX及soffice/Python渲染探活加固",
+  "version": "0.2.0",
+  "latestHighlights": "全面升级美术馆作品集级中英README与无外壳苹果风0.2发布片、新增《光影与混凝土》建筑画册与《深空之眼》纯黑天文科普两套原生PPTX展品（三套主展品均附真.pptx源件可双击验Excel）",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",
