@@ -895,6 +895,33 @@
       border-color: var(--accent);
       color: var(--accent);
     }
+    .gallery-img-wrap {
+      position: relative;
+      min-height: 260px;
+      background: #09090B;
+    }
+    .gallery-img-wrap img {
+      transition: opacity 0.16s ease;
+    }
+    .gallery-loader {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(9, 9, 11, 0.56);
+      color: #F8FAFC;
+      font-size: 13.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+      z-index: 4;
+    }
+    .gallery-img-wrap.is-loading .gallery-loader {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -1003,7 +1030,8 @@
 
       <div class="gallery-stage">
         <div class="gallery-img-wrap" id="galleryTrigger">
-          <img id="galleryImg" src="./showcase/case-aura-pages.jpg" alt="《声如建筑》渊眸声学 AURA 01 工业设计发布会内页四联" loading="lazy" decoding="async" />
+          <img id="galleryImg" src="./showcase/case-aura-pages.jpg" alt="《声如建筑》渊眸声学 AURA 01 工业设计发布会内页四联" decoding="async" />
+          <div class="gallery-loader" id="galleryLoader">切换高清展板中…</div>
         </div>
         <div class="gallery-foot">
           <div>
@@ -1318,24 +1346,77 @@ node skills/yuanmou-ppt/scripts/deck_cli.mjs update</pre>
       }
 
       let activeIdx = 0;
+      let switchSeq = 0;
       const segTabs = document.querySelectorAll('.seg-tab');
+      const gWrap = document.getElementById('galleryTrigger');
       const gImg = document.getElementById('galleryImg');
       const gTitle = document.getElementById('galleryTitle');
       const gDesc = document.getElementById('galleryDesc');
 
+      // Preload & decode all 6 gallery plates silently right after page load (0ms tab switch!)
+      const preloaded = new Map();
+      function ensurePreloaded(src) {
+        if (preloaded.has(src)) return preloaded.get(src);
+        const p = new Promise((resolve) => {
+          const im = new Image();
+          im.decoding = 'async';
+          im.onload = () => {
+            if (im.decode) im.decode().then(() => resolve(true)).catch(() => resolve(true));
+            else resolve(true);
+          };
+          im.onerror = () => resolve(false);
+          im.src = src;
+        });
+        preloaded.set(src, p);
+        return p;
+      }
+
+      // Mark initial image cached & silently preload tabs 1..5 after hero paints
+      ensurePreloaded(craftCases[0].img);
+      const kickPreload = () => {
+        craftCases.slice(1).forEach((c) => ensurePreloaded(c.img));
+      };
+      if (document.readyState === 'complete') setTimeout(kickPreload, 150);
+      else window.addEventListener('load', () => setTimeout(kickPreload, 150), { once: true });
+
+      // Also start preloading on pointerover / touchstart for instant response
+      segTabs.forEach((btn) => {
+        const idx = Number(btn.dataset.case);
+        btn.addEventListener('pointerenter', () => {
+          if (craftCases[idx]) ensurePreloaded(craftCases[idx].img);
+        }, { passive: true });
+      });
+
       segTabs.forEach((btn) => {
         btn.addEventListener('click', () => {
-          activeIdx = Number(btn.dataset.case);
+          const nextIdx = Number(btn.dataset.case);
+          if (nextIdx === activeIdx) return;
+          activeIdx = nextIdx;
+          const seq = ++switchSeq;
           const item = craftCases[activeIdx];
           segTabs.forEach(b => b.classList.toggle('active', b === btn));
-          gImg.style.opacity = '0.35';
-          setTimeout(() => {
-            gImg.src = item.img;
-            gImg.alt = item.title;
-            gImg.style.opacity = '1';
-          }, 80);
           gTitle.textContent = item.title;
           gDesc.textContent = item.desc;
+
+          // Check if already decoded in memory -> instant 0ms swap; otherwise show crisp loader until ready
+          let settled = false;
+          const p = ensurePreloaded(item.img);
+          const showLoaderTimer = setTimeout(() => {
+            if (!settled && seq === switchSeq) {
+              gWrap.classList.add('is-loading');
+              gImg.style.opacity = '0.42';
+            }
+          }, 90);
+
+          p.then(() => {
+            settled = true;
+            clearTimeout(showLoaderTimer);
+            if (seq !== switchSeq) return;
+            gImg.src = item.img;
+            gImg.alt = item.title;
+            gWrap.classList.remove('is-loading');
+            gImg.style.opacity = '1';
+          });
         });
       });
 
