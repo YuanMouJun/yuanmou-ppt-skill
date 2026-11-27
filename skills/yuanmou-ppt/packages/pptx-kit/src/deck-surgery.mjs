@@ -1515,6 +1515,123 @@ function pickDefaultSlideLayoutTarget(baseDeck) {
   return `../slideLayouts/${path.posix.basename(bestPart)}`;
 }
 
+function extractThemeColorMap(srcDeck, srcSlide) {
+  let themeXml = "";
+  let masterXml = "";
+
+  const layoutRel = (srcSlide?._rels || []).find((r) => String(r.type || "").endsWith("/slideLayout"));
+  if (layoutRel) {
+    const layoutPath = resolvePosixPart(srcSlide.partPath, layoutRel.target);
+    const layoutRelsPath = path.posix.join(
+      path.posix.dirname(layoutPath),
+      "_rels",
+      `${path.posix.basename(layoutPath)}.rels`
+    );
+    const masterRel = parseRelsMap(srcDeck._readText(layoutRelsPath)).find((r) =>
+      String(r.type || "").endsWith("/slideMaster")
+    );
+    if (masterRel) {
+      const masterPath = resolvePosixPart(layoutPath, masterRel.target);
+      masterXml = srcDeck._readText(masterPath);
+      const masterRelsPath = path.posix.join(
+        path.posix.dirname(masterPath),
+        "_rels",
+        `${path.posix.basename(masterPath)}.rels`
+      );
+      const themeRel = parseRelsMap(srcDeck._readText(masterRelsPath)).find((r) =>
+        String(r.type || "").endsWith("/theme")
+      );
+      if (themeRel) {
+        themeXml = srcDeck._readText(resolvePosixPart(masterPath, themeRel.target));
+      }
+    }
+  }
+  if (!themeXml) themeXml = srcDeck._readText("ppt/theme/theme1.xml");
+  if (!masterXml) masterXml = srcDeck._readText("ppt/slideMasters/slideMaster1.xml");
+
+  const clrScheme = themeXml.match(/<a:clrScheme\b[^>]*>([\s\S]*?)<\/a:clrScheme>/)?.[1] || "";
+  if (!clrScheme) return null;
+
+  const baseColors = {};
+  const schemeSlots = [
+    "dk1", "lt1", "dk2", "lt2",
+    "accent1", "accent2", "accent3", "accent4", "accent5", "accent6",
+    "hlink", "folHlink",
+  ];
+  for (const slot of schemeSlots) {
+    const m = clrScheme.match(new RegExp(`<a:${slot}\\b[^>]*>([\\s\\S]*?)<\\/a:${slot}>`));
+    if (!m) continue;
+    const hex =
+      m[1].match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] ||
+      m[1].match(/<a:sysClr\b[^>]*\blastClr="([0-9A-Fa-f]{6})"/)?.[1];
+    if (hex) baseColors[slot] = hex.toUpperCase();
+  }
+  if (Object.keys(baseColors).length === 0) return null;
+
+  const clrMapTag = masterXml.match(/<p:clrMap\b[^>]*\/?>/)?.[0] || "";
+  const mapAlias = (k, fallback) => getAttr(clrMapTag, k) || fallback;
+  const resolved = { ...baseColors };
+  const aliases = {
+    bg1: mapAlias("bg1", "lt1"),
+    tx1: mapAlias("tx1", "dk1"),
+    bg2: mapAlias("bg2", "lt2"),
+    tx2: mapAlias("tx2", "dk2"),
+    accent1: mapAlias("accent1", "accent1"),
+    accent2: mapAlias("accent2", "accent2"),
+    accent3: mapAlias("accent3", "accent3"),
+    accent4: mapAlias("accent4", "accent4"),
+    accent5: mapAlias("accent5", "accent5"),
+    accent6: mapAlias("accent6", "accent6"),
+    hlink: mapAlias("hlink", "hlink"),
+    folHlink: mapAlias("folHlink", "folHlink"),
+  };
+  for (const [alias, target] of Object.entries(aliases)) {
+    if (baseColors[target]) resolved[alias] = baseColors[target];
+  }
+  return resolved;
+}
+
+function resolveForeignSchemeColors(slideXml, colorMap) {
+  if (!colorMap) return slideXml;
+  let out = slideXml.replace(
+    /<a:schemeClr\b[^>]*\bval="([^"]+)"[^>]*\/>/g,
+    (full, key) => (colorMap[key] ? `<a:srgbClr val="${colorMap[key]}"/>` : full)
+  );
+  out = out.replace(
+    /<a:schemeClr\b[^>]*\bval="([^"]+)"[^>]*>([\s\S]*?)<\/a:schemeClr>/g,
+    (full, key, inner) => (colorMap[key] ? `<a:srgbClr val="${colorMap[key]}">${inner}</a:srgbClr>` : full)
+  );
+  return out;
+}
+
+function scaleTagIntAttr(tagStr, attrName, factor, minVal = -Infinity) {
+  return tagStr.replace(new RegExp(`(\\b${attrName}=")(-?\\d+)(")`), (_m, pre, num, post) => {
+    const scaled = Math.round(Number.parseInt(num, 10) * factor);
+    return `${pre}${Math.max(minVal, scaled)}${post}`;
+  });
+}
+
+function scaleSlideXmlCoordinates(slideXml, scaleX, scaleY) {
+  const scaleFont = (scaleX + scaleY) * 0.5;
+  let out = slideXml;
+  out = out.replace(/<a:(?:off|chOff)\b[^>]*>/g, (tag) => {
+    let t = scaleTagIntAttr(tag, "x", scaleX);
+    t = scaleTagIntAttr(t, "y", scaleY);
+    return t;
+  });
+  out = out.replace(/<a:(?:ext|chExt)\b[^>]*>/g, (tag) => {
+    let t = scaleTagIntAttr(tag, "cx", scaleX, 0);
+    t = scaleTagIntAttr(t, "cy", scaleY, 0);
+    return t;
+  });
+  out = out.replace(/<a:gridCol\b[^>]*>/g, (tag) => scaleTagIntAttr(tag, "w", scaleX, 0));
+  out = out.replace(/<a:tr\b[^>]*>/g, (tag) => scaleTagIntAttr(tag, "h", scaleY, 0));
+  out = out.replace(/<a:ln\b[^>]*>/g, (tag) => scaleTagIntAttr(tag, "w", scaleFont, 0));
+  out = out.replace(/<a:(?:rPr|defRPr|endParaRPr)\b[^>]*>/g, (tag) => scaleTagIntAttr(tag, "sz", scaleFont, 100));
+  out = out.replace(/<a:spcPts\b[^>]*>/g, (tag) => scaleTagIntAttr(tag, "val", scaleFont, 0));
+  return out;
+}
+
 /**
  * Cross-PPTX Lossless Slide Assembler & Master Cloner (`assembleDeck`).
  *
@@ -1522,8 +1639,10 @@ function pickDefaultSlideLayoutTarget(baseDeck) {
  * (clone verified `masters.pptx` slides for strict in-place slot filling):
  * - Keeps slides from `base` 100% XML-lossless (e.g., untouched P01 cover & P20 back cover).
  * - Imports/clones slides from any other `.pptx` source (e.g., Phase-1 verified `masters.pptx`
- *   or newly built `Presentation`), deduplicating media by SHA-256 and remapping charts/workbooks
- *   and `[Content_Types].xml` cleanly with zero dangling relationships.
+ *   or newly built `Presentation`), validating aspect-ratio compatibility, auto-scaling mismatched
+ *   same-aspect canvas dimensions (e.g., 10in -> 13.333in), materializing foreign `<a:schemeClr>`
+ *   theme tokens into concrete `<a:srgbClr>` values, deduplicating media by SHA-256, and remapping
+ *   charts/workbooks and `[Content_Types].xml` cleanly with zero dangling relationships.
  * - Returns a live `ImportedPresentation` ready for pure in-place slot filling (`getSlot`, `.text.set`, `.replace`, `.recolor`).
  */
 export async function assembleDeck({
@@ -1691,10 +1810,31 @@ export async function assembleDeck({
       throw new Error(`assembleDeck: source "${fromKey}" has no slide ${srcSlideNo} (has ${srcDeck._slides.length})`);
     }
 
+    // Aspect-ratio guard & automatic same-aspect canvas scaling (e.g. legacy 10x5.625in -> 13.333x7.5in)
+    const baseCx = baseDeck.slideSize.cxEmu;
+    const baseCy = baseDeck.slideSize.cyEmu;
+    const srcCx = srcDeck.slideSize.cxEmu;
+    const srcCy = srcDeck.slideSize.cyEmu;
+    const baseAspect = baseCx / Math.max(1, baseCy);
+    const srcAspect = srcCx / Math.max(1, srcCy);
+    if (Math.abs(srcAspect - baseAspect) / baseAspect > 0.03) {
+      throw new Error(
+        `assembleDeck: incompatible slide aspect ratio between base (${baseDeck.slideSize.width}x${baseDeck.slideSize.height}, ${baseAspect.toFixed(2)}:1) and source "${fromKey}" (${srcDeck.slideSize.width}x${srcDeck.slideSize.height}, ${srcAspect.toFixed(2)}:1)`
+      );
+    }
+
     let slideXml = srcSlide._xml;
     const inheritedBg = extractInheritedBgXml(srcDeck, srcSlide);
     if (inheritedBg && !/<p:bg\b/.test(slideXml)) {
       slideXml = slideXml.replace(/<p:cSld\b([^>]*)>/, `<p:cSld$1>${inheritedBg}`);
+    }
+    if (Math.abs(srcCx - baseCx) / baseCx > 0.01 || Math.abs(srcCy - baseCy) / baseCy > 0.01) {
+      slideXml = scaleSlideXmlCoordinates(slideXml, baseCx / srcCx, baseCy / srcCy);
+    }
+    // Materialize foreign theme `<a:schemeClr>` into concrete `<a:srgbClr>` so cross-theme merges never shift colors
+    const foreignColorMap = extractThemeColorMap(srcDeck, srcSlide);
+    if (foreignColorMap) {
+      slideXml = resolveForeignSchemeColors(slideXml, foreignColorMap);
     }
 
     const remappedRels = [];
@@ -1862,7 +2002,24 @@ export async function auditMasterSlotIntegrity({
     ? slideMap
     : Object.entries(slideMap || {}).map(([s, m]) => ({ slide: Number(s), masterSlide: Number(m) }));
 
-  // Default 1:1 mapping when slideMap omitted and counts match
+  // Block silent partial audit bypass when slideMap is omitted on mismatched slide counts (e.g. 5 masters vs 18 final slides)
+  if (mappings.length === 0 && masterDeck._slides.length !== finalDeck._slides.length) {
+    return {
+      passed: false,
+      checkedSlides: 0,
+      issues: [
+        {
+          severity: "fail",
+          code: "missing_master_slide_map",
+          masterSlideCount: masterDeck._slides.length,
+          finalSlideCount: finalDeck._slides.length,
+          message: `Final deck has ${finalDeck._slides.length} slide(s) while master has ${masterDeck._slides.length} — pass explicit \`slideMap\` (--master-map) so no slides bypass master slot audit`,
+        },
+      ],
+    };
+  }
+
+  // Default 1:1 mapping ONLY when slideMap omitted and slide counts strictly match
   const effectiveMap =
     mappings.length > 0
       ? mappings
@@ -1937,6 +2094,47 @@ export async function auditMasterSlotIntegrity({
             finalRotationDeg: fRot,
             message: `Slide ${slide} element "${mEl.name}" rotation drifted from master #${masterSlide} (${mRot}° -> ${fRot}°)`,
           });
+        }
+      }
+      // Enforce slot geometry invariance (blocks shrinking a hero photo slot to a tiny 20x20 corner stamp or collapsing/dragging text slots)
+      if (isNamedSlot && fMatch && mEl.position && fMatch.position) {
+        const mp = mEl.position;
+        const fp = fMatch.position;
+        const mCx = mp.left + mp.width * 0.5;
+        const mCy = mp.top + mp.height * 0.5;
+        const fCx = fp.left + fp.width * 0.5;
+        const fCy = fp.top + fp.height * 0.5;
+        const centerDrift = Math.hypot(fCx - mCx, fCy - mCy);
+        if (mEl.kind === "image" || mEl.hasImageFill) {
+          const wRatio = fp.width / Math.max(1, mp.width);
+          const hRatio = fp.height / Math.max(1, mp.height);
+          if (wRatio < 0.75 || wRatio > 1.35 || hRatio < 0.75 || hRatio > 1.35 || centerDrift > 40) {
+            issues.push({
+              severity: "fail",
+              code: "master_image_slot_geometry_drifted",
+              slide,
+              masterSlide,
+              slot: mEl.name,
+              wRatio: Number(wRatio.toFixed(2)),
+              hRatio: Number(hRatio.toFixed(2)),
+              centerDriftPx: Math.round(centerDrift),
+              message: `Slide ${slide} image slot "${mEl.name}" drifted from master #${masterSlide} geometry (scale ${wRatio.toFixed(2)}x/${hRatio.toFixed(2)}x, center drift ${Math.round(centerDrift)}px)`,
+            });
+          }
+        } else {
+          const areaRatio = (fp.width * fp.height) / Math.max(1, mp.width * mp.height);
+          if (areaRatio < 0.4 || centerDrift > 120) {
+            issues.push({
+              severity: "fail",
+              code: "master_text_slot_geometry_drifted",
+              slide,
+              masterSlide,
+              slot: mEl.name,
+              areaRatio: Number(areaRatio.toFixed(2)),
+              centerDriftPx: Math.round(centerDrift),
+              message: `Slide ${slide} text slot "${mEl.name}" drifted from master #${masterSlide} geometry (area ratio ${areaRatio.toFixed(2)}, center drift ${Math.round(centerDrift)}px)`,
+            });
+          }
         }
       }
     }

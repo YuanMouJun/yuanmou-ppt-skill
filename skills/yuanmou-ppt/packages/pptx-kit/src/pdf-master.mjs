@@ -197,168 +197,370 @@ export async function compilePdfVectorSpecToMasterPptx({
       continue;
     }
 
-    // 1) Render non-background vector drawings in z-order (skip full-canvas slide background rect)
-    for (const dr of pg.drawings || []) {
+    // 0) Container + Text Fusion: merge small painted buttons/pills/highlight bars with their enclosed text into ONE <p:sp>
+    const SLIDE_AREA = 1280 * 720;
+    const rawDrawings = (pg.drawings || []).map((dr, idx) => ({ dr, idx }));
+    const rawTexts = (pg.texts || []).map((t, idx) => ({ t, idx }));
+    const rawImages = (pg.images || []).map((im, idx) => ({ im, idx }));
+
+    const claimedDrawingIdx = new Set();
+    const claimedTextIdx = new Set();
+    const fusedChips = [];
+
+    const isEligibleFusionDrawing = (dr) => {
       const w = Number(dr.w) || 0;
       const h = Number(dr.h) || 0;
-      if (w < 1 && h < 1) continue;
-      // Skip full-canvas solid background rect
+      if (w < 24 || h < 16 || dr.isStrokePath) return false;
       if (dr.x <= 2 && dr.y <= 2 && w >= 1270 && h >= 712 && dr.fill && (dr.fillOpacity ?? 1) >= 0.98 && !dr.stroke) {
+        return false;
+      }
+      const hasVisible = Boolean(dr.fill && (dr.fillOpacity ?? 1) > 0) || Boolean(dr.stroke && (dr.strokeW || 0) > 0);
+      if (!hasVisible) return false;
+      const isHollowDecorFrame = !dr.fill && (w >= 300 || h >= 180);
+      const area = w * h;
+      if (isHollowDecorFrame || area >= SLIDE_AREA * 0.25) return false;
+      return true;
+    };
+
+    const isHorizontalRegularText = (t) => {
+      const rawTxt = String(t.text || "").trim();
+      if (!rawTxt) return false;
+      const fontPt = Number(t.fontPt) || 16;
+      const dx = Number(t.dir?.[0] ?? 1);
+      const dy = Number(t.dir?.[1] ?? 0);
+      const rotDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+      return Math.abs(rotDeg) < 30 && fontPt < 140;
+    };
+
+    // Match smallest-area containers first so inner pills claim their text before enclosing panels
+    const fusionCandidates = rawDrawings
+      .filter(({ dr }) => isEligibleFusionDrawing(dr))
+      .sort((a, b) => a.dr.w * a.dr.h - b.dr.w * b.dr.h);
+
+    for (const { dr, idx: dIdx } of fusionCandidates) {
+      const drArea = Math.max(1, dr.w * dr.h);
+      const drZ = typeof dr.zOrder === "number" ? dr.zOrder : dIdx;
+      const matched = [];
+      for (const { t, idx: tIdx } of rawTexts) {
+        if (claimedTextIdx.has(tIdx) || !isHorizontalRegularText(t)) continue;
+        const tZ = typeof t.zOrder === "number" ? t.zOrder : 2000 + tIdx;
+        if (tZ < drZ - 1) continue;
+        const tw = Math.max(12, Number(t.w) || 24);
+        const th = Math.max(12, Number(t.h) || 20);
+        const ix = Math.max(0, Math.min(dr.x + dr.w, t.x + tw) - Math.max(dr.x, t.x));
+        const iy = Math.max(0, Math.min(dr.y + dr.h, t.y + th) - Math.max(dr.y, t.y));
+        if (ix <= 4 || iy <= 4) continue;
+        const tArea = Math.max(1, tw * th);
+        const overlapMin = (ix * iy) / Math.min(drArea, tArea);
+        const areaRatio = Math.max(drArea, tArea) / Math.min(drArea, tArea);
+        const maxAreaRatio = drArea <= SLIDE_AREA * 0.16 && dr.h <= 150 ? 6.5 : 2.6;
+        if (overlapMin >= 0.7 && areaRatio <= maxAreaRatio && tw <= dr.w * 1.18 && th <= dr.h * 1.35) {
+          matched.push({ t, tIdx, tZ });
+        }
+      }
+      if (matched.length >= 1 && matched.length <= 2) {
+        matched.sort((a, b) => (Math.abs(a.t.y - b.t.y) > 8 ? a.t.y - b.t.y : a.t.x - b.t.x));
+        claimedDrawingIdx.add(dIdx);
+        for (const m of matched) claimedTextIdx.add(m.tIdx);
+        fusedChips.push({
+          dr,
+          dIdx,
+          texts: matched.map((m) => m.t),
+          zOrder: Math.max(drZ, ...matched.map((m) => m.tZ)),
+        });
+      }
+    }
+
+    // Build unified painter's z-order queue across drawings, fused chips, images, and remaining texts
+    const renderQueue = [];
+    for (const { dr, idx } of rawDrawings) {
+      if (claimedDrawingIdx.has(idx)) continue;
+      renderQueue.push({
+        kind: "drawing",
+        zOrder: typeof dr.zOrder === "number" ? dr.zOrder : idx,
+        kindRank: 0,
+        order: idx,
+        data: dr,
+      });
+    }
+    for (let ci = 0; ci < fusedChips.length; ci++) {
+      const chip = fusedChips[ci];
+      renderQueue.push({
+        kind: "chip",
+        zOrder: chip.zOrder,
+        kindRank: 2,
+        order: chip.dIdx,
+        data: chip,
+      });
+    }
+    for (const { im, idx } of rawImages) {
+      renderQueue.push({
+        kind: "image",
+        zOrder: typeof im.zOrder === "number" ? im.zOrder : 1000 + idx,
+        kindRank: 1,
+        order: idx,
+        data: im,
+      });
+    }
+    for (const { t, idx } of rawTexts) {
+      if (claimedTextIdx.has(idx)) continue;
+      renderQueue.push({
+        kind: "text",
+        zOrder: typeof t.zOrder === "number" ? t.zOrder : 2000 + idx,
+        kindRank: 3,
+        order: idx,
+        data: t,
+      });
+    }
+    renderQueue.sort((a, b) => a.zOrder - b.zOrder || a.kindRank - b.kindRank || a.order - b.order);
+
+    let chipCount = 0;
+    for (const item of renderQueue) {
+      if (item.kind === "drawing") {
+        const dr = item.data;
+        const w = Number(dr.w) || 0;
+        const h = Number(dr.h) || 0;
+        if (w < 1 && h < 1) continue;
+        // Skip full-canvas solid background rect
+        if (dr.x <= 2 && dr.y <= 2 && w >= 1270 && h >= 712 && dr.fill && (dr.fillOpacity ?? 1) >= 0.98 && !dr.stroke) {
+          continue;
+        }
+        const x = clamp(dr.x, -40, 1280);
+        const y = clamp(dr.y, -40, 720);
+        const cw = Math.max(1, Math.min(1360, w));
+        const ch = Math.max(1, Math.min(760, h));
+
+        if (dr.isStrokePath && dr.svgPath) {
+          vecCount++;
+          s.shapes.add({
+            name: `decor:stroke_${vecCount}`,
+            svgPath: dr.svgPath,
+            viewBox: dr.viewBox || [dr.x, dr.y, w, h],
+            left: dr.x,
+            top: dr.y,
+            width: w,
+            height: h,
+            fill: "none",
+            line: { fill: dr.fill || dr.stroke || "#FF0036", width: Math.max(2, Number(dr.strokeW) || 5) },
+          });
+          continue;
+        }
+
+        const fillSpec = dr.fill
+          ? (dr.fillOpacity ?? 1) < 0.99
+            ? { color: dr.fill, opacity: dr.fillOpacity }
+            : dr.fill
+          : "none";
+        const lineSpec = dr.stroke && (dr.strokeW || 0) > 0 ? { fill: dr.stroke, width: Math.max(0.8, dr.strokeW) } : { fill: "none" };
+        if (fillSpec === "none" && lineSpec.fill === "none") continue;
+
+        vecCount++;
+        const name = `decor:vec_${vecCount}`;
+        if (dr.opCount > 48 && cw >= 40 && ch >= 40 && Math.abs(cw / ch - 1) <= 0.25) {
+          // High-segment PDF-flattened circular ring -> crisp native ellipse outline
+          s.shapes.add({
+            name,
+            geometry: "ellipse",
+            left: x,
+            top: y,
+            width: cw,
+            height: ch,
+            fill: "none",
+            line: { fill: dr.fill || dr.stroke || "#CBD5E1", width: 1.5 },
+          });
+        } else if (dr.svgPath && dr.opCount >= 2 && dr.opCount <= 48) {
+          s.shapes.add({
+            name,
+            svgPath: dr.svgPath,
+            viewBox: dr.viewBox || [dr.x, dr.y, w, h],
+            left: dr.x,
+            top: dr.y,
+            width: w,
+            height: h,
+            fill: fillSpec,
+            line: lineSpec,
+          });
+        } else {
+          s.shapes.add({
+            name,
+            geometry: dr.isCapsule ? "roundRect" : "rect",
+            borderRadius: dr.isCapsule ? Math.round(Math.min(cw, ch) / 2) : undefined,
+            left: x,
+            top: y,
+            width: cw,
+            height: ch,
+            fill: fillSpec,
+            line: lineSpec,
+          });
+        }
         continue;
       }
-      const x = clamp(dr.x, -40, 1280);
-      const y = clamp(dr.y, -40, 720);
-      const cw = Math.max(1, Math.min(1360, w));
-      const ch = Math.max(1, Math.min(760, h));
-      const fillSpec = dr.fill
-        ? (dr.fillOpacity ?? 1) < 0.99
-          ? { color: dr.fill, opacity: dr.fillOpacity }
-          : dr.fill
-        : "none";
-      const lineSpec = dr.stroke && (dr.strokeW || 0) > 0 ? { fill: dr.stroke, width: Math.max(0.8, dr.strokeW) } : { fill: "none" };
-      if (fillSpec === "none" && lineSpec.fill === "none") continue;
 
-      vecCount++;
-      const name = `decor:vec_${vecCount}`;
-      if (dr.opCount > 48 && cw >= 40 && ch >= 40 && Math.abs(cw / ch - 1) <= 0.25) {
-        // High-segment PDF-flattened circular ring -> crisp native ellipse outline
-        s.shapes.add({
-          name,
-          geometry: "ellipse",
-          left: x,
-          top: y,
-          width: cw,
-          height: ch,
-          fill: "none",
-          line: { fill: dr.fill || dr.stroke || "#CBD5E1", width: 1.5 },
-        });
-      } else if (dr.svgPath && dr.opCount >= 2 && dr.opCount <= 48) {
-        s.shapes.add({
-          name,
-          svgPath: dr.svgPath,
-          viewBox: dr.viewBox || [dr.x, dr.y, w, h],
-          left: dr.x,
-          top: dr.y,
+      if (item.kind === "chip") {
+        const { dr, texts: chipTexts } = item.data;
+        const w = Math.max(24, Math.min(1280, Number(dr.w) || 24));
+        const h = Math.max(16, Math.min(720, Number(dr.h) || 16));
+        const left = clamp(dr.x, 0, Math.max(0, 1280 - w));
+        const top = clamp(dr.y, 0, Math.max(0, 720 - h));
+        const fillSpec = dr.fill
+          ? (dr.fillOpacity ?? 1) < 0.99
+            ? { color: dr.fill, opacity: dr.fillOpacity }
+            : dr.fill
+          : "none";
+        const lineSpec = dr.stroke && (dr.strokeW || 0) > 0 ? { fill: dr.stroke, width: Math.max(0.8, dr.strokeW) } : { fill: "none" };
+        const joinedRaw = chipTexts.map((ct) => String(ct.text || "").trim()).join(
+          chipTexts.length === 2 && Math.abs(chipTexts[0].y - chipTexts[1].y) <= 8 ? " " : "\n"
+        );
+        const content = keepText ? joinedRaw : toNeutralPlaceholderText(joinedRaw);
+        const domT = chipTexts.reduce((best, cur) => (String(cur.text || "").length > String(best.text || "").length ? cur : best), chipTexts[0]);
+        const fontPt = Math.max(9, Math.min(120, Number(domT.fontPt) || 16));
+        const { fontFamily, bold, italic } = inferFontStyle(domT.font);
+        const tMidX = domT.x + (Number(domT.w) || 0) / 2;
+        const drMidX = dr.x + w / 2;
+        const alignment = Math.abs(tMidX - drMidX) <= w * 0.22 ? "center" : "left";
+
+        chipCount++;
+        textCount++;
+        const chipCfg = {
+          name: `slot:chip_${chipCount}`,
+          left,
+          top,
           width: w,
           height: h,
           fill: fillSpec,
           line: lineSpec,
-        });
-      } else {
+          insets: { left: 3, right: 3, top: 1, bottom: 1 },
+          text: content,
+          textStyle: {
+            fontFamily,
+            fontSize: fontPt,
+            bold,
+            italic,
+            color: domT.color || "#FFFFFF",
+            alignment,
+            verticalAlignment: "middle",
+            lineSpacing: 1.12,
+          },
+        };
+        if (dr.svgPath && !dr.isCapsule && dr.opCount >= 2 && dr.opCount <= 48) {
+          chipCfg.svgPath = dr.svgPath;
+          chipCfg.viewBox = dr.viewBox || [dr.x, dr.y, w, h];
+        } else {
+          chipCfg.geometry = dr.isCapsule ? "roundRect" : "rect";
+          if (dr.isCapsule) chipCfg.borderRadius = Math.round(Math.min(w, h) / 2);
+        }
+        s.shapes.add(chipCfg);
+        continue;
+      }
+
+      if (item.kind === "image") {
+        const im = item.data;
+        const rawX = Number(im.x) || 0;
+        const rawY = Number(im.y) || 0;
+        const rawW = Number(im.w) || 0;
+        const rawH = Number(im.h) || 0;
+        if (rawW < 12 || rawH < 12) continue;
+
+        // Keep exact unclamped clipViewBox when organic vector clip exists (prevents custGeom distortion on edge-bleeding masks!)
+        const left = im.clipViewBox ? im.clipViewBox[0] : clamp(rawX, 0, 1276);
+        const top = im.clipViewBox ? im.clipViewBox[1] : clamp(rawY, 0, 716);
+        const right = im.clipViewBox ? im.clipViewBox[0] + im.clipViewBox[2] : clamp(rawX + rawW, left + 12, 1280);
+        const bottom = im.clipViewBox ? im.clipViewBox[1] + im.clipViewBox[3] : clamp(rawY + rawH, top + 12, 720);
+        const width = Math.max(12, right - left);
+        const height = Math.max(12, bottom - top);
+
+        imgCount++;
+        const phPath = path.join(phDir, `m${String(pIdx + 1).padStart(2, "0")}_img_${String(imgCount).padStart(2, "0")}.png`);
+        await makeNeutralPlaceholderPng(
+          phPath,
+          width,
+          height,
+          im.topRgb || [136, 144, 154],
+          im.botRgb || [74, 80, 90]
+        );
+
+        const imgCfg = {
+          name: `slot:img_${imgCount}`,
+          path: phPath,
+          left,
+          top,
+          width,
+          height,
+          fit: "cover",
+        };
+        if (im.clipSvgPath && im.clipViewBox) {
+          imgCfg.svgPath = im.clipSvgPath;
+          imgCfg.viewBox = im.clipViewBox;
+        }
+        s.images.add(imgCfg);
+        continue;
+      }
+
+      if (item.kind === "text") {
+        const t = item.data;
+        const rawTxt = String(t.text || "").trim();
+        if (!rawTxt) continue;
+        const content = keepText ? rawTxt : toNeutralPlaceholderText(rawTxt);
+        const fontPt = Math.max(9, Math.min(560, Number(t.fontPt) || 16));
+        const { fontFamily, bold, italic } = inferFontStyle(t.font);
+        const dx = Number(t.dir?.[0] ?? 1);
+        const dy = Number(t.dir?.[1] ?? 0);
+        const rotDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+        const isRotated = Math.abs(rotDeg) >= 30;
+        const isBackgroundWatermark = isRotated || fontPt >= 140;
+        const textColor =
+          t.alpha !== undefined && Number(t.alpha) < 0.99
+            ? { color: t.color || "#111827", opacity: Math.max(0.05, Number(t.alpha)) }
+            : t.color || "#111827";
+
+        let left = Number(t.x) || 0;
+        let top = Number(t.y) || 0;
+        let width = Math.max(24, Number(t.w) || fontPt * 2);
+        let height = Math.max(20, Number(t.h) || fontPt * 1.45);
+
+        if (isRotated && Math.abs(Math.abs(rotDeg) - 90) <= 15) {
+          const cx = left + width / 2;
+          const cy = top + height / 2;
+          const unrotW = Math.max(40, height + 16);
+          const unrotH = Math.max(30, width);
+          left = cx - unrotW / 2;
+          top = cy - unrotH / 2;
+          width = unrotW;
+          height = unrotH;
+        } else {
+          // Guard against inflated PDF ascent/descent bboxes on single-line horizontal spans
+          if (!rawTxt.includes("\n") && height > fontPt * 1.85) {
+            height = Math.round(fontPt * 1.48);
+          }
+          const padW = Math.min(28, Math.max(8, Math.round(fontPt * 0.4)));
+          width = Math.min(1280, Math.min(1280 - Math.max(0, left), width + padW));
+          height = Math.min(720, Math.max(height, Math.round(fontPt * 1.38)));
+          left = clamp(left, 0, Math.max(0, 1280 - width));
+          top = clamp(top, 0, Math.max(0, 720 - height));
+        }
+
+        textCount++;
+        const name = isBackgroundWatermark ? `decor:text_${textCount}` : `slot:text_${textCount}`;
         s.shapes.add({
           name,
-          geometry: dr.isCapsule ? "roundRect" : "rect",
-          borderRadius: dr.isCapsule ? Math.round(Math.min(cw, ch) / 2) : undefined,
-          left: x,
-          top: y,
-          width: cw,
-          height: ch,
-          fill: fillSpec,
-          line: lineSpec,
+          geometry: "textbox",
+          left,
+          top,
+          width,
+          height,
+          rotation: isRotated ? rotDeg : 0,
+          text: content,
+          textStyle: {
+            fontFamily,
+            fontSize: fontPt,
+            bold,
+            italic,
+            color: textColor,
+            verticalAlignment: "middle",
+            lineSpacing: 1.15,
+          },
         });
       }
-    }
-
-    // 2) Render all embedded PDF images as replaceable neutral placeholder <p:pic> slots
-    for (const im of pg.images || []) {
-      const rawX = Number(im.x) || 0;
-      const rawY = Number(im.y) || 0;
-      const rawW = Number(im.w) || 0;
-      const rawH = Number(im.h) || 0;
-      if (rawW < 12 || rawH < 12) continue;
-
-      // Clamp visible bbox inside 1280x720 unless clipped by explicit vector clip path
-      const left = im.clipViewBox ? im.clipViewBox[0] : clamp(rawX, 0, 1276);
-      const top = im.clipViewBox ? im.clipViewBox[1] : clamp(rawY, 0, 716);
-      const right = im.clipViewBox ? im.clipViewBox[0] + im.clipViewBox[2] : clamp(rawX + rawW, left + 12, 1280);
-      const bottom = im.clipViewBox ? im.clipViewBox[1] + im.clipViewBox[3] : clamp(rawY + rawH, top + 12, 720);
-      const width = Math.max(12, right - left);
-      const height = Math.max(12, bottom - top);
-
-      imgCount++;
-      const phPath = path.join(phDir, `m${String(pIdx + 1).padStart(2, "0")}_img_${String(imgCount).padStart(2, "0")}.png`);
-      await makeNeutralPlaceholderPng(
-        phPath,
-        width,
-        height,
-        im.topRgb || [136, 144, 154],
-        im.botRgb || [74, 80, 90]
-      );
-
-      const imgCfg = {
-        name: `slot:img_${imgCount}`,
-        path: phPath,
-        left,
-        top,
-        width,
-        height,
-        fit: "cover",
-      };
-      if (im.clipSvgPath && im.clipViewBox) {
-        imgCfg.svgPath = im.clipSvgPath;
-        imgCfg.viewBox = im.clipViewBox;
-      }
-      s.images.add(imgCfg);
-    }
-
-    // 3) Render all extracted text spans as editable `slot:text_N` (or `decor:text_N` for background/rotated watermarks)
-    for (const t of pg.texts || []) {
-      const rawTxt = String(t.text || "").trim();
-      if (!rawTxt) continue;
-      const content = keepText ? rawTxt : toNeutralPlaceholderText(rawTxt);
-      const fontPt = Math.max(9, Math.min(260, Number(t.fontPt) || 16));
-      const { fontFamily, bold, italic } = inferFontStyle(t.font);
-      const dx = Number(t.dir?.[0] ?? 1);
-      const dy = Number(t.dir?.[1] ?? 0);
-      const rotDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
-      const isRotated = Math.abs(rotDeg) >= 30;
-      const isBackgroundWatermark = isRotated || fontPt >= 140;
-
-      let left = Number(t.x) || 0;
-      let top = Number(t.y) || 0;
-      let width = Math.max(24, Number(t.w) || fontPt * 2);
-      let height = Math.max(20, Number(t.h) || fontPt * 1.45);
-
-      if (isRotated && Math.abs(Math.abs(rotDeg) - 90) <= 15) {
-        // Convert vertical visual bbox (w, h) to unrotated box rotated around its exact visual center
-        const cx = left + width / 2;
-        const cy = top + height / 2;
-        const unrotW = Math.max(40, height + 16);
-        const unrotH = Math.max(30, width);
-        left = cx - unrotW / 2;
-        top = cy - unrotH / 2;
-        width = unrotW;
-        height = unrotH;
-      } else {
-        // Add comfortable cross-font breathing room while staying within 1280x720 bounds
-        const padW = Math.min(28, Math.max(8, Math.round(fontPt * 0.4)));
-        width = Math.min(1280 - Math.max(0, left), width + padW);
-        height = Math.max(height, Math.round(fontPt * 1.55));
-        left = clamp(left, 0, Math.max(0, 1280 - width));
-        top = clamp(top, 0, Math.max(0, 720 - height));
-      }
-
-      textCount++;
-      const name = isBackgroundWatermark ? `decor:text_${textCount}` : `slot:text_${textCount}`;
-      s.shapes.add({
-        name,
-        geometry: "textbox",
-        left,
-        top,
-        width,
-        height,
-        rotation: isRotated ? rotDeg : 0,
-        text: content,
-        textStyle: {
-          fontFamily,
-          fontSize: fontPt,
-          bold,
-          italic,
-          color: t.color || "#111827",
-          verticalAlignment: "middle",
-          lineSpacing: 1.15,
-        },
-      });
     }
 
     totalImageSlots += imgCount;

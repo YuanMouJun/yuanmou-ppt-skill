@@ -1,7 +1,7 @@
 ---
 name: yuanmou-ppt
-version: 0.5.0
-description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
+version: 0.6.0
+description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库同构选版、两阶段硬解耦 1:1 复刻与矢量 PDF 直出母版、内嵌 .xlsx 可双击改数真图表及 6 大门禁组全链路自动代码校验与多页左右对照验收。
 ---
 
 # Yuanmou PPT Skill (`@yuanmou/pptx-kit`)
@@ -26,7 +26,7 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 1. **纯原生 OOXML（禁止简化或贴图）**：所有 `.pptx` 构建、改版、表图与终检调用 `<SKILL_DIR>/scripts/kit.mjs`；严禁 `python-pptx`，严禁简化省略结构，严禁用整页贴图冒充表格/流程图/可编辑重绘。图表必须内嵌 `.xlsx` 可双击改数。
 2. **小节点单框合一 vs 大装饰外框内独立定位**：按钮、标签、流程图节点或单段卡片必须在同一 `<p:sp>` 上直设 `fill / line / text / textStyle`（富文本 `runs` 支持 `{ text, bold, fontSize, color }` 平层写法），严禁在单个小卡片上另盖透明文本框；**但对于跨区域的 `fill: "none"` 大尺寸装饰外框或多分区复合底板，内部不同方位的元素（如左上角标、居中超大标题、右下注解）应按真实坐标独立放置**，严禁强塞进同一文本框靠空行硬顶导致上半截空洞。表格文字直写单元格；列表用 `makeBulletList()`，禁手敲 `"• "`；**严禁用 `☀ / ▶ / 《` 等 Emoji/标点冒充图标，严禁用 `[ 姓名 ] | [ 手机 ]` 冒充表单 UI**；禁 4+ 连续空格定位；窄标签留足 5% 余量（菱形安全区仅 `0.50×宽 × 0.50×高`）。
 3. **只读保护、重做隔离与历史版本自动回溯**：要求原稿不动时严禁改写原件（可用 `verify --readonly-source` 锁哈希）；**用户要求从头重做或换风格时，严禁跨旧工作目录偷拿废弃配图**。构建脚本与候选包（`./work/candidate.pptx`、`./work/masters.pptx`）一律留在 `work/` 或 `scratch/`，不污染用户项目目录；唯一一次终检与落盘交给 `deck_cli.mjs verify --final ./output/final.pptx --pdf ./output/compare.pdf`——**多轮精修重新交付时，`verify` 会自动把上一版已交付 `.pptx` 与对比 `.pdf` 归档至 `<输出目录>/history/`（版本号递进，绝不静默覆盖）**，确保用户随时可回溯。
-4. **强制视觉自检 + 无依赖离线降级（代码全绿 ≠ 视觉达标）**：所有 `.pptx` 必跑 `deck_cli.mjs verify`。本机具备 **LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)** 时强制真机渲染并审图返工；**若缺渲染依赖，严禁上网下载安装包/字体或自绘近似假图冒充真机渲染**——`verify` 自动完成 **6 组 15 项静态代码门禁**并原子落盘 `--final`（返回 `verificationMode: "code-gates-only"`, `visualVerified: false`），桌面端提示用户安装复验，受限沙箱则在交付说明首行如实标注未做真机渲染。
+4. **强制视觉自检 + 无依赖离线降级（代码全绿 ≠ 视觉达标）**：所有 `.pptx` 必跑 `deck_cli.mjs verify`。本机具备 **LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)** 时强制真机渲染并审图返工；**若缺渲染依赖，严禁上网下载安装包/字体或自绘近似假图冒充真机渲染**——`verify` 自动完成 **6 大门禁组 · 全链路自动代码校验**并原子落盘 `--final`（返回 `verificationMode: "code-gates-only"`, `visualVerified: false`），桌面端提示用户安装复验，受限沙箱则在交付说明首行如实标注未做真机渲染。
 
 ## 2. 从零策划与 Selection Engine 2.0 双向选版（按需详查 `references/selection-rules.md`）
 
@@ -70,7 +70,7 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 2. **Phase 2 · 严格基于锁死母版的原位内容填充**
    - 用 **`assembleDeck()`** 从已验收的 `./work/masters.pptx`（以及需保留原页的源 `.pptx`）无损克隆拼装出全套页序，仅通过 **`slide.getSlot("slot:...")` → `.text.set()` / `.replace({ path, fit: "cover" })` / `slide.recolor(colorMap)`** 原位填字、换图、换色。
    - **严禁在 Phase 2 破坏 Phase 1 母版结构**（禁止砍掉原模板照片槽改文字框、禁止擅改列数或倾斜角；缺对应图片时保留母版占位图即可，严禁乱画；文案超载时必须精简或建议拆页）。
-   - 终检时传 **`--master ./work/masters.pptx --master-map ... --require-master-receipt`**，自动校验 `master_verified.json` 的 `passed: true` 与 `masterSha256` 一致性，并通过 `auditMasterSlotIntegrity` 锁死图片槽数、命名槽位与旋转角度。
+   - 终检时传 **`--master ./work/masters.pptx --master-map ...`**，引擎**默认强制校验** `master_verified.json` 的 `passed: true` 与 `masterSha256` 一致性（缺失或过期立即拦截），并通过 `auditMasterSlotIntegrity` 锁死图片槽数、命名槽位几何比例与旋转角度。
    - **无参考图纯从零生成**（如纯离线按 `references/offline-layout-patterns.md` 绘制）或特殊授权改版（仅调色/横竖重排）仍须按模块化单页推进并严格遵守 4 类页型与 Z-order 铁律。
 
 ## 4. 文案保真与去 AI 腔铁律（Anti-Slop）
@@ -83,10 +83,10 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 
 开工前可先跑 `node "<SKILL_DIR>/scripts/deck_cli.mjs" check-env` 探活渲染环境与版本状态（内置 24h 缓存与 1.5s 超时静默兜底，断网不报错；若返回 `update.available === true`，**不中断当前任务**，仅在最终交付末尾顺带提醒一句发现新版本 `vX.Y.Z` 及更新亮点，用户确认后再跑 `deck_cli.mjs update`）。
 
-`verify` 1 条命令跑完 **6 大门禁组 · 17 项自动代码检查**（ECMA-376 包结构、越界、碰撞、**Z-order 前景图/色块遮挡文字与页脚**、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、孤字折行预警、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步 + 可选 `--master` 母版槽位不变性审计）并原子落盘 `--final`（自动把上一版归档至 `history/`）；有渲染依赖时自动出 `compare_batch_*.jpg` + 低分/角度冲突页 `xray_batch_*.jpg` + 多页左右对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
+`verify` 1 条命令跑完 **6 大门禁组 · 全链路自动代码校验**（ECMA-376 包结构、越界、碰撞、**Z-order 前景图/色块遮挡文字与页脚**、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、全量 Unicode 脏 Emoji/假表单方括号、正文与表格最小字号、孤字折行预警、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步 + `--master` 阶段一 SHA-256 签收与槽位几何不变性审计）并原子落盘 `--final`（自动把上一版归档至 `history/`）；有渲染依赖时自动出 `compare_batch_*.jpg` + 低分/角度冲突页 `xray_batch_*.jpg` + 多页左右对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
 
 ```bash
-# Phase 1（矢量/混合 PDF 首选）：一键提取矢量对象树 + 贝塞尔裁剪蒙版 + 中性占位图 → 纯骨架母版 & X 光验收
+# Phase 1（矢量/混合 PDF 首选）：一键提取矢量对象树 + 真实 Z 序 + 小容器单框融合 + 贝塞尔裁剪蒙版 → 纯骨架母版 & X 光验收
 node <SKILL_DIR>/scripts/deck_cli.mjs pdf-to-master --pdf ./template.pdf --pages "1-8,13" --out ./work/phase1
 node <SKILL_DIR>/scripts/deck_cli.mjs verify-master --pptx ./work/phase1/masters.pptx --ref-dir ./work/phase1/master_refs \
   --out ./work/phase1/qa_master --pdf ./work/phase1/master_xray_compare.pdf
@@ -94,14 +94,14 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify-master --pptx ./work/phase1/masters
 # Phase 1（位图/截图或单页精查）：坐标标尺网格 + 主倾斜角实测
 node <SKILL_DIR>/scripts/deck_cli.mjs inspect-ref --ref ./ref_page.png --out ./work/ref_m1
 
-# Phase 2：基于已签发 master_verified.json 的锁死母版原位填槽后终检落盘（自动归档旧版至 history/ + 左右对照 PDF）
+# Phase 2：基于已签发 master_verified.json 的锁死母版原位填槽后终检落盘（默认强制校验 SHA-256 签收 + 自动归档旧版至 history/）
 node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --final ./output/final.pptx \
-  --master ./work/phase1/masters.pptx --master-map "2:1,3:2,4:3" --require-master-receipt \
+  --master ./work/phase1/masters.pptx --master-map "2:1,3:2,4:3" \
   --out ./work/qa --ref-dir ./refs --pdf ./output/qa_compare.pdf --anti-slop fail
 ```
 
 1. **分批高清精审与 X 光/角度复核（严禁拿全页像素分当合格借口）**：当 `visualVerified: true` 时，**严禁只看邮票总览图，也严禁同一轮并发 `read_file` 塞入超过 2 张 `compare_batch_*.jpg`（每轮最多精审 8 页）**。必看 `diff.angleMismatches`、`diff.avgEdgeSimilarityPct` 与 `xrayBatches`（50% X 光叠图），逐页核对：① 旋转倾斜角方向与度数是否 1:1 吻合、子组件无漂移 ② 页脚/顶栏/文字无被前景图或手机壳压死 ③ 背景水印大字、照片槽位、实心印章与空心圆环是否完整保留（严禁砍图改框或固定装饰 PNG 划花人脸） ④ 无镜像反字 AI 坏图、无高频重复贴图与单字孤行；失真项集中修改后重新跑 `verify`（上一版会自动备份到 `history/`）。
-2. **离线降级如实声明**：若返回 `verificationMode: "code-gates-only"`（`visualVerified: false`），直接交付已过 6 组 15 项代码门禁的 `.pptx`，桌面端附 `installHint` 建议安装复验，受限沙箱在交付说明首行如实标注未执行真机渲染，并核对 `warnings` 不谎称 12pt 全部合规。
+2. **离线降级如实声明**：若返回 `verificationMode: "code-gates-only"`（`visualVerified: false`），直接交付已过 6 大门禁组全链路静态校验的 `.pptx`，桌面端附 `installHint` 建议安装复验，受限沙箱在交付说明首行如实标注未执行真机渲染，并核对 `warnings` 不谎称 12pt 全部合规。
 
 ## 6. `@yuanmou/pptx-kit` 零翻源码 API 速查（坐标 `px` 1280×720 · `fontSize` 数值默认 `pt`）
 
@@ -124,7 +124,7 @@ const s = deck.slides.add({ background: "#FFFFFF" }); // 或 { type: "linear", a
 s.images.add({ path: "./hero.jpg", position: { left: 0, top: 0, width: 1280, height: 720 }, fit: "cover" });
 s.shapes.add({ name: "暗角遮罩", geometry: "rect", position: { left: 0, top: 0, width: 1280, height: 720 }, fill: { color: "#0B1120", opacity: 0.48 }, line: { fill: "none" } });
 s.shapes.add({ name: "透底白线框", geometry: "rect", position: { left: 64, top: 140, width: 1152, height: 440 }, fill: "none", line: { fill: "#FFFFFF", width: 10 } });
-s.shapes.add({ name: "左上引子", geometry: "textbox", position: { left: 120, top: 190, width: 420, height: 36 }, text: "How about your living room?", textStyle: { fontSize: 16, color: "#E2E8F0" } });
+s.shapes.add({ name: "左上引子", geometry: "textbox", position: { left: 120, top: 190, width: 420, height: 36 }, text: "2026 STRATEGIC KEYNOTE", textStyle: { fontSize: 16, color: "#E2E8F0" } });
 s.shapes.add({ name: "居中主标题", geometry: "textbox", position: { left: 120, top: 250, width: 1040, height: 260 }, text: "你是否\n时常有这种感觉？", textStyle: { fontSize: 72, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" } });
 
 // 2) 参考图 1:1 泛洪轮廓蒙版（首选） / 多笔触组合飞白（防同色漫灌或局部斜刷） / 实心书法圆印 / 菱形斜切

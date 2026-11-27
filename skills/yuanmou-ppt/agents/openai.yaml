@@ -1,6 +1,6 @@
 interface:
   display_name: "Yuanmou PPT (AI PPT Generator & 1:1 Editable PPTX)"
-  short_description: "一句话从零策划整套商业PPT / 1:1图片与PDF矢量复刻 / 既有PPTX无损改版 / 内嵌Excel图表（自带1.6W+免登录版式库与6组15项门禁）"
+  short_description: "一句话从零策划整套商业PPT / 1:1图片与PDF矢量复刻 / 既有PPTX无损改版 / 内嵌Excel图表（自带1.6W+免登录版式库与6大门禁组全链路质检）"
   default_prompt: "请按 yuanmou-ppt 技能规范先确认本次任务走哪条路线（纯大纲 / 既有PPTX改版 / 参考图复刻 / 从零策划选版），产出100%原生可编辑成果并完成质检。"
 policy:
   products:

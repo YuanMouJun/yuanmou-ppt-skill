@@ -591,21 +591,32 @@ function buildSlideSceneModel(slideXml, slideNo, slideW, slideH, zipMap) {
     const maxRunPt = paraMetrics.reduce((mx, pm) => Math.max(mx, pm.maxPt), 0);
 
     // Semantic layer role (derived from explicit prefix or physical/structural role)
+    // Hardened against `decor:body_1` gate-bypass abuse: text-bearing shapes only qualify as
+    // exempt background decor when transparent (no fill) AND either a giant display glyph (<=2 chars, >=150pt)
+    // or a short decorative watermark/accent label (<=16 chars unrotated, <=28 chars rotated >=30°).
     const nameStr = it.name || "";
-    const isGiantDisplayGlyph = it.tag === "p:sp" && it.plainText.length > 0 && it.plainText.length <= 2 && maxRunPt >= 150;
+    const isTransparentShape = !it.hasSolidFill && !it.hasGradOrBlipFill;
+    const isGiantDisplayGlyph =
+      it.tag === "p:sp" && isTransparentShape && it.plainText.length > 0 && it.plainText.length <= 2 && maxRunPt >= 150;
     const isExplicitDecor = /^(?:decor|bg|watermark)[:_-]/i.test(nameStr);
     const isDecorSlot = /^slot:(?:bg_|watermark)/i.test(nameStr);
-    const isStrokeOnlyCustomPath = !it.hasSolidFill && !it.hasGradOrBlipFill && it.prst === "custom" && !it.plainText;
+    const isStrokeOnlyCustomPath = isTransparentShape && it.prst === "custom" && !it.plainText;
     const isEdgeChrome = it.aabb.top <= 48 || it.aabb.bottom >= slideH - 36;
+    const maxDecorTextLen = Math.abs(it.rotation) >= 30 ? 28 : 16;
+    const isShortDecorText =
+      it.plainText.length > 0 &&
+      isTransparentShape &&
+      (isGiantDisplayGlyph || ((isExplicitDecor || isDecorSlot) && it.plainText.length <= maxDecorTextLen));
+    const isNonTextDecor = !it.plainText && (isExplicitDecor || isStrokeOnlyCustomPath);
     const role =
-      isExplicitDecor || isGiantDisplayGlyph || isStrokeOnlyCustomPath
+      isShortDecorText || isNonTextDecor
         ? "decor"
         : /^chrome[:_-]/i.test(nameStr) || isEdgeChrome
           ? "chrome"
           : /^slot[:_-]/i.test(nameStr)
             ? "slot"
             : "content";
-    const isBackgroundDecor = role === "decor" || isDecorSlot;
+    const isBackgroundDecor = role === "decor";
 
     // Opaque occluder classification (used by z-order occlusion gate)
     let isOpaqueOccluder = false;
@@ -906,9 +917,11 @@ function runGates2And4GeometryAndText(
             message: `Slide ${slideNo} "${it.name}" uses plain-text bracket strings ("${fakeFormM[0].slice(0, 32)}") to fake a form UI — build real separate input box shapes and submit button instead`,
           });
         }
-        const emojiM = it.plainText.match(/[☀☁☂▶◀▸◂►◄👉👇🔥✨💡📱📺🎬🎉🏆✅❌]/u);
+        // Standard Unicode pictographic emoji + triangular fake-bullet scanner (exempts corporate ©®™ & trend arrows)
+        const emojiScanText = it.plainText.replace(/[©®™↔↕↖↗↘↙↩↪]/g, "");
+        const emojiM = emojiScanText.match(/[\p{Extended_Pictographic}▶◀▸◂►◄]/u);
         if (emojiM) {
-          const isLeadPrefix = /^\s*[▶▸►☀🔥✨💡👉]/u.test(it.plainText);
+          const isLeadPrefix = /^\s*[\p{Extended_Pictographic}▶▸►]/u.test(emojiScanText);
           issues.push({
             gate: "layout_geometry",
             severity: isLeadPrefix ? "fail" : "warn",
@@ -974,7 +987,8 @@ function runGates2And4GeometryAndText(
         let widowFlagged = false;
         for (const pm of it.paraMetrics) {
           const fontPx = pm.maxPt / 0.75;
-          const lines = Math.max(1, Math.ceil(pm.lineW / (innerW * 1.06)));
+          const charCount = Math.max(1, [...pm.cleanText].length);
+          const lines = Math.min(charCount, Math.max(1, Math.ceil(pm.lineW / (innerW * 1.06))));
           estH += lines * fontPx * pm.p.lineMult;
           if (!widowFlagged && !masterMode && lines >= 2 && pm.cleanText.length >= 4 && innerW >= fontPx * 3.5) {
             const remainderPx = pm.lineW - (lines - 1) * innerW;
@@ -1042,9 +1056,11 @@ function runGates2And4GeometryAndText(
         const tbArea = Math.max(1, tb.aabb.width * tb.aabb.height);
         const { ix, iy, area: interArea } = aabbIntersectionArea(bg.aabb, tb.aabb);
         if (ix <= 4 || iy <= 4) continue;
-        const overlapMin = interArea / Math.min(bgArea, tbArea);
+        const tbContainedRatio = interArea / tbArea;
         const areaRatio = Math.max(bgArea, tbArea) / Math.min(bgArea, tbArea);
-        if (overlapMin >= 0.7 && areaRatio <= 2.4) {
+        // Only flag when the textbox is actually nested inside a container large enough to host it (exempts shorter editorial highlighter strips behind giant display titles)
+        const containerCanHoldText = bg.aabb.height >= tb.aabb.height * 0.78 && bg.aabb.width >= tb.aabb.width * 0.78;
+        if (tbContainedRatio >= 0.7 && areaRatio <= 2.4 && containerCanHoldText) {
           issues.push({
             gate: "layout_geometry",
             severity: strictInShape ? "fail" : "warn",

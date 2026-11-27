@@ -1842,6 +1842,333 @@ bg.convert("RGB").save("${tiltRefPng.replace(/\\/g, "\\\\")}")
   }
 }
 
+async function testRedBlueHardeningV060() {
+  console.log("=== [G] Verifying v0.6.0 Red-Blue Defensive Hardening (pdf-to-master Fusion/Z-Order/Alpha, decor:* Anti-Abuse, Unicode Emoji, Geometry Invariance, Cross-Canvas/Theme assembleDeck, Default Receipt Gate & Tiny Dummy Photo Block) ===");
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym_v060_redblue_"));
+  const deckCliPath = path.join(REPO_ROOT, "skills/yuanmou-ppt/scripts/deck_cli.mjs");
+  try {
+    const makeSolidPng = (r, g, b, w = 32, h = 32) => {
+      const rgba = new Uint8Array(w * h * 4);
+      for (let i = 0; i < w * h; i++) {
+        rgba[i * 4] = r; rgba[i * 4 + 1] = g; rgba[i * 4 + 2] = b; rgba[i * 4 + 3] = 255;
+      }
+      return encodeRgbaPng(w, h, rgba);
+    };
+    const imgA = path.join(tmpDir, "a.png");
+    await fs.writeFile(imgA, makeSolidPng(30, 64, 175));
+
+    // G1: `decor:body_1` long-text & filled-card gate-bypass attack MUST be blocked!
+    {
+      const abuseDeck = Presentation.create({ title: "Decor Abuse Test" });
+      const s1 = abuseDeck.slides.add({ background: "#FFFFFF" });
+      // Attack A: 24-char white-on-white body paragraph disguised as `decor:body_1` -> MUST FAIL low_contrast_text!
+      s1.shapes.add({
+        name: "decor:body_1",
+        geometry: "textbox",
+        left: 80,
+        top: 100,
+        width: 600,
+        height: 60,
+        text: "这是一段恶意改名试图绕过低对比度质检的长正文内容测试",
+        textStyle: { fontSize: 18, color: "#FAFAFA" },
+      });
+      // Attack B: Filled card disguised as `decor:card_1` with low-contrast white text -> MUST FAIL!
+      s1.shapes.add({
+        name: "decor:card_1",
+        geometry: "rect",
+        left: 80,
+        top: 220,
+        width: 240,
+        height: 60,
+        fill: "#FFFFFF",
+        line: { fill: "none" },
+        text: "隐形卡片",
+        textStyle: { fontSize: 18, color: "#FCFCFC" },
+      });
+      const abuseVal = await validateDeckBuffer(abuseDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(abuseVal.passed, false, "decor:body_1 long-text & filled-card abuse must fail validation");
+      const lcElements = abuseVal.issues.filter((i) => i.code === "low_contrast_text").map((i) => i.element);
+      assert.ok(lcElements.includes("decor:body_1"), "Long text disguised as decor:body_1 must be caught");
+      assert.ok(lcElements.includes("decor:card_1"), "Filled card disguised as decor:card_1 must be caught");
+    }
+
+    // G2: Standard Unicode `\p{Extended_Pictographic}` catches arbitrary emojis (🚀) while exempting corporate ©®™ & trend arrows ↗↘
+    {
+      const emojiDeck = Presentation.create({ title: "Unicode Emoji Test" });
+      const es = emojiDeck.slides.add({ background: "#FFFFFF" });
+      es.shapes.add({
+        name: "slot:emoji_lead",
+        left: 80,
+        top: 100,
+        width: 500,
+        height: 48,
+        text: "🚀 火箭启动全链路增长方案",
+        textStyle: { fontSize: 18, color: "#111827" },
+      });
+      const eBad = await validateDeckBuffer(emojiDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(eBad.passed, false);
+      assert.ok(eBad.issues.some((i) => i.code === "dirty_emoji_symbol" && i.severity === "fail"), "Unicode emoji 🚀 must trigger fail");
+
+      const corpDeck = Presentation.create({ title: "Corporate Symbols Clean" });
+      const cs = corpDeck.slides.add({ background: "#FFFFFF" });
+      cs.shapes.add({
+        name: "slot:corp_kpi",
+        left: 80,
+        top: 100,
+        width: 600,
+        height: 48,
+        text: "© 2026 Brand™ 季度转化率 ↗ +12.5% ↔ 稳定增长",
+        textStyle: { fontSize: 16, color: "#111827" },
+      });
+      const eGood = await validateDeckBuffer(corpDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(eGood.passed, true, `Corporate symbols ©®™↗↔ must NOT trigger dirty_emoji_symbol: ${JSON.stringify(eGood.issues)}`);
+    }
+
+    // G3: Editorial highlighter bar behind oversized display title passes, while true nested textbox inside container still fails
+    {
+      const hlDeck = Presentation.create({ title: "Editorial Highlighter Test" });
+      const hs = hlDeck.slides.add({ background: "#0F172A" });
+      hs.shapes.add({ name: "decor:hl_bar", geometry: "rect", left: 378, top: 402, width: 580, height: 78, fill: "#FF0036", line: { fill: "none" } });
+      hs.shapes.add({ name: "slot:hero_txt", geometry: "textbox", left: 340, top: 358, width: 680, height: 135, text: "「核心主张」", textStyle: { fontSize: 80, bold: true, color: "#FFFFFF" } });
+      const hlVal = await validateDeckBuffer(hlDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(hlVal.passed, true, `Shorter editorial highlighter strip behind 80pt title must pass: ${JSON.stringify(hlVal.issues)}`);
+
+      const nestDeck = Presentation.create({ title: "True Nested Textbox Fail" });
+      const ns = nestDeck.slides.add({ background: "#FFFFFF" });
+      ns.shapes.add({ name: "btn_bg", geometry: "roundRect", borderRadius: 20, left: 100, top: 100, width: 260, height: 64, fill: "#FF0036", line: { fill: "none" } });
+      ns.shapes.add({ name: "btn_txt", geometry: "textbox", left: 120, top: 112, width: 220, height: 40, text: "分开套框必须拦", textStyle: { fontSize: 18, color: "#FFFFFF" } });
+      const nVal = await validateDeckBuffer(nestDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(nVal.passed, false);
+      assert.ok(nVal.issues.some((i) => i.code === "nested_textbox_in_shape"), "True textbox nested inside painted container must still fail");
+    }
+
+    // G4: `pdf-to-master` container+text fusion + true painter's zOrder + elongated marker stroke + text alpha
+    {
+      const fusedPath = path.join(tmpDir, "fused_zorder_masters.pptx");
+      const res = await compilePdfVectorSpecToMasterPptx({
+        outPptxPath: fusedPath,
+        placeholdersDir: path.join(tmpDir, "fused_ph"),
+        pages: [
+          {
+            page: 6,
+            pdfKind: "vector",
+            slideBgHex: "#FFFFFF",
+            expectedImageCount: 1,
+            images: [{ x: 0, y: 0, w: 1280, h: 720, zOrder: 1, topRgb: [120, 120, 130], botRgb: [60, 60, 70] }],
+            drawings: [
+              { x: 0, y: 0, w: 1280, h: 720, fill: "#000000", fillOpacity: 0.25, stroke: null, strokeW: 0, opCount: 1, zOrder: 2 },
+              { x: 640, y: 200, w: 260, h: 60, fill: "#FF0036", fillOpacity: 1, stroke: null, strokeW: 0, opCount: 6, isCapsule: true, zOrder: 3 },
+              { x: 640, y: 340, w: 190, h: 36, fill: "#FF0036", fillOpacity: 1, stroke: null, strokeW: 8, opCount: 333, isStrokePath: true, svgPath: "M 642 368 L 826 346", viewBox: [640, 340, 190, 36], zOrder: 7 },
+            ],
+            texts: [
+              { text: "胶囊标签", x: 690, y: 214, w: 150, h: 32, fontPt: 20, font: "PingFangSC-Semibold", color: "#FFFFFF", dir: [1, 0], zOrder: 4 },
+              { text: "「被划掉词」", x: 630, y: 330, w: 210, h: 52, fontPt: 24, font: "PingFangSC-Regular", color: "#FFFFFF", dir: [1, 0], zOrder: 5 },
+              { text: "？", x: 320, y: 20, w: 460, h: 660, fontPt: 496, font: "PingFangSC-Regular", color: "#FF0036", alpha: 0.14, dir: [1, 0], zOrder: 6 },
+            ],
+          },
+        ],
+      });
+      assert.equal(res.slideCount, 1);
+      const fBuf = await fs.readFile(fusedPath);
+      const fVal = await validateDeckBuffer(fBuf, { antiSlop: "off", masterMode: true });
+      assert.equal(fVal.passed, true, `Fused/Z-ordered vector master must pass masterMode with 0 FAILs: ${JSON.stringify(fVal.issues)}`);
+      const fXml = readZipBuffer(fBuf).get("ppt/slides/slide1.xml").toString("utf8");
+      const posImg = fXml.indexOf('name="slot:img_1"');
+      const posScrim = fXml.indexOf('name="decor:vec_1"');
+      const posChip = fXml.indexOf('name="slot:chip_1"');
+      const posStrikeTxt = fXml.indexOf('name="slot:text_2"');
+      const posStroke = fXml.indexOf('name="decor:stroke_2"');
+      assert.ok(posImg > 0 && posScrim > posImg, "Scrim (zOrder 2) must be drawn AFTER photo (zOrder 1)");
+      assert.ok(posChip > posScrim, "Fused capsule chip (zOrder 3/4) must be emitted as single slot:chip_1 AFTER scrim");
+      assert.ok(posStroke > posStrikeTxt, "Elongated marker strikethrough (zOrder 7) must be drawn AFTER text (zOrder 5)");
+      assert.ok(fXml.includes('<a:alpha val="14000"/>'), "Translucent text alpha=0.14 must emit <a:alpha val=\"14000\"/>");
+    }
+
+    // G5: `auditMasterSlotIntegrity` blocks missing slideMap on mismatched counts & blocks shrinking/dragging slots
+    {
+      const mDeck = Presentation.create({ title: "Master Geo Lock" });
+      const ms = mDeck.slides.add({ background: "#FFFFFF" });
+      ms.images.add({ name: "slot:hero_img", path: imgA, left: 80, top: 120, width: 420, height: 480, fit: "cover" });
+      ms.shapes.add({ name: "slot:title", left: 560, top: 120, width: 640, height: 80, text: "母版主标题", textStyle: { fontSize: 32, color: "#111827" } });
+      const mPath = path.join(tmpDir, "geo_master.pptx");
+      await mDeck.save(mPath);
+
+      // 2-slide final deck audited without slideMap against 1-slide master -> MUST FAIL missing_master_slide_map!
+      const twoDeck = Presentation.create({ title: "Two Slide Final" });
+      twoDeck.slides.add({ background: "#FFFFFF" }).images.add({ name: "slot:hero_img", path: imgA, left: 80, top: 120, width: 420, height: 480 });
+      twoDeck.slides.add({ background: "#FFFFFF" }).shapes.add({ name: "unmapped", left: 100, top: 100, width: 400, height: 60, text: "第二页逃逸" });
+      const twoPath = path.join(tmpDir, "two_final.pptx");
+      await twoDeck.save(twoPath);
+      const missMapAudit = await auditMasterSlotIntegrity({ masterPptxPath: mPath, finalPptxPath: twoPath });
+      assert.equal(missMapAudit.passed, false);
+      assert.ok(missMapAudit.issues.some((i) => i.code === "missing_master_slide_map"), "Must fail missing_master_slide_map when counts differ & slideMap omitted");
+
+      // Shrunk 20x20 dummy hero_img + dragged/collapsed title -> MUST FAIL geometry invariance!
+      const shrunkDeck = Presentation.create({ title: "Shrunk Slot Bypass" });
+      const ss = shrunkDeck.slides.add({ background: "#FFFFFF" });
+      ss.images.add({ name: "slot:hero_img", path: imgA, left: 80, top: 120, width: 20, height: 20, fit: "cover" });
+      ss.shapes.add({ name: "slot:title", left: 100, top: 600, width: 200, height: 30, text: "漂移标题", textStyle: { fontSize: 16, color: "#111827" } });
+      const shrunkPath = path.join(tmpDir, "shrunk_final.pptx");
+      await shrunkDeck.save(shrunkPath);
+      const geoAudit = await auditMasterSlotIntegrity({ masterPptxPath: mPath, finalPptxPath: shrunkPath });
+      assert.equal(geoAudit.passed, false);
+      const gCodes = new Set(geoAudit.issues.map((i) => i.code));
+      assert.ok(gCodes.has("master_image_slot_geometry_drifted"), "Must catch shrunk/drifted image slot");
+      assert.ok(gCodes.has("master_text_slot_geometry_drifted"), "Must catch collapsed/drifted text slot");
+    }
+
+    // G6: `assembleDeck` rejects 4:3 into 16:9, auto-scales 10in->13.333in same-aspect slides, and materializes foreign `<a:schemeClr>`
+    {
+      const baseDeck = Presentation.create({ title: "Base 16x9 13.333in" });
+      baseDeck.slides.add({ background: "#FFFFFF" }).shapes.add({ name: "base_t", left: 80, top: 80, width: 400, height: 60, text: "基准页" });
+      const basePath = path.join(tmpDir, "base_16x9.pptx");
+      await baseDeck.save(basePath);
+
+      // Build a legacy 10in x 5.625in (9144000 x 5143500 EMU) foreign deck with custom theme accent1=#FF2442 & `<a:schemeClr val="accent1">`
+      const legacySrc = Presentation.create({ title: "Legacy 10in Deck" });
+      legacySrc.slides.add({ background: "#FFFFFF" }).shapes.add({
+        name: "legacy_box",
+        left: 96,
+        top: 72,
+        width: 300,
+        height: 90,
+        fill: "#112233",
+        text: "缩放与主题色验证",
+        textStyle: { fontSize: 18, color: "#FFFFFF" },
+      });
+      const legMap = readZipBuffer(legacySrc.toPptxBuffer());
+      legMap.set(
+        "ppt/presentation.xml",
+        Buffer.from(
+          legMap.get("ppt/presentation.xml").toString("utf8").replace(/<p:sldSz\b[^>]+\/>/, '<p:sldSz cx="9144000" cy="5143500" type="screen16x9"/>'),
+          "utf8"
+        )
+      );
+      legMap.set(
+        "ppt/theme/theme1.xml",
+        Buffer.from(
+          legMap.get("ppt/theme/theme1.xml").toString("utf8").replace(/<a:accent1>[\s\S]*?<\/a:accent1>/, '<a:accent1><a:srgbClr val="FF2442"/></a:accent1>'),
+          "utf8"
+        )
+      );
+      legMap.set(
+        "ppt/slides/slide1.xml",
+        Buffer.from(
+          legMap.get("ppt/slides/slide1.xml").toString("utf8").replace(
+            '<a:srgbClr val="112233"/>',
+            '<a:schemeClr val="accent1"><a:alpha val="80000"/></a:schemeClr>'
+          ),
+          "utf8"
+        )
+      );
+      const legacyPath = path.join(tmpDir, "legacy_10in.pptx");
+      await fs.writeFile(legacyPath, buildZipBuffer([...legMap.entries()].map(([name, data]) => ({ name, data }))));
+
+      const merged = await assembleDeck({
+        base: "base",
+        sources: { base: basePath, leg: legacyPath },
+        slides: [{ from: "base", slide: 1 }, { from: "leg", slide: 1 }],
+      });
+      const mergedXml = readZipBuffer(merged.toPptxBuffer()).get("ppt/slides/slide2.xml").toString("utf8");
+      // 96px * 9525 * (4/3) = 1219200 EMU; 18pt (1800) * (4/3) = 2400!
+      assert.ok(mergedXml.includes(`x="${Math.round(96 * 9525 * (12192000 / 9144000))}"`), "Legacy 10in slide coordinates must auto-scale 1.333x to base 13.333in");
+      assert.ok(mergedXml.includes('sz="2400"'), "Legacy 10in font size 18pt must auto-scale to 24pt (2400)");
+      assert.ok(mergedXml.includes('<a:srgbClr val="FF2442"><a:alpha val="80000"/></a:srgbClr>'), "Foreign schemeClr must materialize to concrete srgbClr preserving child <a:alpha>");
+
+      // Build a 4:3 incompatible deck (9144000 x 6858000) -> MUST THROW!
+      const map43 = readZipBuffer(legacySrc.toPptxBuffer());
+      map43.set(
+        "ppt/presentation.xml",
+        Buffer.from(
+          map43.get("ppt/presentation.xml").toString("utf8").replace(/<p:sldSz\b[^>]+\/>/, '<p:sldSz cx="9144000" cy="6858000" type="screen4x3"/>'),
+          "utf8"
+        )
+      );
+      const path43 = path.join(tmpDir, "deck_4x3.pptx");
+      await fs.writeFile(path43, buildZipBuffer([...map43.entries()].map(([name, data]) => ({ name, data }))));
+      await assert.rejects(
+        () => assembleDeck({ base: "base", sources: { base: basePath, s43: path43 }, slides: [{ from: "base", slide: 1 }, { from: "s43", slide: 1 }] }),
+        /incompatible slide aspect ratio/
+      );
+    }
+
+    // G7: `verify --master` enforces `master_verified.json` BY DEFAULT (without needing `--require-master-receipt`), and allows explicit `--allow-unverified-master`
+    {
+      const rDir = path.join(tmpDir, "default_receipt_gate");
+      await fs.mkdir(rDir, { recursive: true });
+      const mDeck = Presentation.create({ title: "Receipt Master" });
+      mDeck.slides.add({ background: "#FFFFFF" }).shapes.add({ name: "slot:t1", left: 80, top: 80, width: 600, height: 60, text: "默认签收校验母版", textStyle: { fontSize: 24, color: "#111827" } });
+      const rMaster = path.join(rDir, "masters.pptx");
+      await mDeck.save(rMaster);
+
+      // Without receipt AND without `--require-master-receipt` -> MUST FAIL by default!
+      const defFail = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify", "--pptx", rMaster, "--master", rMaster, "--out", path.join(rDir, "qa_fail")],
+        { encoding: "utf8" }
+      );
+      assert.notEqual(defFail.status, 0, "verify --master must reject missing master_verified.json BY DEFAULT");
+      assert.ok((defFail.stderr || "").includes("MASTER_RECEIPT_MISSING"), `Expected MASTER_RECEIPT_MISSING, got: ${defFail.stderr}`);
+
+      // With explicit `--allow-unverified-master` -> MUST SUCCEED and record `bypassed_explicitly`!
+      const allowOk = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify", "--pptx", rMaster, "--master", rMaster, "--allow-unverified-master", "--out", path.join(rDir, "qa_allow")],
+        { encoding: "utf8" }
+      );
+      assert.equal(allowOk.status, 0, `verify --master --allow-unverified-master should succeed: ${allowOk.stderr}`);
+      const allowJson = JSON.parse(allowOk.stdout);
+      assert.equal(allowJson.masterReceipt.status, "bypassed_explicitly");
+      assert.equal(allowJson.twoStageAudit.enforced, true);
+    }
+
+    // G8: `verify-master` blocks `tiny_dummy_photo_slot` bypass (1 tiny 20x20 image vs photo-rich ref) when full visual toolchain is available
+    {
+      const envCheck = spawnSync(process.execPath, [deckCliPath, "check-env", "--no-update-check"], { encoding: "utf8" });
+      const envJson = envCheck.status === 0 ? JSON.parse(envCheck.stdout) : null;
+      if (envJson?.mode === "full-visual" && envJson?.toolchain?.hasPillow) {
+        const dDir = path.join(tmpDir, "dummy_photo_gate");
+        const dRefs = path.join(dDir, "refs");
+        await fs.mkdir(dRefs, { recursive: true });
+        // Synthesize a photo-rich colorful high-variance reference image (`refPhotoTilePct >> 25%`)
+        const photoW = 640, photoH = 360;
+        const pRgba = new Uint8Array(photoW * photoH * 4);
+        for (let y = 0; y < photoH; y++) {
+          for (let x = 0; x < photoW; x++) {
+            const off = (y * photoW + x) * 4;
+            pRgba[off] = (x * 7 + y * 3 + ((x ^ y) * 11)) & 255;
+            pRgba[off + 1] = (x * 5 + y * 13 + ((x * y) >> 3)) & 255;
+            pRgba[off + 2] = (x * 11 + y * 7 + ((x + y) * 9)) & 255;
+            pRgba[off + 3] = 255;
+          }
+        }
+        await fs.writeFile(path.join(dRefs, "ref_01.png"), encodeRgbaPng(photoW, photoH, pRgba));
+
+        const dummyMaster = Presentation.create({ title: "Tiny Dummy Photo Master" });
+        const dm = dummyMaster.slides.add({ background: "#FFFFFF" });
+        dm.images.add({ name: "slot:tiny_cheat", path: imgA, left: 20, top: 20, width: 20, height: 20 });
+        dm.shapes.add({ name: "slot:title", left: 80, top: 80, width: 600, height: 60, text: "假图占位绕过测试", textStyle: { fontSize: 24, color: "#111827" } });
+        const dmPath = path.join(dDir, "dummy_master.pptx");
+        await dummyMaster.save(dmPath);
+
+        const dmRes = spawnSync(
+          process.execPath,
+          [deckCliPath, "verify-master", "--pptx", dmPath, "--ref-dir", dRefs, "--out", path.join(dDir, "qa")],
+          { encoding: "utf8" }
+        );
+        assert.notEqual(dmRes.status, 0, "Tiny 20x20 dummy image on photo-rich ref must fail verify-master");
+        const dmJson = JSON.parse(dmRes.stdout);
+        assert.equal(dmJson.photoSlotAuditPassed, false);
+        assert.ok(dmJson.missingPhotoSlotIssues.some((x) => x.code === "tiny_dummy_photo_slot"), `Expected tiny_dummy_photo_slot, got: ${JSON.stringify(dmJson.missingPhotoSlotIssues)}`);
+      }
+    }
+
+    console.log("  [PASS] v0.6.0 Red-Blue Defensive Hardening verified! (decor:* anti-abuse, Unicode emoji + ©®™↗ exemption, highlighter vs nested-box, pdf-to-master fusion/zOrder/stroke/alpha, slot geometry invariance, cross-canvas/theme assembleDeck, default receipt gate & tiny_dummy_photo_slot)");
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
@@ -1849,7 +2176,8 @@ async function main() {
   await testBrushMaskAndTypographyUpgrades();
   await testSelectionEngine2();
   await testTwoStageArchitectureV040();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 + V0.4.0 ARCHITECTURE TESTS PASSED!");
+  await testRedBlueHardeningV060();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 + V0.4.0/V0.5.0/V0.6.0 ARCHITECTURE TESTS PASSED!");
 }
 
 main().catch((err) => {
