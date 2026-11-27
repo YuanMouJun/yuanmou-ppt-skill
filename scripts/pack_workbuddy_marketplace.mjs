@@ -17,11 +17,11 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 
 const WORKBUDDY_SKILL_MD = `---
 name: yuanmou-ppt
-display_name: 渊眸可编辑PPT生成与复刻引擎
-display_name_en: Yuanmou Editable PPTX Engine
-description: 一句话生成原生可编辑PPT、截图与PDF 1:1矢量复刻为PPTX、既有PPTX无损改版、内嵌.xlsx电子表格真图表及咨询级逐页大纲策划（零依赖原生OOXML引擎，6大门禁组15项自动质检与真机渲染/离线降级双模式）
-description_zh: 基于纯Node.js零第三方npm依赖的原生OOXML引擎，支持咨询级逐页Markdown大纲策划、一句话生成整套可编辑.pptx演示文稿、将参考截图或PDF 1:1矢量复刻为可编辑PPTX（含半透明遮罩/菱形斜切/水墨笔刷蒙版）、既有.pptx母本无损改版，以及双击可改数的内嵌.xlsx数据真图表与原生表格；内置6大门禁组15项自动代码检查，有渲染依赖时执行真机视觉核验，缺依赖时自动走静态门禁离线降级。
-description_en: Zero-dependency native OOXML (.pptx) engine for consulting-grade Markdown outlines, generating editable slide decks from a topic, 1:1 vector redrawing from reference screenshots or PDFs, lossless .pptx template editing, and .xlsx-backed editable charts with 6 gate groups (15 static checks) and graceful offline degradation when system render tools are absent.
+display_name: 渊眸商业PPT
+display_name_en: Yuanmou Business PPT
+description: 告别熬夜排版！一句话生成可编辑商业PPT，支持截图与PDF 1:1矢量复刻、既有PPTX无损改版与内嵌.xlsx电子表格真图表（零依赖原生OOXML引擎，6大门禁组15项自动质检）
+description_zh: 告别熬夜排版！一句话生成可编辑商业PPT，支持咨询级逐页大纲策划、参考截图或PDF 1:1矢量复刻（含半透明遮罩/菱形斜切/水墨笔刷蒙版）、既有.pptx母本无损改版，以及双击可改数的内嵌.xlsx电子表格真图表与原生表格；纯本地零第三方依赖运行，内置6大门禁组15项自动检查，缺渲染依赖时自动走静态门禁离线降级。
+description_en: Say goodbye to late-night formatting! Generate editable business PPTX decks from a single sentence, 1:1 vector redraw from screenshots or PDFs, lossless .pptx template editing, and .xlsx-backed editable charts with 6 gate groups (15 static checks).
 version: 0.1.2
 author: "渊眸策略"
 examples_zh:

@@ -1,10 +1,10 @@
 {
   "name": "yuanmou-ppt",
-  "version": "0.1.7",
-  "highlights": "README上线渊眸电视23页全套实战案例与脱敏展板，优化段距<100pt旧版兼容阈值",
+  "version": "0.1.8",
+  "highlights": "优化WorkBuddy广场展示标题（渊眸商业PPT）与痛点简介，同步官网至GitHub Pages",
   "fileCount": 31,
   "files": {
-    "SKILL.md": "847d327d5577fa51095df33fd2d88a802436d099ce1ae4bc90dcb5a9c5ee8990",
+    "SKILL.md": "cc678a9d4863248986c7ce93c19b8cdb3069bd86667b1b9ade35266a4fe3d9c9",
     "agents/openai.yaml": "7ba1487c19fc86ed00a67b37db870294bf76ca2cca9e54d32ce96d09aff48e59",
     "packages/pptx-kit/index.mjs": "d1562b8622f0eb87f5cb88b2a25e6b8f29140ce73099fd2f72f0d9f6c5c30bd4",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
@@ -29,7 +29,7 @@
     "packages/pptx-kit/src/tables.mjs": "29a7f16c3324d296fcce0572f14b2db610c87fdb39dc0315201ece3efa0428d6",
     "packages/pptx-kit/src/tokens.mjs": "a87559c8f9d1117676573407f5a310a06b5ff543aa01b397dc09ea99a1c50073",
     "packages/pptx-kit/src/units.mjs": "7aba5619a8858e27c7cbdbd89468d42a8590663adfa50b85668563986f8bafa9",
-    "packages/pptx-kit/src/updater.mjs": "77aa9ddade375a5db48050d9e27a90dc4bf9bab491205274dafb476c195a2ad0",
+    "packages/pptx-kit/src/updater.mjs": "3d771ffea334f94f687fe0200886266ba026acd6bbbfdd1ee20422907c165ee0",
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
     "references/structure-and-text.md": "100e521ce3806d2ca30bbf59467a554ef5d741f54fd00079f931fb5e3901fee0",
     "scripts/deck_cli.mjs": "10060df158c549b429ebf294e63ff157db1653dd226af571c73a0aa5cb76d491",

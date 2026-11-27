@@ -1,0 +1,42 @@
+{
+  "version": "0.1.8",
+  "description": "Ready-to-use smoke test & showcase prompts for yuanmou-ppt-skill across all major workflows.",
+  "prompts": [
+    {
+      "id": "flagship-dark-launch",
+      "category": "One-Sentence Flagship Deck",
+      "zh": "帮我策划并生成一套 6 页的「旗舰空间声学音箱工业设计发布会」PPT：暗场高定美术馆风格，含高清产品结构标注页、可双击编辑的真 Excel 频响与降噪对比图表页，以及水墨与半透明玻璃叠层页。先出大纲和选版看板，再生成原生可编辑 .pptx。",
+      "en": "Plan and build a 6-slide flagship industrial-design product launch deck for a minimalist acoustic speaker in a dark museum aesthetic, including an annotated hardware cutaway slide, real double-click-editable Excel benchmark charts, and translucent glass overlay visuals. Output a native editable .pptx."
+    },
+    {
+      "id": "campaign-23p-cross-industry",
+      "category": "Full Commercial Campaign Proposal",
+      "zh": "给我策划一套「智能护眼大屏电视 · 一家一屏 100 天」全域推广方案 PPT（含痛点洞察、战役核心概念、线上 H5 招募流程、百日故事连载与社媒传播示例），按 1.6W+ 商业版式库选版后 1:1 换血重绘为全套原生可编辑 .pptx，并输出左右对照验收 PDF。",
+      "en": "Create a full commercial marketing campaign deck for a smart eye-care TV ('100 Days of Living Room Cinema') covering audience pain points, campaign core concept, interactive H5 recruitment UI, 100-day story roadmap, and social media mockups as a native editable .pptx with side-by-side visual QA."
+    },
+    {
+      "id": "screenshot-1to1-redraw",
+      "category": "Image / Screenshot / PDF to Editable PPTX",
+      "zh": "把这张参考截图 1:1 矢量复刻成可编辑的原生 .pptx（保留半透明玻璃叠层、圆角梯形漏斗与配色层级，替换成我的新能源车 Q3 种草复盘数据），并用 50% X-Ray 叠图校准到无明显偏移。",
+      "en": "Convert this reference screenshot 1:1 into a native editable .pptx (preserving translucent glass layers, rounded trapezoid funnels, and color hierarchy while swapping in my EV Q3 marketing review data), and verify alignment with a 50% X-Ray overlay diff."
+    },
+    {
+      "id": "legacy-pptx-surgery",
+      "category": "Lossless Legacy PPTX Template Upgrade",
+      "zh": "保留我这份旧模板 template.pptx 的母版风格、圆角图片蒙版和左栏骨架不动，仅原位替换第 3～5 页的项目文案与配图，并在右侧原位注入内嵌真实 Excel 工作簿的双系列柱形图与跨行合并原生表格，同时清理未用冗余媒体瘦身。",
+      "en": "Perform lossless in-place editing on template.pptx: preserve the master styling, rounded photo masks, and left-column skeleton on slides 3-5, replace copy and photos in place, inject an embedded Excel dual-series bar chart plus a row-merged native table, and strip orphaned media."
+    },
+    {
+      "id": "consulting-data-report",
+      "category": "Consulting Data & Real Excel Charts",
+      "zh": "把这份季度经营复盘数据做成 5 页麦肯锡极简风汇报 PPT：包含 6 系列趋势折线图、Top 渠道横向条形图、占比环形图与带合计校验的原生合并表格，要求所有图表双击都能直接弹 Excel 改数，通过 6 组 15 项门禁后交付。",
+      "en": "Turn this quarterly business review data into a 5-slide minimalist consulting deck with a 6-series trend line chart, top-down horizontal bar chart, donut breakdown, and totals-verified native table—every chart backed by an embedded .xlsx workbook."
+    },
+    {
+      "id": "outline-only-markdown",
+      "category": "Text / Markdown Outline Only",
+      "zh": "先不要生成 .pptx，帮我用咨询顾问逻辑写一份 10 页的新茶饮联名活动策划大纲（Markdown 格式），每页给出金句型标题、3 条结构化要点和建议图示类型，严禁空话套话。",
+      "en": "Do not generate a .pptx yet. Write a 10-slide consulting-grade Markdown outline for a co-branded tea campaign, with insight-led titles, 3 structured bullets per slide, and recommended diagram families."
+    }
+  ]
+}
