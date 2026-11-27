@@ -2163,7 +2163,44 @@ async function testRedBlueHardeningV060() {
       }
     }
 
-    console.log("  [PASS] v0.6.0 Red-Blue Defensive Hardening verified! (decor:* anti-abuse, Unicode emoji + ©®™↗ exemption, highlighter vs nested-box, pdf-to-master fusion/zOrder/stroke/alpha, slot geometry invariance, cross-canvas/theme assembleDeck, default receipt gate & tiny_dummy_photo_slot)");
+    // G9: Pure raster PDF in `pdf-to-master` cleanly falls back to bitmap route (no fake stub masters.pptx!)
+    {
+      const pyCheck = spawnSync("python3", ["-c", "import pymupdf, PIL"], { encoding: "utf8" });
+      if (pyCheck.status === 0) {
+        const rasDir = path.join(tmpDir, "raster_fallback");
+        await fs.mkdir(rasDir, { recursive: true });
+        const rasPdf = path.join(rasDir, "pure_raster.pdf");
+        const mkRasPy = `
+from PIL import Image
+im = Image.new("RGB", (640, 360), (240, 236, 228))
+im.save(${JSON.stringify(rasPdf)}, "PDF")
+`;
+        assert.equal(spawnSync("python3", ["-c", mkRasPy], { encoding: "utf8" }).status, 0);
+        const outDir = path.join(rasDir, "out");
+        const p2m = spawnSync(
+          process.execPath,
+          [deckCliPath, "pdf-to-master", "--pdf", rasPdf, "--pages", "1", "--out", outDir],
+          { encoding: "utf8" }
+        );
+        assert.equal(p2m.status, 0, `pdf-to-master pure raster fallback failed:\n${p2m.stderr}`);
+        const p2mJson = JSON.parse(p2m.stdout);
+        assert.equal(p2mJson.mode, "fallback_to_bitmap");
+        assert.equal(p2mJson.mastersPptx, null);
+        assert.equal(await fs.stat(path.join(outDir, "masters.pptx")).then(() => true, () => false), false, "Pure raster PDF must NOT write a fake stub masters.pptx");
+        assert.equal(await fs.stat(path.join(outDir, "master_refs", "m01_p01.png")).then(() => true, () => false), true, "Pure raster fallback must export master_refs PNG");
+      }
+      // Mixed PDF raster page must NOT emit fake slot:* names
+      const mixPath = path.join(tmpDir, "mixed_raster.pptx");
+      await compilePdfVectorSpecToMasterPptx({
+        outPptxPath: mixPath,
+        placeholdersDir: path.join(tmpDir, "mixed_ph"),
+        pages: [{ page: 1, pdfKind: "raster", slideBgHex: "#FFFFFF" }],
+      });
+      const mixXml = readZipBuffer(await fs.readFile(mixPath)).get("ppt/slides/slide1.xml").toString("utf8");
+      assert.ok(!mixXml.includes('name="slot:'), "Unrebuilt raster page must not emit fake slot:* elements");
+    }
+
+    console.log("  [PASS] v0.6.1 Red-Blue Hardening & Pure-Raster Bitmap Fallback verified!");
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

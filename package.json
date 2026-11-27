@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.6.0",
-  "latestHighlights": "红蓝对抗防御架构升级：抽离统一 vision_kernel.py 视觉内核；pdf-to-master 真实内容流 Z 序 + 小容器单框融合 + 细长笔划 RDP 骨架化 + 文本透明度/基线归一化实现零人工直通 verify-master；收紧 decor:* 防绕过与全量 Unicode Emoji 校验；强化 verify --master 默认 SHA-256 签收、槽位几何不变性与 tiny_dummy_photo_slot 反作弊；assembleDeck 支持跨画布比例自动缩放与外部主题色固化",
+  "version": "0.6.1",
+  "latestHighlights": "pdf-to-master 纯光栅位图 PDF 不再生成空壳 masters.pptx，直接导出高清参考图并优雅退回位图复刻路线；明确选版后默认版式优先、主动精简上屏文案贴合母版槽位容量",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

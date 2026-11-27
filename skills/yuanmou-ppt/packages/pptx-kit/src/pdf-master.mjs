@@ -163,12 +163,12 @@ export async function compilePdfVectorSpecToMasterPptx({
     let vecCount = 0;
 
     if (pg.pdfKind === "raster") {
-      // Raster-only PDF page: emit a single clean full-canvas photo placeholder slot + notice slot
+      // Raster-only page inside a mixed PDF: emit non-slot decor guide so verify-master naturally flags it for visual rebuild
       const stubPh = path.join(phDir, `m${String(pIdx + 1).padStart(2, "0")}_raster_stub.png`);
       await makeNeutralPlaceholderPng(stubPh, 1280, 720, [215, 220, 228], [185, 192, 202]);
-      s.images.add({ name: "slot:raster_rebuild_guide", path: stubPh, left: 0, top: 0, width: 1280, height: 720, fit: "cover" });
+      s.images.add({ name: "decor:raster_rebuild_guide", path: stubPh, left: 0, top: 0, width: 1280, height: 720, fit: "cover" });
       s.shapes.add({
-        name: "slot:raster_notice",
+        name: "decor:raster_notice",
         geometry: "roundRect",
         borderRadius: 12,
         left: 300,
@@ -177,21 +177,17 @@ export async function compilePdfVectorSpecToMasterPptx({
         height: 100,
         fill: { color: "#0F172A", opacity: 0.85 },
         line: { fill: "none" },
-        text: `PDF 第 ${pg.page} 页为纯光栅位图，请按 ref_grid_1280x720.png 手工精绘纯骨架母版`,
+        text: `PDF 第 ${pg.page} 页为纯光栅位图，请按位图复刻路线手工精绘纯骨架母版`,
         textStyle: { fontFamily: "PingFang SC", fontSize: 18, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" },
       });
-      imgCount = 1;
-      textCount = 1;
-      totalImageSlots += imgCount;
-      totalTextSlots += textCount;
       pageSummary.push({
         masterSlide: pIdx + 1,
         pdfPage: pg.page,
         pdfKind: "raster",
         needsVisualRebuild: true,
         expectedImageCount: pg.expectedImageCount ?? 0,
-        emittedImageSlots: imgCount,
-        emittedTextSlots: textCount,
+        emittedImageSlots: 0,
+        emittedTextSlots: 0,
         emittedVectors: 0,
       });
       continue;

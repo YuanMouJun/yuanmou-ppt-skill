@@ -493,8 +493,41 @@ async function main() {
     const pdfSpecPath = path.join(outDir, "pdf_master_spec.json");
     await fs.writeFile(pdfSpecPath, JSON.stringify(extracted, null, 2) + "\n", "utf8");
 
+    const extractedPages = extracted.pages || [];
+    const allRaster = extractedPages.length > 0 && extractedPages.every((p) => p.pdfKind === "raster");
+    if (allRaster) {
+      await fs.rm(outPptx, { force: true });
+      console.log(
+        JSON.stringify(
+          {
+            schema: "yuanmou.pdf.master.compiled/v1",
+            mode: "fallback_to_bitmap",
+            pdfPath: absPdf,
+            pdfPageCount: extracted.pageCount,
+            outDir,
+            mastersPptx: null,
+            pdfMasterSpecPath: pdfSpecPath,
+            refDir: refsDir,
+            slideCount: extractedPages.length,
+            rasterPages: extractedPages.map((p) => p.page),
+            pageSummary: extractedPages.map((p, idx) => ({
+              masterSlide: idx + 1,
+              pdfPage: p.page,
+              pdfKind: "raster",
+              needsVisualRebuild: true,
+              refPath: p.refPath,
+            })),
+            nextStepHint: `纯光栅位图 PDF：已导出高清参考图至 "${refsDir}"，请直接退回位图复刻路线（inspect-ref → Phase 1 精绘纯骨架母版 → verify-master）。`,
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
     const compiled = await compilePdfVectorSpecToMasterPptx({
-      pages: extracted.pages || [],
+      pages: extractedPages,
       outPptxPath: outPptx,
       placeholdersDir,
       keepText: Boolean(values["keep-text"]),
@@ -505,6 +538,7 @@ async function main() {
       JSON.stringify(
         {
           schema: "yuanmou.pdf.master.compiled/v1",
+          mode: "vector_compiled",
           pdfPath: absPdf,
           pdfPageCount: extracted.pageCount,
           outDir,
