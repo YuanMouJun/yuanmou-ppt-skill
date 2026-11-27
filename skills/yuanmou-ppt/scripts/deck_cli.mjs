@@ -25,6 +25,8 @@ import {
   discoverRenderToolchain,
   createBrushPng,
   applyAlphaMaskToImage,
+  parsePageSelectionSpec,
+  compilePdfVectorSpecToMasterPptx,
   checkSkillUpdate,
   selfUpdateSkill,
 } from "../packages/pptx-kit/index.mjs";
@@ -173,10 +175,13 @@ pdf_path = cfg["pdfPath"]
 page_no = int(cfg.get("pageNo", 1))
 
 try:
-    import fitz
+    import pymupdf as fitz
 except Exception:
-    print(json.dumps({"available": False, "pdfKind": "unknown", "reason": "PyMuPDF not installed"}))
-    sys.exit(0)
+    try:
+        import fitz
+    except Exception:
+        print(json.dumps({"available": False, "pdfKind": "unknown", "reason": "PyMuPDF not installed"}))
+        sys.exit(0)
 
 doc = fitz.open(pdf_path)
 if page_no < 1 or page_no > len(doc):
@@ -224,6 +229,30 @@ for blk in text_dict.get("blocks", []):
         "text": joined[:140],
     })
 
+def items_to_svg_path(items):
+    parts = []
+    cur = None
+    for it in items:
+        k = it[0]
+        if k == "l":
+            p1, p2 = (round(it[1].x * sx, 1), round(it[1].y * sy, 1)), (round(it[2].x * sx, 1), round(it[2].y * sy, 1))
+            if cur != p1:
+                parts.append(f"M {p1[0]} {p1[1]}")
+            parts.append(f"L {p2[0]} {p2[1]}")
+            cur = p2
+        elif k == "c":
+            p1 = (round(it[1].x * sx, 1), round(it[1].y * sy, 1))
+            p2 = (round(it[2].x * sx, 1), round(it[2].y * sy, 1))
+            p3 = (round(it[3].x * sx, 1), round(it[3].y * sy, 1))
+            p4 = (round(it[4].x * sx, 1), round(it[4].y * sy, 1))
+            if cur != p1:
+                parts.append(f"M {p1[0]} {p1[1]}")
+            parts.append(f"C {p2[0]} {p2[1]} {p3[0]} {p3[1]} {p4[0]} {p4[1]}")
+            cur = p4
+    if parts:
+        parts.append("Z")
+    return " ".join(parts)
+
 drawings = page.get_drawings()
 drawing_items = []
 for dr in drawings[:80]:
@@ -236,11 +265,36 @@ for dr in drawings[:80]:
     fill = dr.get("fill")
     stroke = dr.get("color")
     to_hex = lambda c: "#{:02X}{:02X}{:02X}".format(int(c[0]*255), int(c[1]*255), int(c[2]*255)) if isinstance(c, (list, tuple)) and len(c) >= 3 else None
-    drawing_items.append({
+    item_rec = {
         "bbox": [round(r.x0 * sx, 1), round(r.y0 * sy, 1), round(w, 1), round(h, 1)],
         "fill": to_hex(fill),
         "stroke": to_hex(stroke),
-    })
+    }
+    raw_items = dr.get("items") or []
+    if 2 <= len(raw_items) <= 24 and any(it[0] in ("l", "c") for it in raw_items):
+        sp = items_to_svg_path(raw_items)
+        if sp:
+            item_rec["svgPath"] = sp
+            item_rec["viewBox"] = item_rec["bbox"]
+    drawing_items.append(item_rec)
+
+clip_items = []
+try:
+    for ext_d in page.get_drawings(extended=True):
+        if ext_d.get("type") != "clip":
+            continue
+        c_items = ext_d.get("items") or []
+        if len(c_items) < 2 or len(c_items) > 40 or not any(it[0] in ("l", "c") for it in c_items):
+            continue
+        r = ext_d.get("scissor") or ext_d.get("rect")
+        if not r:
+            continue
+        bbox = [round(r.x0 * sx, 1), round(r.y0 * sy, 1), round((r.x1 - r.x0) * sx, 1), round((r.y1 - r.y0) * sy, 1)]
+        sp = items_to_svg_path(c_items)
+        if sp:
+            clip_items.append({"bbox": bbox, "viewBox": bbox, "svgPath": sp})
+except Exception:
+    pass
 
 img_infos = page.get_image_info(xrefs=True)
 image_items = []
@@ -266,13 +320,236 @@ print(json.dumps({
     "pdfKind": kind,
     "textBlockCount": len(text_items),
     "drawingCount": len(drawings),
+    "clipCount": len(clip_items),
     "imageCount": len(img_infos),
     "vectorObjects": {
         "texts": text_items[:60],
         "drawings": drawing_items[:60],
+        "clips": clip_items[:16],
         "images": image_items[:30],
     } if kind != "raster" else None,
 }, ensure_ascii=False))
+`;
+
+const PY_PDF_EXTRACT_MASTER = `
+import json, os, sys
+
+cfg = json.loads(sys.argv[1])
+pdf_path = cfg["pdfPath"]
+page_list = cfg.get("pages") or []
+refs_dir = cfg["refsDir"]
+os.makedirs(refs_dir, exist_ok=True)
+
+try:
+    import pymupdf as fitz
+except Exception:
+    try:
+        import fitz
+    except Exception:
+        print(json.dumps({"available": False, "error": "PyMuPDF (pymupdf) is required for pdf-to-master"}))
+        sys.exit(0)
+
+try:
+    from PIL import Image
+    has_pil = True
+except Exception:
+    has_pil = False
+
+doc = fitz.open(pdf_path)
+total_pages = len(doc)
+if not page_list:
+    page_list = list(range(1, min(total_pages, 20) + 1))
+
+def to_hex(c):
+    if isinstance(c, (list, tuple)) and len(c) >= 3:
+        return "#{:02X}{:02X}{:02X}".format(int(round(c[0]*255)), int(round(c[1]*255)), int(round(c[2]*255)))
+    return None
+
+def items_to_svg(items, sx, sy):
+    parts = []
+    cur = None
+    for it in items:
+        k = it[0]
+        if k == "l":
+            p1 = (round(it[1].x * sx, 1), round(it[1].y * sy, 1))
+            p2 = (round(it[2].x * sx, 1), round(it[2].y * sy, 1))
+            if cur != p1:
+                parts.append(f"M {p1[0]} {p1[1]}")
+            parts.append(f"L {p2[0]} {p2[1]}")
+            cur = p2
+        elif k == "c":
+            p1 = (round(it[1].x * sx, 1), round(it[1].y * sy, 1))
+            p2 = (round(it[2].x * sx, 1), round(it[2].y * sy, 1))
+            p3 = (round(it[3].x * sx, 1), round(it[3].y * sy, 1))
+            p4 = (round(it[4].x * sx, 1), round(it[4].y * sy, 1))
+            if cur != p1:
+                parts.append(f"M {p1[0]} {p1[1]}")
+            parts.append(f"C {p2[0]} {p2[1]} {p3[0]} {p3[1]} {p4[0]} {p4[1]}")
+            cur = p4
+    if parts:
+        parts.append("Z")
+    return " ".join(parts)
+
+out_pages = []
+for idx, pno in enumerate(page_list, start=1):
+    if pno < 1 or pno > total_pages:
+        continue
+    page = doc[pno - 1]
+    pw, ph = float(page.rect.width) or 1280.0, float(page.rect.height) or 720.0
+    sx, sy = 1280.0 / pw, 720.0 / ph
+
+    ref_name = f"m{idx:02d}_p{pno:02d}.png"
+    ref_path = os.path.join(refs_dir, ref_name)
+    pix = page.get_pixmap(dpi=200)
+    pix.save(ref_path)
+    ref_pil = Image.open(ref_path).convert("RGB").resize((1280, 720), Image.Resampling.LANCZOS) if has_pil else None
+
+    # 1) Text lines (merging adjacent spans in each line)
+    texts = []
+    td = page.get_text("dict")
+    for blk in td.get("blocks", []):
+        if blk.get("type") != 0:
+            continue
+        for ln in blk.get("lines", []):
+            dv = ln.get("dir", (1, 0))
+            spans = [sp for sp in ln.get("spans", []) if sp.get("text", "").strip()]
+            if not spans:
+                continue
+            x0 = min(sp["bbox"][0] for sp in spans)
+            y0 = min(sp["bbox"][1] for sp in spans)
+            x1 = max(sp["bbox"][2] for sp in spans)
+            y1 = max(sp["bbox"][3] for sp in spans)
+            dom_sp = max(spans, key=lambda sp: len(sp.get("text", "")))
+            c_int = dom_sp.get("color", 0)
+            hexc = "#{:06X}".format(c_int & 0xFFFFFF) if isinstance(c_int, int) else "#111827"
+            texts.append({
+                "text": "".join(sp.get("text", "") for sp in spans).strip(),
+                "x": round(x0 * sx, 1),
+                "y": round(y0 * sy, 1),
+                "w": round((x1 - x0) * sx, 1),
+                "h": round((y1 - y0) * sy, 1),
+                "fontPt": round(float(dom_sp.get("size", 14)) * sy * 0.75, 1),
+                "font": dom_sp.get("font", ""),
+                "color": hexc,
+                "dir": [round(float(dv[0]), 2), round(float(dv[1]), 2)],
+            })
+
+    # 2) Vector drawings + slide bg detection
+    slide_bg = "#FFFFFF"
+    drawings = []
+    raw_drawings = page.get_drawings()
+    for d_idx, d in enumerate(raw_drawings[:120]):
+        r = d.get("rect")
+        if not r:
+            continue
+        x, y = round(r.x0 * sx, 1), round(r.y0 * sy, 1)
+        w, h = round((r.x1 - r.x0) * sx, 1), round((r.y1 - r.y0) * sy, 1)
+        if w < 1 and h < 1:
+            continue
+        fill = to_hex(d.get("fill"))
+        stroke = to_hex(d.get("color"))
+        op = round(float(d.get("fill_opacity", 1.0) or 1.0), 2)
+        if d_idx == 0 and x <= 2 and y <= 2 and w >= 1270 and h >= 712 and fill and op >= 0.98:
+            slide_bg = fill
+            continue
+        raw_items = d.get("items") or []
+        is_capsule = (len(raw_items) == 6 and sum(1 for it in raw_items if it[0] == "c") == 4 and sum(1 for it in raw_items if it[0] == "l") == 2)
+        rec = {
+            "x": x, "y": y, "w": w, "h": h,
+            "fill": fill,
+            "fillOpacity": op,
+            "stroke": stroke,
+            "strokeW": round(float(d.get("width") or 0) * sx, 2),
+            "opCount": len(raw_items),
+            "isCapsule": is_capsule,
+        }
+        if not is_capsule and 2 <= len(raw_items) <= 48 and any(it[0] in ("l", "c") for it in raw_items):
+            sp = items_to_svg(raw_items, sx, sy)
+            if sp:
+                rec["svgPath"] = sp
+                rec["viewBox"] = [x, y, w, h]
+        drawings.append(rec)
+
+    # 3) Non-rectangular vector clipping paths (for organic photo masks)
+    clips = []
+    try:
+        for ext_d in page.get_drawings(extended=True):
+            if ext_d.get("type") != "clip":
+                continue
+            c_items = ext_d.get("items") or []
+            if len(c_items) < 2 or len(c_items) > 40 or not any(it[0] in ("l", "c") for it in c_items):
+                continue
+            r = ext_d.get("scissor") or ext_d.get("rect")
+            if not r:
+                continue
+            cx0, cy0 = max(0.0, round(r.x0 * sx, 1)), max(0.0, round(r.y0 * sy, 1))
+            cx1, cy1 = min(1280.0, round(r.x1 * sx, 1)), min(720.0, round(r.y1 * sy, 1))
+            if cx1 - cx0 < 40 or cy1 - cy0 < 40:
+                continue
+            sp = items_to_svg(c_items, sx, sy)
+            if sp:
+                clips.append({"bbox": [cx0, cy0, round(cx1 - cx0, 1), round(cy1 - cy0, 1)], "svgPath": sp})
+    except Exception:
+        pass
+
+    # 4) Embedded images with sampled top/bottom placeholder tones + matched vector clip
+    img_infos = page.get_image_info(xrefs=True)
+    images = []
+    for im in img_infos[:40]:
+        x0, y0, x1, y1 = im["bbox"]
+        ix, iy = round(x0 * sx, 1), round(y0 * sy, 1)
+        iw, ih = round((x1 - x0) * sx, 1), round((y1 - y0) * sy, 1)
+        if iw < 12 or ih < 12:
+            continue
+        top_rgb, bot_rgb = [138, 146, 156], [74, 82, 92]
+        if ref_pil is not None:
+            bx0, by0 = max(0, int(ix)), max(0, int(iy))
+            bx1, by1 = min(1280, int(ix + iw)), min(720, int(iy + ih))
+            if bx1 - bx0 >= 8 and by1 - by0 >= 8:
+                crop = ref_pil.crop((bx0, by0, bx1, by1))
+                cw, ch = crop.size
+                t_im = crop.crop((0, 0, cw, max(1, ch // 3))).resize((1, 1)).getpixel((0, 0))
+                b_im = crop.crop((0, max(0, (2 * ch) // 3), cw, ch)).resize((1, 1)).getpixel((0, 0))
+                top_rgb, bot_rgb = [int(t_im[0]), int(t_im[1]), int(t_im[2])], [int(b_im[0]), int(b_im[1]), int(b_im[2])]
+        matched_clip = None
+        im_area = max(1.0, iw * ih)
+        for cl in clips:
+            cb = cl["bbox"]
+            ov_x = max(0.0, min(ix + iw, cb[0] + cb[2]) - max(ix, cb[0]))
+            ov_y = max(0.0, min(iy + ih, cb[1] + cb[3]) - max(iy, cb[1]))
+            if (ov_x * ov_y) / min(im_area, max(1.0, cb[2] * cb[3])) >= 0.55:
+                matched_clip = cl
+                break
+        im_rec = {
+            "x": ix, "y": iy, "w": iw, "h": ih,
+            "srcW": im.get("width", 0), "srcH": im.get("height", 0),
+            "topRgb": top_rgb, "botRgb": bot_rgb,
+        }
+        if matched_clip:
+            im_rec["clipSvgPath"] = matched_clip["svgPath"]
+            im_rec["clipViewBox"] = matched_clip["bbox"]
+        images.append(im_rec)
+
+    if len(texts) > 0 and len(drawings) >= 2:
+        pdf_kind = "vector"
+    elif len(texts) > 0 or len(drawings) >= 2:
+        pdf_kind = "hybrid"
+    else:
+        pdf_kind = "raster"
+
+    out_pages.append({
+        "page": pno,
+        "refName": ref_name,
+        "refPath": ref_path,
+        "pdfKind": pdf_kind,
+        "slideBgHex": slide_bg,
+        "expectedImageCount": len(images),
+        "texts": texts,
+        "drawings": drawings,
+        "images": images,
+    })
+
+print(json.dumps({"available": True, "pageCount": total_pages, "pages": out_pages}, ensure_ascii=False))
 `;
 
 const PY_INSPECT_REF = `
@@ -597,7 +874,7 @@ def calc_edge_similarity(ri, gi):
         return 100.0
     return round(min(100.0, 100.0 * inter / union), 1)
 
-def measure_zone_tilt(im_rgb, box):
+def measure_zone_tilt(im_rgb, box, min_share=0.10, min_val=22000.0):
     sub = im_rgb.crop(box)
     gw, gh = 260, 260
     gray = sub.resize((gw, gh), Image.Resampling.BILINEAR).convert("L")
@@ -620,9 +897,41 @@ def measure_zone_tilt(im_rgb, box):
     non_ortho = [(ang, sum(bins.get(ang + d, 0.0) for d in (-1, 0, 1))) for ang in range(-40, 41) if abs(ang) >= 4]
     best_ang, best_val = max(non_ortho, key=lambda kv: kv[1])
     share = best_val / max(1.0, total_mag)
-    if share >= 0.10 and best_val >= 22000.0:
+    if share >= min_share and best_val >= min_val:
         return int(best_ang), round(share, 3)
     return 0, round(share, 3)
+
+def measure_photo_tile_pct(im_rgb):
+    # Measures fraction of 40x38 tiles with photographic color/tonal diversity (flat vector/text slides score ~0%)
+    tw, th = 40, 38
+    w, h = im_rgb.size
+    q_whole = im_rgb.quantize(colors=8, method=Image.Quantize.MEDIANCUT).convert("RGB")
+    bg = sorted(q_whole.getcolors(maxcolors=32) or [], reverse=True)[0][1]
+    photo_tiles = 0
+    total_tiles = 0
+    for y in range(0, h - th + 1, th):
+        for x in range(0, w - tw + 1, tw):
+            total_tiles += 1
+            tile = im_rgb.crop((x, y, x + tw, y + th))
+            st = ImageStat.Stat(tile)
+            if sum(st.stddev) / 3.0 < 16.0:
+                continue
+            raw = tile.tobytes()
+            n_px = max(1, len(raw) // 3)
+            non_bg = 0
+            uniq_all = set()
+            uniq_chroma = set()
+            for j in range(0, len(raw), 3):
+                r, g, b = raw[j], raw[j + 1], raw[j + 2]
+                if abs(r - bg[0]) + abs(g - bg[1]) + abs(b - bg[2]) >= 45:
+                    non_bg += 1
+                    q = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4)
+                    uniq_all.add(q)
+                    if max(r, g, b) - min(r, g, b) >= 24:
+                        uniq_chroma.add(q)
+            if non_bg / float(n_px) >= 0.45 and len(uniq_all) >= 24 and len(uniq_chroma) >= 10:
+                photo_tiles += 1
+    return round(100.0 * photo_tiles / max(1, total_tiles), 1)
 
 pair_items = []
 angle_mismatches = []
@@ -637,13 +946,15 @@ for i in range(n):
     mae = sum(ImageStat.Stat(diff).mean) / 3.0
     sim = round(max(0.0, 100.0 * (1.0 - mae / 255.0)), 1)
     edge_sim = calc_edge_similarity(ri, gi)
+    ref_photo_pct = measure_photo_tile_pct(ri)
 
     # Check left & right half dominant tilt angles (catches reversed phone/card rotation immediately!)
     slide_angle_issues = []
     for zname, zbox in [("left_zone", (0, 70, pw // 2, ph)), ("right_zone", (pw // 2, 70, pw, ph))]:
         ref_deg, ref_sh = measure_zone_tilt(ri, zbox)
         if abs(ref_deg) >= 4:
-            gen_deg, gen_sh = measure_zone_tilt(gi, zbox)
+            # Hysteresis threshold (0.06) prevents knife-edge cliff snap-to-zero when gen matches ref angle cleanly
+            gen_deg, gen_sh = measure_zone_tilt(gi, zbox, min_share=0.06, min_val=18000.0)
             delta = abs(ref_deg - gen_deg)
             if delta >= 5:
                 rec = {
@@ -683,6 +994,7 @@ for i in range(n):
         "genName": os.path.basename(gens[i]),
         "similarityPct": sim,
         "edgeSimilarityPct": edge_sim,
+        "refPhotoTilePct": ref_photo_pct,
         "mae": round(mae, 2),
         "angleIssues": slide_angle_issues if slide_angle_issues else None,
         "pairJpg": out_jpg,
@@ -802,11 +1114,9 @@ print(json.dumps({"comparePdf": out_pdf, "pages": len(pdf_imgs), "kb": round(os.
 `;
 
 function numericSortPaths(paths) {
-  const key = (p) => {
-    const m = path.basename(p, path.extname(p)).match(/\d+/g);
-    return m ? Number.parseInt(m[m.length - 1], 10) : 0;
-  };
-  return [...paths].sort((a, b) => key(a) - key(b) || path.basename(a).localeCompare(path.basename(b)));
+  return [...paths].sort((a, b) =>
+    path.basename(a).localeCompare(path.basename(b), undefined, { numeric: true, sensitivity: "base" })
+  );
 }
 
 async function main() {
@@ -837,6 +1147,12 @@ async function main() {
       plan: { type: "string" },
       master: { type: "string" },
       "master-map": { type: "string" },
+      "master-receipt": { type: "string" },
+      "require-master-receipt": { type: "boolean" },
+      "pdf-spec": { type: "string" },
+      pages: { type: "string" },
+      "keep-text": { type: "boolean" },
+      "allow-unslotted": { type: "boolean" },
       "no-preserve-history": { type: "boolean" },
       out: { type: "string" },
       dpi: { type: "string" },
@@ -1097,6 +1413,67 @@ async function main() {
     return;
   }
 
+  // Phase 1 First-Class Compiler: Vector/Hybrid PDF -> Pure Phase-1 Editable Master PPTX + Master Refs + Spec JSON
+  if (cmd === "pdf-to-master") {
+    const rawPdf = values.pdf || values.ref || positionals[1] || "";
+    const absPdf = path.resolve(rawPdf);
+    if (!rawPdf || !existsSync(absPdf)) {
+      throw new Error(`pdf-to-master requires an existing --pdf <file.pdf> (got: ${rawPdf})`);
+    }
+    if (!toolchain.python3) {
+      throw new Error("pdf-to-master requires python3 with PyMuPDF (`pip install pymupdf pillow`).");
+    }
+    const outDir = path.resolve(values.out || path.join(path.dirname(absPdf), "phase1_masters"));
+    const refsDir = path.join(outDir, "master_refs");
+    const placeholdersDir = path.join(outDir, "placeholders");
+    const outPptx = path.resolve(values.pptx || path.join(outDir, "masters.pptx"));
+    await fs.mkdir(outDir, { recursive: true });
+
+    const pageList = values.pages ? parsePageSelectionSpec(values.pages) : [];
+    const extracted = runPythonVision(
+      PY_PDF_EXTRACT_MASTER,
+      { pdfPath: absPdf, pages: pageList, refsDir },
+      toolchain.python3
+    );
+    if (!extracted.available) {
+      throw new Error(extracted.error || "PyMuPDF not available for pdf-to-master");
+    }
+
+    const pdfSpecPath = path.join(outDir, "pdf_master_spec.json");
+    await fs.writeFile(pdfSpecPath, JSON.stringify(extracted, null, 2) + "\n", "utf8");
+
+    const compiled = await compilePdfVectorSpecToMasterPptx({
+      pages: extracted.pages || [],
+      outPptxPath: outPptx,
+      placeholdersDir,
+      keepText: Boolean(values["keep-text"]),
+      title: values.title || `Phase-1 Pure Masters (${path.basename(absPdf)})`,
+    });
+
+    console.log(
+      JSON.stringify(
+        {
+          schema: "yuanmou.pdf.master.compiled/v1",
+          pdfPath: absPdf,
+          pdfPageCount: extracted.pageCount,
+          outDir,
+          mastersPptx: compiled.outPptxPath,
+          pdfMasterSpecPath: pdfSpecPath,
+          refDir: refsDir,
+          placeholdersDir: compiled.placeholdersDir,
+          slideCount: compiled.slideCount,
+          totalImageSlots: compiled.totalImageSlots,
+          totalTextSlots: compiled.totalTextSlots,
+          pageSummary: compiled.pageSummary,
+          nextStepHint: `Run: node deck_cli.mjs verify-master --pptx "${compiled.outPptxPath}" --ref-dir "${refsDir}" --pdf-spec "${pdfSpecPath}" --out "${path.join(outDir, "qa_master")}"`,
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   // Phase 1 Hard Gate: Verify Pure Layout Masters (`masters.pptx`) against references with 50% X-Ray Overlays,
   // Edge Structure Similarity, and Dominant Tilt Angle Delta BEFORE Phase-2 content filling begins!
   if (cmd === "verify-master") {
@@ -1133,19 +1510,26 @@ async function main() {
 
     if (!depInfo.canRender) {
       if (values["require-render"]) assertRenderDeps(depInfo);
+      const unslottedSlides = masterInventory.filter((m) => m.namedSlots.length === 0).map((m) => m.masterSlide);
+      const enforceSlots = !Boolean(values["allow-unslotted"]);
+      const slotContractPassed = unslottedSlides.length === 0;
+      const passed = validation.passed && (!enforceSlots || slotContractPassed);
       const manifestPath = path.join(outDir, "master_verified.json");
       const receipt = {
         schema: "yuanmou.master.verified/v1",
-        passed: true,
+        passed,
         verificationMode: "code-gates-only",
         masterPptx: masterPath,
         masterSha256: validation.sha256,
         masterInventory,
+        slotContractPassed,
+        unslottedSlides,
         angleAuditPassed: true,
         angleMismatches: [],
       };
       await fs.writeFile(manifestPath, JSON.stringify(receipt, null, 2) + "\n", "utf8");
       console.log(JSON.stringify({ ...receipt, manifestPath }, null, 2));
+      if (!passed) process.exitCode = 1;
       return;
     }
 
@@ -1197,13 +1581,76 @@ async function main() {
     }
 
     const angleMismatches = multi?.angleMismatches || [];
+    const missingPhotoSlotIssues = [];
+
+    // Optional vector PDF spec cross-check (auto-discovered beside masters.pptx or passed via `--pdf-spec`)
+    let pdfSpecPages = null;
+    const candidateSpecPath = values["pdf-spec"]
+      ? path.resolve(values["pdf-spec"])
+      : path.join(path.dirname(masterPath), "pdf_master_spec.json");
+    if (existsSync(candidateSpecPath)) {
+      try {
+        const parsedSpec = JSON.parse(await fs.readFile(candidateSpecPath, "utf8"));
+        if (Array.isArray(parsedSpec?.pages)) pdfSpecPages = parsedSpec.pages;
+      } catch {
+        pdfSpecPages = null;
+      }
+    }
+
+    if (multi?.pairs?.length) {
+      for (const p of multi.pairs) {
+        const inv = masterInventory.find((m) => m.masterSlide === p.slide);
+        if (inv && inv.imageCount === 0 && typeof p.refPhotoTilePct === "number" && p.refPhotoTilePct >= 20.0) {
+          missingPhotoSlotIssues.push({
+            code: "missing_photo_slot_on_photo_ref",
+            slide: p.slide,
+            refName: p.refName,
+            refPhotoTilePct: p.refPhotoTilePct,
+            masterImageCount: inv.imageCount,
+            message: `Master slide ${p.slide} has 0 <p:pic> image slots while reference "${p.refName}" has ${p.refPhotoTilePct}% photographic content — keep a real replaceable photo slot (using a clean neutral placeholder if needed) instead of solid color blocks or text cards`,
+          });
+        }
+      }
+    }
+
+    // Vector PDF expected image-slot count check (catches dropping e.g. 6 photo slots down to 2!)
+    if (pdfSpecPages && pdfSpecPages.length > 0) {
+      for (let idx = 0; idx < Math.min(pdfSpecPages.length, masterInventory.length); idx++) {
+        const pgSpec = pdfSpecPages[idx];
+        const inv = masterInventory[idx];
+        if (!pgSpec || !inv || pgSpec.pdfKind === "raster") continue;
+        const expectedImgs = Number(pgSpec.expectedImageCount ?? pgSpec.images?.length ?? 0);
+        const minRequired = expectedImgs >= 2 ? Math.ceil(expectedImgs * 0.5) : expectedImgs;
+        if (expectedImgs >= 1 && inv.imageCount < minRequired) {
+          if (!missingPhotoSlotIssues.some((x) => x.slide === inv.masterSlide)) {
+            missingPhotoSlotIssues.push({
+              code: "vector_pdf_image_slots_dropped",
+              slide: inv.masterSlide,
+              pdfPage: pgSpec.page,
+              expectedImageCount: expectedImgs,
+              masterImageCount: inv.imageCount,
+              message: `Master slide ${inv.masterSlide} (PDF P${pgSpec.page}) only has ${inv.imageCount} <p:pic> slot(s), but the vector PDF contains ${expectedImgs} embedded images — keep replaceable photo placeholders instead of dropping photo slots`,
+            });
+          }
+        }
+      }
+    }
+
+    const unslottedSlides = masterInventory.filter((m) => m.namedSlots.length === 0).map((m) => m.masterSlide);
+    const enforceSlots = !Boolean(values["allow-unslotted"]);
+    const slotContractPassed = unslottedSlides.length === 0;
     const avgEdgeSimilarityPct = multi?.pairs?.length
       ? Number((multi.pairs.reduce((acc, x) => acc + x.edgeSimilarityPct, 0) / multi.pairs.length).toFixed(1))
       : null;
     const manifestPath = path.join(outDir, "master_verified.json");
+    const passed =
+      validation.passed &&
+      angleMismatches.length === 0 &&
+      missingPhotoSlotIssues.length === 0 &&
+      (!enforceSlots || slotContractPassed);
     const receipt = {
       schema: "yuanmou.master.verified/v1",
-      passed: validation.passed && angleMismatches.length === 0,
+      passed,
       verificationMode: "full-visual-xray",
       masterPptx: masterPath,
       masterSha256: validation.sha256,
@@ -1211,6 +1658,10 @@ async function main() {
       avgEdgeSimilarityPct,
       angleAuditPassed: angleMismatches.length === 0,
       angleMismatches,
+      photoSlotAuditPassed: missingPhotoSlotIssues.length === 0,
+      missingPhotoSlotIssues,
+      slotContractPassed,
+      unslottedSlides,
       xrayBatches: multi?.xrayBatches || [],
       compareBatches: multi?.compareBatches || [],
       masterXrayPdf: comparePdf,
@@ -1219,6 +1670,9 @@ async function main() {
     };
     await fs.writeFile(manifestPath, JSON.stringify(receipt, null, 2) + "\n", "utf8");
     console.log(JSON.stringify(receipt, null, 2));
+    if (!passed) {
+      process.exitCode = 1;
+    }
     return;
   }
 
@@ -1285,9 +1739,39 @@ async function main() {
       sourceIntegrity = { path: path.resolve(values["readonly-source"]), sha256: actualSha, intact: true };
     }
 
-    // 1b) Optional Phase-1 -> Phase-2 Master Slot Integrity audit (blocks dropping image slots or drifting rotation angles!)
+    // 1b) Optional Phase-1 -> Phase-2 Master Receipt SHA-256 + Slot Integrity audit
     let masterAudit = null;
+    let masterReceipt = null;
     if (values.master) {
+      const masterAbs = path.resolve(values.master);
+      const actualMasterSha = await sha256File(masterAbs);
+      const receiptCandidates = [
+        values["master-receipt"] ? path.resolve(values["master-receipt"]) : null,
+        path.join(path.dirname(masterAbs), "master_verified.json"),
+        path.join(path.dirname(masterAbs), "qa_master", "master_verified.json"),
+      ].filter(Boolean);
+      const foundReceiptPath = receiptCandidates.find((p) => existsSync(p)) || null;
+      if (foundReceiptPath) {
+        const parsed = JSON.parse(await fs.readFile(foundReceiptPath, "utf8"));
+        if (parsed.passed !== true) {
+          throw new Error(
+            `[MASTER_RECEIPT_INVALID] Phase-1 receipt "${foundReceiptPath}" has passed=${parsed.passed} — fix Phase-1 masters and re-run \`verify-master\` before Phase 2!`
+          );
+        }
+        if (parsed.masterSha256 && parsed.masterSha256.toLowerCase() !== actualMasterSha.toLowerCase()) {
+          throw new Error(
+            `[MASTER_RECEIPT_STALE] Master "${masterAbs}" SHA-256 (${actualMasterSha.slice(0, 12)}) does not match verified receipt "${foundReceiptPath}" (${parsed.masterSha256.slice(0, 12)}) — re-run \`verify-master\` after editing masters!`
+          );
+        }
+        masterReceipt = { status: "verified", path: foundReceiptPath, masterSha256: actualMasterSha };
+      } else if (values["require-master-receipt"]) {
+        throw new Error(
+          `[MASTER_RECEIPT_MISSING] \`--require-master-receipt\` is set, but no \`master_verified.json\` was found for "${masterAbs}" — run \`deck_cli.mjs verify-master\` in Phase 1 first!`
+        );
+      } else {
+        masterReceipt = { status: "missing", masterSha256: actualMasterSha };
+      }
+
       let slideMap = [];
       if (values["master-map"]) {
         const rawMap = values["master-map"].trim();
@@ -1533,6 +2017,7 @@ async function main() {
           pptx: targetPptx,
           archivedPreviousPptx,
           archivedPreviousPdf,
+          masterReceipt,
           masterAudit,
           gates: validation.gates,
           failCount: validation.failCount,
@@ -1554,7 +2039,7 @@ async function main() {
   }
 
   throw new Error(
-    `Unknown command "${cmd}". Expected: check-env | check-update | update | verify-master | verify | assemble | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
+    `Unknown command "${cmd}". Expected: check-env | check-update | update | pdf-to-master | verify-master | verify | assemble | make-brush | mask-image | inspect | validate-plan | prepare-starter | audit-fidelity | finalize | render | inspect-ref | diff`
   );
 }
 

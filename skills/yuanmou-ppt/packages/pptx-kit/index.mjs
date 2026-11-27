@@ -94,6 +94,12 @@ export {
   resolveActiveSourceProvider,
 } from "./src/providers/index.mjs";
 export {
+  parsePageSelectionSpec,
+  toNeutralPlaceholderText,
+  makeNeutralPlaceholderPng,
+  compilePdfVectorSpecToMasterPptx,
+} from "./src/pdf-master.mjs";
+export {
   encodeRgbaPng,
   decodePngToRgba,
   createBrushPng,

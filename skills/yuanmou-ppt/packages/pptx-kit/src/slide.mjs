@@ -182,6 +182,9 @@ export class ShapeElement extends BaseSlideElement {
 
     let initText = undefined;
     let initTextStyle = { ...classTokens.text };
+    if (config.insets !== undefined || config.padding !== undefined) {
+      initTextStyle.insets = config.insets ?? config.padding;
+    }
     if (config.textStyle) {
       initTextStyle = mergeTextStyle(initTextStyle, config.textStyle);
     }

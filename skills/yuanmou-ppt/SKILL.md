@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-version: 0.4.0
+version: 0.5.0
 description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库同构选版、复杂自由排版与半透明玻璃/菱形斜切/水墨笔刷蒙版 1:1 复刻、内嵌 .xlsx 可双击改数真图表及 6 组 15 项自动代码门禁与多页左右对照验收。
 ---
 
@@ -63,14 +63,14 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 凡基于参考图、截图或 PDF 复刻版式，**必须物理拆分为两个独立阶段执行，严禁一边猜坐标一边往里硬塞业务正文**：
 
 1. **Phase 1 · 纯版式复刻与母版 X 光验收（0 业务内容介入）**
-   - **先嗅探与实测（`inspect-ref`）**：对每一套独立参考母版运行 `deck_cli.mjs inspect-ref --ref <pdf或png> [--page N] --out ./work/ref_m1`——若输入为 `.pdf` 自动嗅探 `vector/hybrid/raster` 对象树；同时自动产出 **`ref_grid_1280x720.png`（100px 标尺网格）**、各分区 **`dominantTiltDeg` 实测倾斜角** 与 `ref_layout_spec.json`。**旋转正负号铁律：`rotation > 0` 为顺时针右倾（`\`），`rotation < 0` 为逆时针左倾（`/`）；旋转卡片内的子组件（手机听筒、角标等）一律用 `placeInRotatedFrame(parentBox, localChild)` 精算坐标**。
-   - **纯骨架母版化（`./work/masters.pptx`）**：仅用占位图与原版等长占位字构建各套独立母版，**给每个可替换图文节点命名语义槽位（如 `slot:hero_img`、`slot:title`、`slot:body`）**，按 4 类页型忠实还原（全出血暗罩禁用 100% 实心块或大黑盒、菱形/斜切/倾斜叠图与 `applyAlphaMaskToImage` 多笔触/轮廓蒙版、实物载体原生叠字、高难玻璃叠层/弧边锥体；页脚/顶栏必须在前景图片**之后**绘制，防 Z-order 遮挡）。
-   - **母版 X 光硬关卡（`verify-master`）**：运行 `deck_cli.mjs verify-master --pptx ./work/masters.pptx --ref-dir ./work/master_refs --out ./work/qa_master`，逐套审阅 **50% 半透明 X 光叠图（`xray_batch_*.jpg`）**、**边缘结构相似度（`edgeSimilarityPct`）**与 **`angleMismatches`**（角度偏差 ≥5° 自动报警）；母版未 1:1 咬合前严禁进入 Phase 2！
+   - **矢量/混合 PDF 一键直出骨架（优先调用 `pdf-to-master`）**：当参考源为 `.pdf` 时，优先跑 **`deck_cli.mjs pdf-to-master --pdf ./template.pdf --pages "1-8,13" --out ./work/phase1`**——引擎自动直读 PyMuPDF 对象树（含文本坐标/字号/旋转、矢量路径与透明度、非矩形贝塞尔裁切 `clips` 及所有图片 `bbox`），一键编译出带干净中性占位图、原生 `<a:custGeom>` 异形裁剪、`slot:*`/`decor:*` 语义命名的 `masters.pptx`、`pdf_master_spec.json` 与 `master_refs/`；仅对纯光栅页（`pdfKind: "raster"`）或需细分拼图/艺术字处结合 `inspect-ref`（100px 标尺网格 + `dominantTiltDeg` 实测角）手工精修。**旋转正负号铁律：`rotation > 0` 为顺时针右倾（`\`），`rotation < 0` 为逆时针左倾（`/`）；旋转框内子组件一律用 `placeInRotatedFrame(parentBox, localChild)` 精算坐标**。
+   - **语义层命名契约（`slot:*` vs `decor:*`）**：每个可替换图文槽位必须命名 `slot:*`（如 `slot:hero_img`、`slot:title`；缺真实配图时保留干净中性占位 `<p:pic>`，严禁改画色块或文字卡）；背景暗纹水印、划掉线、光环等装饰层命名 `decor:*`（与 `finalizer.mjs` 统一场景模型对齐，禁止靠猜名字豁免）。页脚/顶栏必须在前景图片**之后**绘制，防 Z-order 遮挡；非零原点 SVG 矢量直接传 `svgPath` + `viewBox: [minX, minY, w, h]`。
+   - **母版 X 光硬关卡（`verify-master`）**：运行 `deck_cli.mjs verify-master --pptx ./work/masters.pptx --ref-dir ./work/master_refs --out ./work/qa_master`，硬校验 ① 每页具备 `slot:*` 槽位（`slotContractPassed`）、② 摄影区与矢量 PDF 图片槽数未缺失（`photoSlotAuditPassed`）、③ 倾斜角偏差 `<5°`（`angleAuditPassed`），并签发含 `masterSha256` 的 **`master_verified.json`**；逐套审阅 **50% X 光叠图（`xray_batch_*.jpg`）**，未 1:1 咬合前严禁进入 Phase 2！
 
 2. **Phase 2 · 严格基于锁死母版的原位内容填充**
    - 用 **`assembleDeck()`** 从已验收的 `./work/masters.pptx`（以及需保留原页的源 `.pptx`）无损克隆拼装出全套页序，仅通过 **`slide.getSlot("slot:...")` → `.text.set()` / `.replace({ path, fit: "cover" })` / `slide.recolor(colorMap)`** 原位填字、换图、换色。
-   - **严禁在 Phase 2 破坏 Phase 1 母版结构**（禁止砍掉原模板照片槽改文字框、禁止擅改列数或倾斜角；文案容量超载时必须精简或建议拆页）。
-   - 终检时传 **`--master ./work/masters.pptx --master-map ...`**，由 `auditMasterSlotIntegrity` 自动校验图片槽数、命名槽位与旋转角度未被篡改。
+   - **严禁在 Phase 2 破坏 Phase 1 母版结构**（禁止砍掉原模板照片槽改文字框、禁止擅改列数或倾斜角；缺对应图片时保留母版占位图即可，严禁乱画；文案超载时必须精简或建议拆页）。
+   - 终检时传 **`--master ./work/masters.pptx --master-map ... --require-master-receipt`**，自动校验 `master_verified.json` 的 `passed: true` 与 `masterSha256` 一致性，并通过 `auditMasterSlotIntegrity` 锁死图片槽数、命名槽位与旋转角度。
    - **无参考图纯从零生成**（如纯离线按 `references/offline-layout-patterns.md` 绘制）或特殊授权改版（仅调色/横竖重排）仍须按模块化单页推进并严格遵守 4 类页型与 Z-order 铁律。
 
 ## 4. 文案保真与去 AI 腔铁律（Anti-Slop）
@@ -86,14 +86,17 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 `verify` 1 条命令跑完 **6 大门禁组 · 17 项自动代码检查**（ECMA-376 包结构、越界、碰撞、**Z-order 前景图/色块遮挡文字与页脚**、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、脏 Emoji/假表单方括号、正文与表格最小字号、孤字折行预警、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步 + 可选 `--master` 母版槽位不变性审计）并原子落盘 `--final`（自动把上一版归档至 `history/`）；有渲染依赖时自动出 `compare_batch_*.jpg` + 低分/角度冲突页 `xray_batch_*.jpg` + 多页左右对照 PDF（`qa_compare.pdf`，不再生成 HTML）：
 
 ```bash
-# Phase 1：参考源实测（PDF 自动嗅探矢量/位图 + 1280x720 坐标网格 + 主倾斜角）→ 母版 X 光叠图验收
-node <SKILL_DIR>/scripts/deck_cli.mjs inspect-ref --ref ./template.pdf --page 4 --out ./work/ref_m1
-node <SKILL_DIR>/scripts/deck_cli.mjs verify-master --pptx ./work/masters.pptx --ref-dir ./work/master_refs \
-  --out ./work/qa_master --pdf ./work/master_xray_compare.pdf
+# Phase 1（矢量/混合 PDF 首选）：一键提取矢量对象树 + 贝塞尔裁剪蒙版 + 中性占位图 → 纯骨架母版 & X 光验收
+node <SKILL_DIR>/scripts/deck_cli.mjs pdf-to-master --pdf ./template.pdf --pages "1-8,13" --out ./work/phase1
+node <SKILL_DIR>/scripts/deck_cli.mjs verify-master --pptx ./work/phase1/masters.pptx --ref-dir ./work/phase1/master_refs \
+  --out ./work/phase1/qa_master --pdf ./work/phase1/master_xray_compare.pdf
 
-# Phase 2：基于锁死母版原位填槽后终检落盘（自动校验母版槽位未破坏 + 自动归档旧版至 history/ + 同步出左右对照 PDF）
+# Phase 1（位图/截图或单页精查）：坐标标尺网格 + 主倾斜角实测
+node <SKILL_DIR>/scripts/deck_cli.mjs inspect-ref --ref ./ref_page.png --out ./work/ref_m1
+
+# Phase 2：基于已签发 master_verified.json 的锁死母版原位填槽后终检落盘（自动归档旧版至 history/ + 左右对照 PDF）
 node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./work/candidate.pptx --final ./output/final.pptx \
-  --master ./work/masters.pptx --master-map "2:1,3:2,4:3" \
+  --master ./work/phase1/masters.pptx --master-map "2:1,3:2,4:3" --require-master-receipt \
   --out ./work/qa --ref-dir ./refs --pdf ./output/qa_compare.pdf --anti-slop fail
 ```
 

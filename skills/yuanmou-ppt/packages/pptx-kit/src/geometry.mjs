@@ -165,6 +165,60 @@ export function parseSvgPathToCommands(d) {
 }
 
 /**
+ * Normalizes SVG `viewBox` from `[minX, minY, w, h]`, `[w, h]`, `"minX minY w h"`, or `{ minX/x, minY/y, width, height }`.
+ */
+function normalizeSvgViewBox(viewBox, fallbackW, fallbackH) {
+  if (Array.isArray(viewBox)) {
+    if (viewBox.length >= 4) {
+      return {
+        minX: Number(viewBox[0]) || 0,
+        minY: Number(viewBox[1]) || 0,
+        width: Number(viewBox[2]) || fallbackW,
+        height: Number(viewBox[3]) || fallbackH,
+      };
+    }
+    if (viewBox.length === 2) {
+      return {
+        minX: 0,
+        minY: 0,
+        width: Number(viewBox[0]) || fallbackW,
+        height: Number(viewBox[1]) || fallbackH,
+      };
+    }
+  } else if (typeof viewBox === "string") {
+    const nums = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number)
+      .filter(Number.isFinite);
+    if (nums.length >= 4) {
+      return {
+        minX: nums[0],
+        minY: nums[1],
+        width: nums[2] || fallbackW,
+        height: nums[3] || fallbackH,
+      };
+    }
+    if (nums.length === 2) {
+      return {
+        minX: 0,
+        minY: 0,
+        width: nums[0] || fallbackW,
+        height: nums[1] || fallbackH,
+      };
+    }
+  } else if (viewBox && typeof viewBox === "object") {
+    return {
+      minX: Number(viewBox.minX ?? viewBox.x ?? 0) || 0,
+      minY: Number(viewBox.minY ?? viewBox.y ?? 0) || 0,
+      width: Number(viewBox.width) || fallbackW,
+      height: Number(viewBox.height) || fallbackH,
+    };
+  }
+  return { minX: 0, minY: 0, width: fallbackW, height: fallbackH };
+}
+
+/**
  * Renders `<a:prstGeom>` or `<a:custGeom>` XML.
  */
 export function renderGeometryXml({
@@ -178,14 +232,17 @@ export function renderGeometryXml({
   viewBox,
 }) {
   // Custom path mode (structured `customPaths` or SVG `svgPath`)
+  const vb = svgPath ? normalizeSvgViewBox(viewBox, width, height) : null;
   const paths =
     Array.isArray(customPaths) && customPaths.length > 0
       ? customPaths
       : svgPath
         ? [
             {
-              width: viewBox?.width ?? width,
-              height: viewBox?.height ?? height,
+              minX: vb.minX,
+              minY: vb.minY,
+              width: vb.width,
+              height: vb.height,
               commands: parseSvgPathToCommands(svgPath),
             },
           ]
@@ -197,25 +254,27 @@ export function renderGeometryXml({
     }
     const pathXmlList = paths
       .map((p) => {
+        const ox = Number(p.minX ?? 0) || 0;
+        const oy = Number(p.minY ?? 0) || 0;
         const wEmu = Math.max(1, pxToEmu(p.width ?? width));
         const hEmu = Math.max(1, pxToEmu(p.height ?? height));
         const cmdsXml = (p.commands || [])
           .map((cmd) => {
             if (cmd.moveTo || cmd.cmd === "moveTo") {
               const pt = cmd.moveTo || cmd;
-              return `<a:moveTo><a:pt x="${pxToEmu(pt.x)}" y="${pxToEmu(pt.y)}"/></a:moveTo>`;
+              return `<a:moveTo><a:pt x="${pxToEmu(pt.x - ox)}" y="${pxToEmu(pt.y - oy)}"/></a:moveTo>`;
             }
             if (cmd.lineTo || cmd.cmd === "lineTo") {
               const pt = cmd.lineTo || cmd;
-              return `<a:lnTo><a:pt x="${pxToEmu(pt.x)}" y="${pxToEmu(pt.y)}"/></a:lnTo>`;
+              return `<a:lnTo><a:pt x="${pxToEmu(pt.x - ox)}" y="${pxToEmu(pt.y - oy)}"/></a:lnTo>`;
             }
             if (cmd.quadBezTo || cmd.cmd === "quadBezTo") {
               const q = cmd.quadBezTo || cmd;
-              return `<a:quadBezTo><a:pt x="${pxToEmu(q.x1)}" y="${pxToEmu(q.y1)}"/><a:pt x="${pxToEmu(q.x)}" y="${pxToEmu(q.y)}"/></a:quadBezTo>`;
+              return `<a:quadBezTo><a:pt x="${pxToEmu(q.x1 - ox)}" y="${pxToEmu(q.y1 - oy)}"/><a:pt x="${pxToEmu(q.x - ox)}" y="${pxToEmu(q.y - oy)}"/></a:quadBezTo>`;
             }
             if (cmd.cubicBezTo || cmd.cmd === "cubicBezTo") {
               const c = cmd.cubicBezTo || cmd;
-              return `<a:cubicBezTo><a:pt x="${pxToEmu(c.x1)}" y="${pxToEmu(c.y1)}"/><a:pt x="${pxToEmu(c.x2)}" y="${pxToEmu(c.y2)}"/><a:pt x="${pxToEmu(c.x)}" y="${pxToEmu(c.y)}"/></a:cubicBezTo>`;
+              return `<a:cubicBezTo><a:pt x="${pxToEmu(c.x1 - ox)}" y="${pxToEmu(c.y1 - oy)}"/><a:pt x="${pxToEmu(c.x2 - ox)}" y="${pxToEmu(c.y2 - oy)}"/><a:pt x="${pxToEmu(c.x - ox)}" y="${pxToEmu(c.y - oy)}"/></a:cubicBezTo>`;
             }
             if (cmd.close !== undefined || cmd.cmd === "close") {
               return `<a:close/>`;

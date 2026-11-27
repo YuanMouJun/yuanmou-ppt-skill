@@ -530,6 +530,180 @@ function extractTopLevelShapeBoxes(slideXml) {
   return items;
 }
 
+function aabbIntersectionArea(boxA, boxB) {
+  const ix = Math.max(0, Math.min(boxA.right, boxB.right) - Math.max(boxA.left, boxB.left));
+  const iy = Math.max(0, Math.min(boxA.bottom, boxB.bottom) - Math.max(boxA.top, boxB.top));
+  return { ix, iy, area: ix * iy };
+}
+
+function measureParagraphWidthPx(p) {
+  if (p.runs && p.runs.length > 0) {
+    let w = 0;
+    for (const r of p.runs) {
+      const pt = r.fontPt ?? p.fontPt ?? 18;
+      w += measureLinePx(r.text || "", pt / 0.75);
+    }
+    return w;
+  }
+  const cleanP = (p.text || "").trim();
+  return measureLinePx(cleanP || " ", (p.fontPt || 18) / 0.75);
+}
+
+/**
+ * Unified Slide Scene Model (v0.5.0):
+ * Resolves painter's-algorithm z-order, semantic layer role (`decor` / `chrome` / `slot` / `content`),
+ * true effective background RGB behind transparent textboxes, opaque occluder flags (with PNG IHDR
+ * alpha detection), per-run paragraph metrics, and ECMA-376 inscribed text rects ONCE per slide
+ * so all validation gates operate on a single consistent physical & semantic representation.
+ */
+function buildSlideSceneModel(slideXml, slideNo, slideW, slideH, zipMap) {
+  const rawItems = extractTopLevelShapeBoxes(slideXml);
+
+  // Resolve slide solid background color (default white `#FFFFFF`)
+  const bgBlock = slideXml.match(/<p:bg\b[^>]*>([\s\S]*?)<\/p:bg>/)?.[1] || "";
+  const slideBgHex =
+    bgBlock && !/<a:(?:gradFill|blipFill)\b/.test(bgBlock)
+      ? bgBlock.match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || "FFFFFF"
+      : !bgBlock
+        ? "FFFFFF"
+        : null;
+  const slideBgRgb = slideBgHex ? parseHexRgb(slideBgHex) : null;
+
+  // Map slide relationship IDs -> media targets for PNG IHDR alpha channel inspection
+  const slideRelsXml = zipMap.get(`ppt/slides/_rels/slide${slideNo}.xml.rels`)?.toString("utf8") || "";
+  const relTargetById = new Map();
+  for (const rm of slideRelsXml.matchAll(/<Relationship\b[^>]*\/?>/g)) {
+    const rid = getAttr(rm[0], "Id");
+    const tgt = getAttr(rm[0], "Target");
+    if (rid && tgt) relTargetById.set(rid, tgt.toLowerCase());
+  }
+
+  const scene = rawItems.map((it, zIndex) => {
+    const paraMetrics = (it.paras || []).map((p) => {
+      const cleanText = (p.text || "").trim();
+      const maxPt =
+        p.runs && p.runs.length > 0
+          ? Math.max(...p.runs.map((r) => r.fontPt ?? p.fontPt ?? 18))
+          : p.fontPt || 18;
+      const lineW = cleanText ? measureParagraphWidthPx(p) : measureLinePx(" ", maxPt / 0.75);
+      return { p, cleanText, maxPt, lineW };
+    });
+    const maxRunPt = paraMetrics.reduce((mx, pm) => Math.max(mx, pm.maxPt), 0);
+
+    // Semantic layer role (derived from explicit prefix or physical/structural role)
+    const nameStr = it.name || "";
+    const isGiantDisplayGlyph = it.tag === "p:sp" && it.plainText.length > 0 && it.plainText.length <= 2 && maxRunPt >= 150;
+    const isExplicitDecor = /^(?:decor|bg|watermark)[:_-]/i.test(nameStr);
+    const isDecorSlot = /^slot:(?:bg_|watermark)/i.test(nameStr);
+    const isStrokeOnlyCustomPath = !it.hasSolidFill && !it.hasGradOrBlipFill && it.prst === "custom" && !it.plainText;
+    const isEdgeChrome = it.aabb.top <= 48 || it.aabb.bottom >= slideH - 36;
+    const role =
+      isExplicitDecor || isGiantDisplayGlyph || isStrokeOnlyCustomPath
+        ? "decor"
+        : /^chrome[:_-]/i.test(nameStr) || isEdgeChrome
+          ? "chrome"
+          : /^slot[:_-]/i.test(nameStr)
+            ? "slot"
+            : "content";
+    const isBackgroundDecor = role === "decor" || isDecorSlot;
+
+    // Opaque occluder classification (used by z-order occlusion gate)
+    let isOpaqueOccluder = false;
+    if (it.tag === "p:sp" && it.fillOpacity >= 0.85 && !it.plainText) {
+      isOpaqueOccluder = true;
+    } else if (it.isPic) {
+      const relTarget = it.blipEmbedId ? relTargetById.get(it.blipEmbedId) || "" : "";
+      const isOpaqueJpeg = /\.(?:jpe?g|bmp|webp)$/i.test(relTarget);
+      const isFramedPic = it.hasVisibleBorder;
+      let isOpaquePng = false;
+      if (!isOpaqueJpeg && !isFramedPic && relTarget.endsWith(".png")) {
+        const resolvedPic = resolvePosixTarget(`ppt/slides/slide${slideNo}.xml`, relTarget);
+        const pBuf = zipMap.get(resolvedPic);
+        // PNG IHDR byte 25 = colorType: 0 (Grayscale) or 2 (RGB) has NO alpha channel -> 100% opaque
+        if (pBuf && pBuf.length > 26 && pBuf[0] === 0x89 && pBuf[1] === 0x50) {
+          const colorType = pBuf[25];
+          isOpaquePng = colorType === 0 || colorType === 2;
+        }
+      }
+      isOpaqueOccluder = isOpaqueJpeg || isFramedPic || isOpaquePng;
+    }
+
+    // ECMA-376 presetShapeDefinitions.xml inscribed text rectangle
+    const isNarrowGeom =
+      it.prst === "diamond" ||
+      it.prst === "triangle" ||
+      it.prst === "trapezoid" ||
+      it.prst === "ellipse" ||
+      (it.prst === "roundRect" && it.adjVal >= 35000);
+    let inscribedW;
+    if (it.prst === "diamond") {
+      inscribedW = it.noWrap ? it.width * 0.72 : it.width * 0.50 - it.insets.l - it.insets.r;
+    } else if (it.prst === "triangle") {
+      inscribedW = it.width * (it.noWrap ? 0.85 : 0.48);
+    } else if (it.prst === "trapezoid") {
+      inscribedW = it.width * (it.noWrap ? 0.9 : 0.68);
+    } else if (it.prst === "ellipse") {
+      inscribedW = it.noWrap ? it.width * 0.92 : it.width * 0.78 - it.insets.l - it.insets.r;
+    } else if (it.prst === "roundRect" && it.adjVal > 0) {
+      const cornerR = (Math.min(50000, it.adjVal) / 100000) * Math.min(it.width, it.height);
+      const roundInset = cornerR * 0.29289;
+      inscribedW = it.noWrap ? it.width - 2 * roundInset : it.width - 2 * roundInset - it.insets.l - it.insets.r;
+    } else {
+      inscribedW = it.noWrap ? it.width * 0.98 : it.width - it.insets.l - it.insets.r;
+    }
+    const inscribedH =
+      it.prst === "diamond"
+        ? Math.max(12, it.height * 0.50 - it.insets.t - it.insets.b)
+        : it.prst === "triangle"
+          ? it.height * 0.62
+          : it.prst === "ellipse"
+            ? Math.max(12, it.height * 0.78 - it.insets.t - it.insets.b)
+            : Math.max(12, it.height - it.insets.t - it.insets.b);
+
+    return {
+      ...it,
+      zIndex,
+      paraMetrics,
+      maxRunPt,
+      role,
+      isBackgroundDecor,
+      isStrokeOnlyCustomPath,
+      isOpaqueOccluder,
+      inscribed: { isNarrowGeom, effW: Math.max(12, inscribedW), effH: inscribedH },
+      effectiveBgRgb: null,
+    };
+  });
+
+  // Painter's-algorithm z-order pass: resolve true effective background behind every shape
+  for (let ti = 0; ti < scene.length; ti++) {
+    const it = scene[ti];
+    if (it.isPic) continue;
+    if (it.hasGradOrBlipFill) {
+      it.effectiveBgRgb = null;
+    } else if (it.solidFillHex) {
+      it.effectiveBgRgb = parseHexRgb(it.solidFillHex);
+    } else if (!it.hasSolidFill) {
+      let bgRgb = slideBgRgb;
+      const itArea = Math.max(1, it.aabb.width * it.aabb.height);
+      for (let bi = ti - 1; bi >= 0; bi--) {
+        const bg = scene[bi];
+        if (!bg.isPic && !bg.hasSolidFill && !bg.hasGradOrBlipFill) continue;
+        const { ix, iy, area } = aabbIntersectionArea(it.aabb, bg.aabb);
+        if (ix <= 2 || iy <= 2 || area / itArea < 0.45) continue;
+        if (bg.isPic || bg.hasGradOrBlipFill || (bg.hasSolidFill && !bg.solidFillHex)) {
+          bgRgb = null;
+        } else if (bg.solidFillHex) {
+          bgRgb = parseHexRgb(bg.solidFillHex);
+        }
+        break;
+      }
+      it.effectiveBgRgb = bgRgb;
+    }
+  }
+
+  return { items: scene, slideBgHex, slideBgRgb };
+}
+
 function runGates2And4GeometryAndText(
   zipMap,
   { antiSlop = "warn", checkTextOverflow = true, strictInShape = true, allowFullBgPic = false, masterMode = false } = {}
@@ -545,17 +719,7 @@ function runGates2And4GeometryAndText(
     if (!sm) continue;
     const slideNo = Number.parseInt(sm[1], 10);
     const xml = buf.toString("utf8");
-    const items = extractTopLevelShapeBoxes(xml);
-
-    // Resolve slide solid background color (default white `#FFFFFF`)
-    const bgBlock = xml.match(/<p:bg\b[^>]*>([\s\S]*?)<\/p:bg>/)?.[1] || "";
-    const slideBgHex =
-      bgBlock && !/<a:(?:gradFill|blipFill)\b/.test(bgBlock)
-        ? bgBlock.match(/<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/)?.[1] || "FFFFFF"
-        : !bgBlock
-          ? "FFFFFF"
-          : null;
-    const slideBgRgb = slideBgHex ? parseHexRgb(slideBgHex) : null;
+    const { items } = buildSlideSceneModel(xml, slideNo, slideW, slideH, zipMap);
 
     // 1) Out-of-bounds, Fake Bullets, Space-Padding, Overflow, Inscribed Width, Contrast & Anti-Slop
     for (const it of items) {
@@ -581,15 +745,9 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Fake typed bullets + Space-padding alignment + WCAG contrast checks
-      const shapeBgRgb = it.hasGradOrBlipFill
-        ? null
-        : it.solidFillHex
-          ? parseHexRgb(it.solidFillHex)
-          : !it.hasVisibleFillOrBorder
-            ? slideBgRgb
-            : null;
-      let contrastFlagged = false;
+      // Fake typed bullets + Space-padding alignment + WCAG contrast checks (using unified scene effectiveBgRgb & role)
+      const shapeBgRgb = it.effectiveBgRgb;
+      let contrastFlagged = it.isBackgroundDecor;
 
       for (const p of it.paras) {
         if (!p.hasNativeBullet && p.hasBuNone && /^\s*[•●▪▸]\s+\S/.test(p.text)) {
@@ -657,46 +815,17 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Inscribed horizontal width overflow / orphan wrap check (diamond, triangle, trapezoid, ellipse/pill, single-line painted labels)
+      // Inscribed horizontal width overflow / orphan wrap check (uses unified scene `it.inscribed` & `it.paraMetrics`)
       if (checkTextOverflow && it.tag === "p:sp" && it.plainText && it.width >= 30 && it.height >= 16) {
-        const isNarrowGeom =
-          it.prst === "diamond" ||
-          it.prst === "triangle" ||
-          it.prst === "trapezoid" ||
-          it.prst === "ellipse" ||
-          (it.prst === "roundRect" && it.adjVal >= 35000);
-        let inscribedW;
-        if (it.prst === "diamond") {
-          // Per ECMA-376 presetShapeDefinitions.xml, diamond's native text rect is [w/4..3w/4, h/4..3h/4] = 0.50*w x 0.50*h
-          inscribedW = it.noWrap
-            ? it.width * 0.72
-            : it.width * 0.50 - it.insets.l - it.insets.r;
-        } else if (it.prst === "triangle") {
-          inscribedW = it.width * (it.noWrap ? 0.85 : 0.48);
-        } else if (it.prst === "trapezoid") {
-          inscribedW = it.width * (it.noWrap ? 0.9 : 0.68);
-        } else if (it.prst === "ellipse" || (it.prst === "roundRect" && it.adjVal >= 35000)) {
-          inscribedW = it.noWrap ? it.width * 0.92 : it.width * 0.78 - it.insets.l - it.insets.r;
-        } else {
-          inscribedW = it.noWrap ? it.width * 0.98 : it.width - it.insets.l - it.insets.r;
-        }
-        const effW = Math.max(12, inscribedW);
-        const nonEmptyParas = it.paras.filter((p) => p.text.trim().length > 0);
-        if (nonEmptyParas.length === 1 && (it.noWrap || it.hasVisibleFillOrBorder)) {
-          const p0 = nonEmptyParas[0];
-          const fontPx = p0.fontPt / 0.75;
-          const lineW = measureLinePx(p0.text.trim(), fontPx);
+        const { isNarrowGeom, effW, effH: inscribedH } = it.inscribed;
+        const nonEmptyMetrics = it.paraMetrics.filter((pm) => pm.cleanText.length > 0);
+        if (nonEmptyMetrics.length === 1 && (it.noWrap || it.hasVisibleFillOrBorder)) {
+          const pm0 = nonEmptyMetrics[0];
+          const fontPx = pm0.maxPt / 0.75;
+          const lineW = pm0.lineW;
           const ratio = lineW / effW;
           const wrappedLines = it.noWrap ? 1 : Math.max(1, Math.ceil(lineW / effW));
-          const inscribedH =
-            it.prst === "diamond"
-              ? Math.max(12, it.height * 0.50 - it.insets.t - it.insets.b)
-              : it.prst === "triangle"
-                ? it.height * 0.62
-                : it.prst === "ellipse"
-                  ? Math.max(12, it.height * 0.78 - it.insets.t - it.insets.b)
-                  : Math.max(12, it.height - it.insets.t - it.insets.b);
-          const estHInscribed = wrappedLines * fontPx * p0.lineMult;
+          const estHInscribed = wrappedLines * fontPx * pm0.p.lineMult;
 
           if (
             (it.noWrap && ratio > 1.38) ||
@@ -709,7 +838,7 @@ function runGates2And4GeometryAndText(
               code: "inscribed_width_overflow",
               slide: slideNo,
               element: it.name,
-              message: `Slide ${slideNo} "${it.name}" (${it.prst}, ${Math.round(it.width)}x${Math.round(it.height)}px) text overflows inscribed area (~${Math.round(lineW)}px vs ${Math.round(effW)}px): "${p0.text.trim().slice(0, 24)}"`,
+              message: `Slide ${slideNo} "${it.name}" (${it.prst}, ${Math.round(it.width)}x${Math.round(it.height)}px) text overflows inscribed area (~${Math.round(lineW)}px vs ${Math.round(effW)}px): "${pm0.cleanText.slice(0, 24)}"`,
             });
           } else if (
             (it.noWrap && ratio > 1.15) ||
@@ -725,23 +854,22 @@ function runGates2And4GeometryAndText(
               message: `Slide ${slideNo} "${it.name}" (${it.prst}) label width (~${Math.round(lineW)}px) is tight for inscribed box (${Math.round(effW)}px) — risk of orphan wrap across fonts`,
             });
           }
-        } else if (nonEmptyParas.length > 1 && (it.prst === "diamond" || it.prst === "triangle")) {
+        } else if (nonEmptyMetrics.length > 1 && (it.prst === "diamond" || it.prst === "triangle")) {
           // Multi-paragraph text inside diamond/triangle tapers sharply toward top/bottom tips
           const multiEffW = Math.max(16, it.width * 0.50 - it.insets.l - it.insets.r);
           const multiEffH = Math.max(16, it.height * 0.56 - it.insets.t - it.insets.b);
           let totalH = 0;
           let maxRatio = 0;
           let worstLine = "";
-          for (const p of nonEmptyParas) {
-            const fontPx = p.fontPt / 0.75;
-            const lw = measureLinePx(p.text.trim(), fontPx);
-            const r = lw / multiEffW;
+          for (const pm of nonEmptyMetrics) {
+            const fontPx = pm.maxPt / 0.75;
+            const r = pm.lineW / multiEffW;
             if (r > maxRatio) {
               maxRatio = r;
-              worstLine = p.text.trim();
+              worstLine = pm.cleanText;
             }
-            const lines = Math.max(1, Math.ceil(lw / multiEffW));
-            totalH += lines * fontPx * p.lineMult;
+            const lines = Math.max(1, Math.ceil(pm.lineW / multiEffW));
+            totalH += lines * fontPx * pm.p.lineMult;
           }
           if (totalH > multiEffH * 1.15 || maxRatio > 1.35) {
             issues.push({
@@ -838,22 +966,20 @@ function runGates2And4GeometryAndText(
         }
       }
 
-      // Vertical text overflow & single-character widow/orphan wrap check
+      // Vertical text overflow & single-character widow/orphan wrap check (uses unified scene `it.paraMetrics`)
       if (checkTextOverflow && it.plainText && !it.noWrap && it.width >= 40 && it.height >= 24) {
         const innerW = Math.max(16, it.width - it.insets.l - it.insets.r);
         const innerH = Math.max(12, it.height - it.insets.t - it.insets.b);
         let estH = 0;
         let widowFlagged = false;
-        for (const p of it.paras) {
-          const cleanP = (p.text || "").trim();
-          const fontPx = p.fontPt / 0.75;
-          const lineW = measureLinePx(cleanP || " ", fontPx);
-          const lines = Math.max(1, Math.ceil(lineW / (innerW * 1.06)));
-          estH += lines * fontPx * p.lineMult;
-          if (!widowFlagged && !masterMode && lines >= 2 && cleanP.length >= 4 && innerW >= fontPx * 3.5) {
-            const remainderPx = lineW - (lines - 1) * innerW;
+        for (const pm of it.paraMetrics) {
+          const fontPx = pm.maxPt / 0.75;
+          const lines = Math.max(1, Math.ceil(pm.lineW / (innerW * 1.06)));
+          estH += lines * fontPx * pm.p.lineMult;
+          if (!widowFlagged && !masterMode && lines >= 2 && pm.cleanText.length >= 4 && innerW >= fontPx * 3.5) {
+            const remainderPx = pm.lineW - (lines - 1) * innerW;
             if (remainderPx > 0 && remainderPx <= fontPx * 1.55) {
-              const tail = cleanP.slice(-2);
+              const tail = pm.cleanText.slice(-2);
               if (/[\u4e00-\u9fff]/.test(tail)) {
                 widowFlagged = true;
                 issues.push({
@@ -862,7 +988,7 @@ function runGates2And4GeometryAndText(
                   code: "widow_orphan_line",
                   slide: slideNo,
                   element: it.name,
-                  message: `Slide ${slideNo} "${it.name}" risks single-character widow wrap ("...${cleanP.slice(-6)}") — widen box slightly or trim 1–2 chars`,
+                  message: `Slide ${slideNo} "${it.name}" risks single-character widow wrap ("...${pm.cleanText.slice(-6)}") — widen box slightly or trim 1–2 chars`,
                 });
               }
             }
@@ -899,24 +1025,23 @@ function runGates2And4GeometryAndText(
       }
     }
 
-    // 2) Nested-Textbox-Inside-Colored-Shape Detector (严禁小节点/单卡片内另套透明文本框；豁免 fill:"none" 大装饰外框与大分区底板)
+    // 2) Nested-Textbox-Inside-Colored-Shape Detector (uses unified scene zIndex & isStrokeOnlyCustomPath)
     const emptyPaintedShapes = items.filter((x) => {
       if (x.tag !== "p:sp" || x.plainText || !x.hasVisibleFillOrBorder || x.width < 24 || x.height < 16) return false;
       const isHollowDecorFrame = !x.hasSolidFill && !x.hasGradOrBlipFill && (x.width >= 300 || x.height >= 180);
       const isLargeZonePanel = x.width * x.height >= slideW * slideH * 0.26;
-      return !isHollowDecorFrame && !isLargeZonePanel;
+      return !x.isStrokeOnlyCustomPath && !isHollowDecorFrame && !isLargeZonePanel;
     });
     const transparentTextShapes = items.filter(
       (x) => x.tag === "p:sp" && x.plainText.length >= 1 && (x.isTextbox || !x.hasVisibleFillOrBorder) && x.width >= 16 && x.height >= 12
     );
     for (const bg of emptyPaintedShapes) {
-      const bgArea = bg.width * bg.height;
+      const bgArea = Math.max(1, bg.aabb.width * bg.aabb.height);
       for (const tb of transparentTextShapes) {
-        const tbArea = tb.width * tb.height;
-        const ix = Math.max(0, Math.min(bg.left + bg.width, tb.left + tb.width) - Math.max(bg.left, tb.left));
-        const iy = Math.max(0, Math.min(bg.top + bg.height, tb.top + tb.height) - Math.max(bg.top, tb.top));
+        if (bg.zIndex > tb.zIndex) continue; // Only flag painted container drawn BEHIND textbox
+        const tbArea = Math.max(1, tb.aabb.width * tb.aabb.height);
+        const { ix, iy, area: interArea } = aabbIntersectionArea(bg.aabb, tb.aabb);
         if (ix <= 4 || iy <= 4) continue;
-        const interArea = ix * iy;
         const overlapMin = interArea / Math.min(bgArea, tbArea);
         const areaRatio = Math.max(bgArea, tbArea) / Math.min(bgArea, tbArea);
         if (overlapMin >= 0.7 && areaRatio <= 2.4) {
@@ -993,82 +1118,49 @@ function runGates2And4GeometryAndText(
       }
     }
 
-    // 3c) Z-order Occlusion Check: later foreground opaque shape or opaque/framed image burying earlier text (e.g. phone frame slicing footer!)
-    {
-      const slideRelsXml = zipMap.get(`ppt/slides/_rels/slide${slideNo}.xml.rels`)?.toString("utf8") || "";
-      const relTargetById = new Map();
-      for (const rm of slideRelsXml.matchAll(/<Relationship\b[^>]*\/?>/g)) {
-        const rid = getAttr(rm[0], "Id");
-        const tgt = getAttr(rm[0], "Target");
-        if (rid && tgt) relTargetById.set(rid, tgt.toLowerCase());
-      }
+    // 3c) Z-order Occlusion Check (uses unified scene `isBackgroundDecor`, `isOpaqueOccluder`, `aabb`)
+    for (let ti = 0; ti < items.length; ti++) {
+      const tb = items[ti];
+      if (tb.tag !== "p:sp" || tb.plainText.length < 2 || tb.width <= 12 || tb.height <= 12) continue;
+      if (tb.isBackgroundDecor) continue;
+      const tbArea = Math.max(1, tb.aabb.width * tb.aabb.height);
 
-      for (let ti = 0; ti < items.length; ti++) {
-        const tb = items[ti];
-        if (tb.tag !== "p:sp" || tb.plainText.length < 2 || tb.width <= 12 || tb.height <= 12) continue;
-        const tbBox = tb.aabb;
-        const tbArea = Math.max(1, tbBox.width * tbBox.height);
-        const isEdgeChrome = tbBox.top <= 52 || tbBox.bottom >= slideH - 48;
-
-        for (let oi = ti + 1; oi < items.length; oi++) {
-          const ov = items[oi];
-          let isOpaqueOccluder = false;
-          if (ov.tag === "p:sp" && ov.fillOpacity >= 0.85 && !ov.plainText) {
-            isOpaqueOccluder = true;
-          } else if (ov.isPic) {
-            const relTarget = ov.blipEmbedId ? relTargetById.get(ov.blipEmbedId) || "" : "";
-            const isOpaqueJpeg = /\.(?:jpe?g|bmp|webp)$/i.test(relTarget);
-            const isFramedPic = ov.hasVisibleBorder;
-            let isOpaquePng = false;
-            if (!isOpaqueJpeg && !isFramedPic && relTarget.endsWith(".png")) {
-              const resolvedPic = resolvePosixTarget(`ppt/slides/slide${slideNo}.xml`, relTarget);
-              const pBuf = zipMap.get(resolvedPic);
-              // PNG IHDR byte 25 = colorType: 0 (Grayscale) or 2 (RGB) has NO alpha channel -> 100% opaque!
-              if (pBuf && pBuf.length > 26 && pBuf[0] === 0x89 && pBuf[1] === 0x50) {
-                const colorType = pBuf[25];
-                isOpaquePng = colorType === 0 || colorType === 2;
-              }
-            }
-            if (isOpaqueJpeg || isFramedPic || isOpaquePng) {
-              isOpaqueOccluder = true;
-            }
-          }
-          if (!isOpaqueOccluder) continue;
-
-          const ovBox = ov.aabb;
-          const ix = Math.max(0, Math.min(tbBox.right, ovBox.right) - Math.max(tbBox.left, ovBox.left));
-          const iy = Math.max(0, Math.min(tbBox.bottom, ovBox.bottom) - Math.max(tbBox.top, ovBox.top));
-          if (ix <= 6 || iy <= 6) continue;
-          const covRatio = (ix * iy) / tbArea;
-          if (covRatio >= 0.18) {
-            issues.push({
-              gate: "layout_geometry",
-              severity: "fail",
-              code: "z_order_text_occluded",
-              slide: slideNo,
-              elements: [tb.name, ov.name],
-              overlapPct: Math.round(covRatio * 100),
-              message: `Slide ${slideNo} foreground "${ov.name}" (drawn after "${tb.name}") occludes ${Math.round(covRatio * 100)}% of text "${tb.plainText.slice(0, 24)}" — draw chrome/text AFTER foreground images or move text out of overlap`,
-            });
-            break;
-          }
+      for (let oi = ti + 1; oi < items.length; oi++) {
+        const ov = items[oi];
+        if (!ov.isOpaqueOccluder) continue;
+        const { ix, iy, area } = aabbIntersectionArea(tb.aabb, ov.aabb);
+        if (ix <= 6 || iy <= 6) continue;
+        const covRatio = area / tbArea;
+        if (covRatio >= 0.18) {
+          issues.push({
+            gate: "layout_geometry",
+            severity: "fail",
+            code: "z_order_text_occluded",
+            slide: slideNo,
+            elements: [tb.name, ov.name],
+            overlapPct: Math.round(covRatio * 100),
+            message: `Slide ${slideNo} foreground "${ov.name}" (drawn after "${tb.name}") occludes ${Math.round(covRatio * 100)}% of text "${tb.plainText.slice(0, 24)}" — draw chrome/text AFTER foreground images or move text out of overlap`,
+          });
+          break;
         }
       }
     }
 
-    // 4) Substantive Text-on-Text AABB Collision Check
-    const textBoxes = items.filter((x) => !x.isPic && x.plainText.length >= 2 && x.width > 12 && x.height > 12);
+    // 4) Substantive Text-on-Text Rotated-AABB Collision Check (uses unified scene `isBackgroundDecor` & `aabb`)
+    const textBoxes = items.filter(
+      (x) => !x.isPic && x.plainText.length >= 2 && x.width > 12 && x.height > 12 && !x.isBackgroundDecor
+    );
     for (let i = 0; i < textBoxes.length; i++) {
       for (let j = i + 1; j < textBoxes.length; j++) {
         const a = textBoxes[i];
         const b = textBoxes[j];
-        const ix = Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left));
-        const iy = Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top));
+        const { ix, iy, area: interArea } = aabbIntersectionArea(a.aabb, b.aabb);
         if (ix <= 4 || iy <= 4) continue;
-        const interArea = ix * iy;
-        const minArea = Math.min(a.width * a.height, b.width * b.height);
-        // Ignore container-card vs inner label if one box is >4x larger than the other
-        const maxArea = Math.max(a.width * a.height, b.width * b.height);
+        const aArea = Math.max(1, a.aabb.width * a.aabb.height);
+        const bArea = Math.max(1, b.aabb.width * b.aabb.height);
+        const minArea = Math.min(aArea, bArea);
+        // Ignore container-card vs inner label if one box is >4.5x larger than the other
+        const maxArea = Math.max(aArea, bArea);
         if (maxArea / minArea > 4.5) continue;
 
         if (interArea / minArea > 0.25) {

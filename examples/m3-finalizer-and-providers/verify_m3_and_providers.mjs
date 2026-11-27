@@ -43,6 +43,9 @@ import {
   queryDeckOutline,
   assembleDeck,
   auditMasterSlotIntegrity,
+  parsePageSelectionSpec,
+  toNeutralPlaceholderText,
+  compilePdfVectorSpecToMasterPptx,
   placeInRotatedFrame,
   rotatedBoundingBox,
 } from "../../packages/pptx-kit/index.mjs";
@@ -1553,7 +1556,287 @@ bg.convert("RGB").save("${tiltRefPng.replace(/\\/g, "\\\\")}")
       );
     }
 
-    console.log("  [PASS] v0.4.0 Two-Stage Architecture verified! (placeInRotatedFrame, assembleDeck lossless merge, recolor/getSlot, auditMasterSlotIntegrity, z_order_text_occluded, history/ v1->v2 auto-archive, inspect-ref grid + +12° tilt)");
+    // F7: Z-order background contrast lookup, intentional watermark exemption, ECMA-376 roundRect pill math & top-level insets
+    {
+      const cDeck = Presentation.create({ title: "Contrast & Pill Geometry Test" });
+      const cs1 = cDeck.slides.add({ background: "#F3F4F4" });
+      // Underlying banner photo + white text on top -> MUST PASS!
+      cs1.images.add({ name: "slot:banner_bg", path: imgA, left: 0, top: 0, width: 1280, height: 280, fit: "cover" });
+      cs1.shapes.add({
+        name: "slot:banner_title",
+        geometry: "textbox",
+        left: 140,
+        top: 120,
+        width: 1000,
+        height: 60,
+        text: "白字压底图应当通过对比度校验",
+        textStyle: { fontSize: 36, color: "#FFFFFF", alignment: "center" },
+      });
+      // Earlier opaque dark card + transparent white textbox -> MUST PASS!
+      cs1.shapes.add({ name: "dark-card", geometry: "rect", left: 60, top: 340, width: 400, height: 140, fill: "#0F172A", line: { fill: "none" } });
+      cs1.shapes.add({
+        name: "white-on-dark-card",
+        geometry: "textbox",
+        left: 80,
+        top: 380,
+        width: 360,
+        height: 48,
+        text: "白字压深色卡片通过校验",
+        textStyle: { fontSize: 18, color: "#FFFFFF" },
+      });
+      // Intentional giant embossed watermark -> MUST PASS!
+      cs1.shapes.add({
+        name: "slot:bg_watermark",
+        geometry: "textbox",
+        left: 860,
+        top: 300,
+        width: 360,
+        height: 360,
+        text: "韵",
+        textStyle: { fontSize: 240, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle", lineSpacing: 1.0 },
+      });
+      // Wide capsule pill (ECMA-376 corner inset = 0.29289 * r) + small badge with top-level insets -> MUST PASS!
+      cs1.shapes.add({
+        name: "slot:left_pill",
+        geometry: "roundRect",
+        borderRadius: 29,
+        left: 60,
+        top: 540,
+        width: 202,
+        height: 58,
+        fill: "#FF2442",
+        line: { fill: "none" },
+        text: "左侧类别",
+        textStyle: { fontSize: 26, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" },
+      });
+      cs1.shapes.add({
+        name: "slot:brand_badge",
+        geometry: "roundRect",
+        borderRadius: 15,
+        left: 30,
+        top: 34,
+        width: 72,
+        height: 30,
+        fill: "#FF2442",
+        line: { fill: "none" },
+        insets: { left: 2, right: 2, top: 1, bottom: 1 },
+        text: "品牌标",
+        textStyle: { fontSize: 11.5, bold: true, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" },
+      });
+      const cGood = await validateDeckBuffer(cDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(cGood.passed, true, `Expected clean pass on photo/card contrast & pills, got: ${JSON.stringify(cGood.issues)}`);
+
+      // Negative check: white body text directly over empty #FFFFFF slide -> MUST STILL FAIL `low_contrast_text`!
+      const badContrast = Presentation.create({ title: "White on White Fail" });
+      const bs1 = badContrast.slides.add({ background: "#FFFFFF" });
+      bs1.shapes.add({
+        name: "invisible-text",
+        geometry: "textbox",
+        left: 100,
+        top: 200,
+        width: 500,
+        height: 60,
+        text: "纯白底色上的隐形白字必须拦截",
+        textStyle: { fontSize: 20, color: "#FAFAFA" },
+      });
+      const cBad = await validateDeckBuffer(badContrast.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(cBad.passed, false);
+      assert.ok(cBad.issues.some((i) => i.code === "low_contrast_text" && i.severity === "fail"), "White text on white slide must still fail low_contrast_text");
+
+      // F8: SVG `viewBox: [minX, minY, w, h]` origin normalization + stroke-only `svgPath` strikethrough + rotated-AABB collision
+      const svgDeck = Presentation.create({ title: "SVG ViewBox & Strikethrough Test" });
+      const ss1 = svgDeck.slides.add({ background: "#FFFFFF" });
+      ss1.shapes.add({
+        name: "offset-tri",
+        svgPath: "M 500 200 L 700 500 L 300 500 Z",
+        viewBox: [300, 200, 400, 300],
+        left: 300,
+        top: 200,
+        width: 400,
+        height: 300,
+        fill: "#B5C7E7",
+        line: { fill: "none" },
+      });
+      ss1.shapes.add({
+        name: "slot:strike_txt",
+        geometry: "textbox",
+        left: 100,
+        top: 100,
+        width: 220,
+        height: 44,
+        text: "「旧标签」",
+        textStyle: { fontSize: 22, color: "#000000" },
+      });
+      ss1.shapes.add({
+        name: "decor:strike_stroke",
+        svgPath: "M 0 24 L 180 4",
+        viewBox: [0, 0, 180, 32],
+        left: 110,
+        top: 104,
+        width: 180,
+        height: 32,
+        fill: "none",
+        line: { fill: "#FF0036", width: 4 },
+      });
+      const svgBuf = svgDeck.toPptxBuffer();
+      const svgSlideXml = readZipBuffer(svgBuf).get("ppt/slides/slide1.xml").toString("utf8");
+      // Apex (500 - 300 = 200px = 1905000 EMU, 200 - 200 = 0 EMU) MUST be normalized relative to viewBox minX/minY!
+      assert.ok(svgSlideXml.includes('<a:moveTo><a:pt x="1905000" y="0"/></a:moveTo>'), "SVG viewBox [minX,minY,w,h] must subtract minX/minY from path points");
+      const svgVal = await validateDeckBuffer(svgBuf, { antiSlop: "fail" });
+      assert.equal(svgVal.passed, true, `Stroke-only svgPath over text must not trigger nested_textbox_in_shape: ${JSON.stringify(svgVal.issues)}`);
+    }
+
+    // F9: v0.5.0 Vector PDF -> Pure Phase-1 Master Compiler (`parsePageSelectionSpec`, `toNeutralPlaceholderText`, `compilePdfVectorSpecToMasterPptx`)
+    {
+      assert.deepEqual(parsePageSelectionSpec("1-3,8,2,13-14", 50), [1, 2, 3, 8, 13, 14]);
+      const neutral = toNeutralPlaceholderText("如果妈妈是一份职业 — 2023 IP!");
+      assert.equal(neutral.length, "如果妈妈是一份职业 — 2023 IP!".length);
+      assert.ok(!neutral.includes("妈妈") && !neutral.includes("2023"), `Neutral placeholder must strip business copy: ${neutral}`);
+
+      const pdfCompiledPath = path.join(tmpDir, "compiled_masters.pptx");
+      const compiledRes = await compilePdfVectorSpecToMasterPptx({
+        outPptxPath: pdfCompiledPath,
+        placeholdersDir: path.join(tmpDir, "compiled_ph"),
+        pages: [
+          {
+            page: 2,
+            pdfKind: "vector",
+            slideBgHex: "#FFFFFF",
+            expectedImageCount: 1,
+            drawings: [
+              { x: 650, y: 220, w: 260, h: 60, fill: "#FF0036", fillOpacity: 1, stroke: null, strokeW: 0, opCount: 6, isCapsule: true },
+              {
+                x: 822,
+                y: 22,
+                w: 458,
+                h: 642,
+                fill: "#FF0036",
+                fillOpacity: 0.22,
+                stroke: null,
+                strokeW: 0,
+                opCount: 3,
+                svgPath: "M 1280 22 L 1280 390 L 878 424 Z",
+                viewBox: [822, 22, 458, 642],
+              },
+            ],
+            images: [
+              {
+                x: 0,
+                y: 105,
+                w: 620,
+                h: 615,
+                topRgb: [130, 100, 80],
+                botRgb: [60, 44, 34],
+                clipSvgPath: "M 329 105 L 620 400 L 323 720 L 0 720 L 0 291 Z",
+                clipViewBox: [0, 105, 620, 615],
+              },
+            ],
+            texts: [
+              { text: "商业核心标题", x: 640, y: 90, w: 380, h: 64, fontPt: 40, font: "PingFangSC-Semibold", color: "#000000", dir: [1, 0] },
+              { text: "CAREER", x: 460, y: 120, w: 80, h: 320, fontPt: 60, font: "STSongti-SC-Regular", color: "#E0E0E0", dir: [0, 1] },
+            ],
+          },
+        ],
+      });
+      assert.equal(compiledRes.slideCount, 1);
+      assert.equal(compiledRes.totalImageSlots, 1);
+      assert.equal(compiledRes.totalTextSlots, 2);
+      const compBuf = await fs.readFile(pdfCompiledPath);
+      const compVal = await validateDeckBuffer(compBuf, { antiSlop: "off", masterMode: true });
+      assert.equal(compVal.passed, true, `Compiled vector master must pass masterMode validation: ${JSON.stringify(compVal.issues)}`);
+      const compXml = readZipBuffer(compBuf).get("ppt/slides/slide1.xml").toString("utf8");
+      assert.ok(compXml.includes('name="slot:img_1"') && compXml.includes("<a:custGeom>"), "Compiled image must keep native custGeom clip");
+      assert.ok(compXml.includes('name="decor:text_2"'), "Rotated background text must be tagged decor:* in unified scene model");
+      assert.ok(!compXml.includes("商业核心标题"), "Pure Phase-1 compiler must strip original business copy by default");
+    }
+
+    // F10: Unified Scene Model (`decor:*` role without magic watermark name) + Hard Phase-1/Phase-2 Cryptographic Receipt (`master_verified.json`)
+    {
+      const decorDeck = Presentation.create({ title: "Unified Decor Role Test" });
+      const ds1 = decorDeck.slides.add({ background: "#FFFFFF" });
+      // Named `decor:en_accent` (NO "watermark" substring!) sitting behind a foreground card -> MUST PASS via unified `role === "decor"`!
+      ds1.shapes.add({
+        name: "decor:en_accent",
+        geometry: "textbox",
+        left: 120,
+        top: 120,
+        width: 420,
+        height: 84,
+        text: "EDITORIAL",
+        textStyle: { fontSize: 48, color: "#ECECEC" },
+      });
+      ds1.shapes.add({
+        name: "slot:fg_card",
+        geometry: "rect",
+        left: 140,
+        top: 140,
+        width: 280,
+        height: 120,
+        fill: "#0F172A",
+        line: { fill: "none" },
+        text: "前景主卡片正文内容",
+        textStyle: { fontSize: 18, color: "#FFFFFF", alignment: "center", verticalAlignment: "middle" },
+      });
+      const decorVal = await validateDeckBuffer(decorDeck.toPptxBuffer(), { antiSlop: "fail" });
+      assert.equal(decorVal.passed, true, `Unified decor:* role must exempt decorative bg text cleanly: ${JSON.stringify(decorVal.issues)}`);
+
+      // Cryptographic receipt enforcement in `deck_cli.mjs verify --master ... --require-master-receipt`
+      const rDir = path.join(tmpDir, "receipt_gate");
+      await fs.mkdir(rDir, { recursive: true });
+      const rMaster = path.join(rDir, "masters.pptx");
+      const rCand = path.join(rDir, "candidate.pptx");
+      await fs.copyFile(mastersPath, rMaster);
+      await fs.copyFile(phase2Path, rCand);
+      const rMasterSha = sha256(await fs.readFile(rMaster));
+
+      // 1) Missing receipt + `--require-master-receipt` -> MUST FAIL!
+      const missRes = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify", "--pptx", rCand, "--master", rMaster, "--master-map", "2:1", "--require-master-receipt", "--out", path.join(rDir, "qa1")],
+        { encoding: "utf8" }
+      );
+      assert.notEqual(missRes.status, 0, "Missing master_verified.json with --require-master-receipt must fail");
+      assert.ok((missRes.stderr || "").includes("MASTER_RECEIPT_MISSING"), `Expected MASTER_RECEIPT_MISSING, got: ${missRes.stderr}`);
+
+      // 2) Receipt with `passed: false` -> MUST FAIL even without `--require-master-receipt`!
+      const receiptPath = path.join(rDir, "master_verified.json");
+      await fs.writeFile(receiptPath, JSON.stringify({ schema: "yuanmou.master.verified/v1", passed: false, masterSha256: rMasterSha }));
+      const failRecRes = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify", "--pptx", rCand, "--master", rMaster, "--master-map", "2:1", "--out", path.join(rDir, "qa2")],
+        { encoding: "utf8" }
+      );
+      assert.notEqual(failRecRes.status, 0, "Failed Phase-1 receipt must block Phase-2 verify");
+      assert.ok((failRecRes.stderr || "").includes("MASTER_RECEIPT_INVALID"), `Expected MASTER_RECEIPT_INVALID, got: ${failRecRes.stderr}`);
+
+      // 3) Stale SHA-256 receipt -> MUST FAIL!
+      await fs.writeFile(receiptPath, JSON.stringify({ schema: "yuanmou.master.verified/v1", passed: true, masterSha256: "0".repeat(64) }));
+      const staleRes = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify", "--pptx", rCand, "--master", rMaster, "--master-map", "2:1", "--out", path.join(rDir, "qa3")],
+        { encoding: "utf8" }
+      );
+      assert.notEqual(staleRes.status, 0, "Stale masterSha256 receipt must block Phase-2 verify");
+      assert.ok((staleRes.stderr || "").includes("MASTER_RECEIPT_STALE"), `Expected MASTER_RECEIPT_STALE, got: ${staleRes.stderr}`);
+
+      // 4) Unslotted master in `verify-master` -> MUST FAIL `slotContractPassed: false`!
+      const unslottedDeck = Presentation.create({ title: "Unslotted Master" });
+      const us1 = unslottedDeck.slides.add({ background: "#FFFFFF" });
+      us1.shapes.add({ name: "random_box", left: 100, top: 100, width: 400, height: 80, text: "没有命名槽位的假母版", textStyle: { fontSize: 20, color: "#111827" } });
+      const unslottedPath = path.join(rDir, "unslotted.pptx");
+      await unslottedDeck.save(unslottedPath);
+      const vmFail = spawnSync(
+        process.execPath,
+        [deckCliPath, "verify-master", "--pptx", unslottedPath, "--out", path.join(rDir, "qa_unslotted")],
+        { encoding: "utf8" }
+      );
+      assert.notEqual(vmFail.status, 0, "verify-master must fail when a master slide has 0 slot:* elements");
+      const vmJson = JSON.parse(vmFail.stdout);
+      assert.equal(vmJson.slotContractPassed, false);
+      assert.deepEqual(vmJson.unslottedSlides, [1]);
+    }
+
+    console.log("  [PASS] v0.5.0 Two-Stage & Unified Scene Architecture verified! (pdf-to-master compiler, unified scene decor/effectiveBg/aabb model, SVG viewBox minX/minY, cryptographic master_verified.json SHA-256 contract, slotContractPassed hard gate)");
   } finally {
     await fs.rm(tmpDir, { recursive: true, force: true });
   }

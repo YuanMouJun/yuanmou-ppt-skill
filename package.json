@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.4.0",
-  "latestHighlights": "v0.4.0 两阶段硬解耦架构：新增跨PPTX无损合页 assembleDeck、Phase-1 母版 X光/角度/边缘硬关卡 verify-master、PDF 矢量/位图自动嗅探与 1280x720 网格/主倾斜角实测、旋转子组件精算 placeInRotatedFrame、Z-order 遮挡硬门禁及交付历史版本自动归档 history/",
+  "version": "0.5.0",
+  "latestHighlights": "新增 pdf-to-master 矢量PDF直出纯阶段一母版编译器（含贝塞尔原生custGeom蒙版与中性占位槽）；重构 finalizer 统一场景模型（Z序有效底色/旋转AABB/逐run算宽/ECMA-376胶囊公式/decor语义层）；修复 SVG viewBox 原点偏移与参考图自然排序；强制 verify-master slot契约与 verify 阶段一SHA-256签收闭环",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",
