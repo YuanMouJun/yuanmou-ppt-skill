@@ -36,7 +36,7 @@ Agent-agnostic—works with Claude Code, Cursor, OpenAI Codex, Antigravity, Work
 ---
 
 <p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/launch-yuanmou-0.2.gif" alt="Yuanmou PPT 0.2 Launch Film" width="100%">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/launch-yuanmou-0.2.gif" alt="Yuanmou PPT 0.2 Launch Film" width="100%">
 </p>
 
 <p align="center"><sub>
@@ -53,33 +53,33 @@ Every deck below passed all **6 gate groups (15 static OOXML & layout checks)** 
 
 > "Build a dark industrial-design product launch deck for a CNC-milled spatial acoustic speaker, with an annotated cutaway slide and double-click editable acoustic benchmark charts."
 
-A museum-monograph pacing: a fine 20 Hz–40 kHz spectrum ruler anchors the full-bleed bronze sculpture cover; Slide 2 pins six whisper-thin callout leaders directly onto the copper waveguide cutaway on pure `#000000`; Slide 3 embeds two real `.xlsx` Excel charts beside a Swiss spec table; Slides 4–5 close with materiality macro swatches and a clean three-stage architecture grid. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-aura-01-flagship-sample.pptx)
+A museum-monograph pacing: a fine 20 Hz–40 kHz spectrum ruler anchors the full-bleed bronze sculpture cover; Slide 2 pins six whisper-thin callout leaders directly onto the copper waveguide cutaway on pure `#000000`; Slide 3 embeds two real `.xlsx` Excel charts beside a Swiss spec table; Slides 4–5 close with materiality macro swatches and a clean three-stage architecture grid. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-aura-01-flagship-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-cover.jpg" width="100%" alt="AURA 01 Launch Cover"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-pages.jpg" width="100%" alt="AURA 01 Interior Slides 2-5"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-aura-cover.jpg" width="100%" alt="AURA 01 Launch Cover"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-aura-pages.jpg" width="100%" alt="AURA 01 Interior Slides 2-5"></p>
 
 ### PPT · *Light & Concrete* — Minimalist Architectural Monograph
 
 > "Create a restrained architectural lecture deck on raw concrete and natural daylight, inspired by museum exhibition catalogs."
 
-Strict monochrome discipline—black, raw concrete grey, warm gallery paper, and one quiet ochre accent—leaving 68% of the canvas to open air and shadow. Slide 3 embeds a live Excel daylight luminance curve across 12 hours (`06:00–18:00`) paired with hairline typographic time notes instead of heavy boxes. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-arch-monograph-sample.pptx)
+Strict monochrome discipline—black, raw concrete grey, warm gallery paper, and one quiet ochre accent—leaving 68% of the canvas to open air and shadow. Slide 3 embeds a live Excel daylight luminance curve across 12 hours (`06:00–18:00`) paired with hairline typographic time notes instead of heavy boxes. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-arch-monograph-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-cover.jpg" width="100%" alt="Light and Concrete Cover"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-pages.jpg" width="100%" alt="Light and Concrete Interior Slides"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-arch-cover.jpg" width="100%" alt="Light and Concrete Cover"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-arch-pages.jpg" width="100%" alt="Light and Concrete Interior Slides"></p>
 
 ### PPT · *Eye of Deep Space* — Seeing Light From 13 Billion Years Ago
 
 > "Build a pitch-black scientific keynote explaining how an infrared space telescope sees through interstellar dust."
 
-Pure `#000000` canvas, photography as the sole protagonist, and optical callouts drawn straight onto the gold-coated hexagonal mirror array. Slide 3 pairs visible-light dust obscuration against infrared clarity above a `0.4–28 μm` spectrum bar; Slide 4 closes with stark monumental figures and an obsidian native table. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-cosmos-keynote-sample.pptx)
+Pure `#000000` canvas, photography as the sole protagonist, and optical callouts drawn straight onto the gold-coated hexagonal mirror array. Slide 3 pairs visible-light dust obscuration against infrared clarity above a `0.4–28 μm` spectrum bar; Slide 4 closes with stark monumental figures and an obsidian native table. 👉 [Download real `.pptx` source](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-cosmos-keynote-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-cosmos-pages.jpg" width="100%" alt="Eye of Deep Space Science Keynote"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-cosmos-pages.jpg" width="100%" alt="Eye of Deep Space Science Keynote"></p>
 
 ### Editorial Range · Luxury Beauty & Smart EV Highlights
 
 > "Match two opposite industries—luxury skincare and smart EV launches—with distinct commercial layout languages from the 16,000+ layout library."
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-luxury-duo.jpg" width="85%" alt="Luxury Beauty and Smart EV Editorial Highlights"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-luxury-duo.jpg" width="85%" alt="Luxury Beauty and Smart EV Editorial Highlights"></p>
 
 ---
 
@@ -91,19 +91,19 @@ Beyond exhibition aesthetics, `@yuanmou/pptx-kit` is engineered for the three ha
 
 A complete 23-slide marketing proposal reconstructed from cross-industry reference layouts (`0 fail, 0 warn`), featuring native dry-brush photo slices, 45° diamond photo frames (each right-clickable to swap photos in PowerPoint), and vector H5 form mockups.
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-grid.jpg" width="92%" alt="23-Slide Commercial Campaign Overview"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-craft.jpg" width="75%" alt="Native Brush Masks and Diamond Geometry Craft"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-grid.jpg" width="92%" alt="23-Slide Commercial Campaign Overview"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-craft.jpg" width="75%" alt="Native Brush Masks and Diamond Geometry Craft"></p>
 
 ### Lossless Legacy `.pptx` Template Surgery (`35.4 MB → 1.05 MB`)
 
 Read existing corporate `.pptx` anchors in place, preserve brand masters and photo masks pixel-for-pixel, inject dual embedded Excel charts plus a row-merged native table, and strip 97% of orphaned OPC media.
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/demo-template-surgery.gif" width="82%" alt="Lossless Legacy PPTX Surgery Wipe Demo"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-surgery-clean.jpg" width="82%" alt="Lossless Legacy PPTX Surgery Before and After"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/demo-template-surgery.gif" width="82%" alt="Lossless Legacy PPTX Surgery Wipe Demo"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-surgery-clean.jpg" width="82%" alt="Lossless Legacy PPTX Surgery Before and After"></p>
 
 ### High-Density Consulting Frameworks (16,000+ Free Layout Library)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-industry-highlights.jpg" width="78%" alt="Multi-Industry Commercial Consulting Frameworks"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="78%" alt="Multi-Industry Commercial Consulting Frameworks"></p>
 
 ---
 

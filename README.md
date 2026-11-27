@@ -36,7 +36,7 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 ---
 
 <p align="center">
-  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/launch-yuanmou-0.2.gif" alt="Yuanmou PPT 0.2 发布片" width="100%">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/launch-yuanmou-0.2.gif" alt="Yuanmou PPT 0.2 发布片" width="100%">
 </p>
 
 <p align="center"><sub>
@@ -53,27 +53,27 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 
 > 「给一台整块铝锭切削的空间声学音箱做一套暗场工业设计发布会 PPT，要有机械剖面引线标注和能双击改数的实测声学图表」
 
-走的是暗场工业画册路子：封面底部一条 20Hz 到 40kHz 的细长声谱标尺压住画面重心，暗影顺着玄武岩底座沉进纯黑；第二页在纯黑背景里直接用细引线标出六处内部紫铜波导结构；第三页左右两张声学实测图内嵌了标准 `.xlsx` 工作簿，第四页切出微距质感与矿物色卡，收尾落在极克制的三段式瑞士网格。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-aura-01-flagship-sample.pptx)
+走的是暗场工业画册路子：封面底部一条 20Hz 到 40kHz 的细长声谱标尺压住画面重心，暗影顺着玄武岩底座沉进纯黑；第二页在纯黑背景里直接用细引线标出六处内部紫铜波导结构；第三页左右两张声学实测图内嵌了标准 `.xlsx` 工作簿，第四页切出微距质感与矿物色卡，收尾落在极克制的三段式瑞士网格。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-aura-01-flagship-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-cover.jpg" width="100%" alt="声如建筑：渊眸声学 AURA 01 发布会封面"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-aura-pages.jpg" width="100%" alt="声如建筑内页四联：硬件剖面、双真 Excel 图表、材质微距、三段式架构"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-aura-cover.jpg" width="100%" alt="声如建筑：渊眸声学 AURA 01 发布会封面"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-aura-pages.jpg" width="100%" alt="声如建筑内页四联：硬件剖面、双真 Excel 图表、材质微距、三段式架构"></p>
 
 ### PPT · 《光影与混凝土》极简建筑美学讲演
 
 > 「做一个关于清水混凝土与自然光影的极简建筑美学演讲 PPT，克制留白，像建筑展馆画册」
 
-全案约束在黑、灰、暖米白和一缕哑光铜金里，把 68% 的版面主动留给光和墙。封面底部用一条 06:00 到 18:30 的日照入射角标尺定位午后 28° 的光束；第三页把十二小时墙面照度变化做成可双击改数的真 Excel 折线图，右侧只用细线分隔三个光影时刻，不画多余卡片框。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-arch-monograph-sample.pptx)
+全案约束在黑、灰、暖米白和一缕哑光铜金里，把 68% 的版面主动留给光和墙。封面底部用一条 06:00 到 18:30 的日照入射角标尺定位午后 28° 的光束；第三页把十二小时墙面照度变化做成可双击改数的真 Excel 折线图，右侧只用细线分隔三个光影时刻，不画多余卡片框。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-arch-monograph-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-cover.jpg" width="100%" alt="光影与混凝土：建筑美学讲演封面"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-arch-pages.jpg" width="100%" alt="光影与混凝土内页四联：光缝留白、十二小时照度真 Excel 折线图、材料反射率、空间结语"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-arch-cover.jpg" width="100%" alt="光影与混凝土：建筑美学讲演封面"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-arch-pages.jpg" width="100%" alt="光影与混凝土内页四联：光缝留白、十二小时照度真 Excel 折线图、材料反射率、空间结语"></p>
 
 ### PPT · 《深空之眼》我们如何看见 130 亿年前的光
 
 > 「做一套讲红外空间望远镜如何穿透星际尘埃拍下深空星云的科普演讲 PPT，纯黑底，照片做主角」
 
-纯黑底色、照片做主角、标注直接落在光学结构上。第二页把镀金六边形铍镜悬浮在纯黑画布正中，六条细引线精准指向镀层、致动器与次镜；第三页把可见光尘埃与红外穿透并排对照，底部拉出一条 0.4–28 μm 光谱窗口；第四页用纯黑原生表格拉平两代望远镜参数。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/yuanmou-cosmos-keynote-sample.pptx)
+纯黑底色、照片做主角、标注直接落在光学结构上。第二页把镀金六边形铍镜悬浮在纯黑画布正中，六条细引线精准指向镀层、致动器与次镜；第三页把可见光尘埃与红外穿透并排对照，底部拉出一条 0.4–28 μm 光谱窗口；第四页用纯黑原生表格拉平两代望远镜参数。👉 [下载这套 `.pptx` 源文件验真](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/yuanmou-cosmos-keynote-sample.pptx)
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-cosmos-pages.jpg" width="100%" alt="深空之眼：纯黑红外空间望远镜科普演讲四联"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-cosmos-pages.jpg" width="100%" alt="深空之眼：纯黑红外空间望远镜科普演讲四联"></p>
 
 ### 品牌高定 · 跨赛道单页风格样张
 
@@ -81,7 +81,7 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 
 内置的 1.6W+ 商业版式库不是千篇一律的模板套壳，而是按行业气质、构图骨架与内容槽位同构匹配：轻奢护肤走香槟丝绸横幅与极简徽标，智能出行走红黑杂志风战役主视觉与三图拼贴（示例已统一脱敏为「渊眸」品牌）。
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-luxury-duo.jpg" width="85%" alt="渊眸美研轻奢画册封面与渊眸智行红黑战役总纲"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-luxury-duo.jpg" width="85%" alt="渊眸美研轻奢画册封面与渊眸智行红黑战役总纲"></p>
 
 ---
 
@@ -95,8 +95,8 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 
 整套 23 页一气呵成通过 6 组 15 项门禁（0 告警）。左侧水墨干笔飞白切片与朱砂印章由内置纯 Node 蒙版引擎实时合成，菱形九宫格每一张照片都保留独立图片槽位，在 PowerPoint 里右键就能单张换图。
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-grid.jpg" width="92%" alt="渊眸电视 23 页全套原生商业方案精选 12 页"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-yuanmou-tv-craft.jpg" width="75%" alt="水墨飞白切图、45度菱形裁图与九宫格多图画廊特写"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-grid.jpg" width="92%" alt="渊眸电视 23 页全套原生商业方案精选 12 页"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-yuanmou-tv-craft.jpg" width="75%" alt="水墨飞白切图、45度菱形裁图与九宫格多图画廊特写"></p>
 
 ### 既有 `.pptx` 公司母本无损手术（`35.4 MB → 1.05 MB`）
 
@@ -104,14 +104,14 @@ npx skills add YuanMouJun/yuanmou-ppt-skill
 
 引擎直接解析原 `.pptx` 锚点并原位修改，不破坏原母版样式与图片蒙版；同时自动执行冗余媒体回收，35.4 MB 臃肿母本无损抽页升级后直接瘦身至 **1.05 MB（-97%）**。
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/demo-template-surgery.gif" width="82%" alt="既有 PPTX 母本无损手术动态对比：35.4 MB 瘦身至 1.05 MB"></p>
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-surgery-clean.jpg" width="82%" alt="既有 PPTX 母本无损手术前后静态对照"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/demo-template-surgery.gif" width="82%" alt="既有 PPTX 母本无损手术动态对比：35.4 MB 瘦身至 1.05 MB"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-surgery-clean.jpg" width="82%" alt="既有 PPTX 母本无损手术前后静态对照"></p>
 
 ### 1.6W+ 商业版式库 · 高密度咨询结构图样张
 
 给咨询顾问、品牌市场部和 Agency 准备的高密度策略结构页（全链路增长闭环矩阵、多阶投放漏斗与搜索回环图等，示例统一脱敏为「渊眸」品牌），开箱免登录即可按槽位指纹毫秒级同构挑版。
 
-<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.2.0/case-industry-highlights.jpg" width="78%" alt="多行业商业版式与高密度咨询结构图样张"></p>
+<p align="center"><img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/media-v2/case-industry-highlights.jpg" width="78%" alt="多行业商业版式与高密度咨询结构图样张"></p>
 
 ---
 
