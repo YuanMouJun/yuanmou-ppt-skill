@@ -1,12 +1,12 @@
 {
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Ready-to-use smoke test & showcase prompts for yuanmou-ppt-skill across all major workflows.",
   "prompts": [
     {
       "id": "flagship-dark-launch",
       "category": "One-Sentence Flagship Deck",
-      "zh": "帮我策划并生成一套 6 页的「旗舰空间声学音箱工业设计发布会」PPT：暗场高定美术馆风格，含高清产品结构标注页、可双击编辑的真 Excel 频响与降噪对比图表页，以及水墨与半透明玻璃叠层页。先出大纲和选版看板，再生成原生可编辑 .pptx。",
-      "en": "Plan and build a 6-slide flagship industrial-design product launch deck for a minimalist acoustic speaker in a dark museum aesthetic, including an annotated hardware cutaway slide, real double-click-editable Excel benchmark charts, and translucent glass overlay visuals. Output a native editable .pptx."
+      "zh": "帮我策划并生成一套 5 页的「渊眸声学 AURA 01 空间音箱工业设计发布会」PPT：暗场高定美术馆风格，含高清产品剖面引线标注页、可双击编辑的真 Excel 频响与阻尼对比图表页、材质微距色卡页与三段式架构页，交付原生可编辑 .pptx。",
+      "en": "Plan and build a 5-slide flagship industrial-design product launch deck for a minimalist acoustic speaker in a dark museum aesthetic, including an annotated hardware cutaway slide, real double-click-editable Excel benchmark charts, a materiality swatch monograph, and a clean 3-stage architecture slide. Output a native editable .pptx."
     },
     {
       "id": "campaign-23p-cross-industry",

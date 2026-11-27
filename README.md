@@ -1,160 +1,248 @@
-# yuanmou-ppt-skill (`@yuanmou/pptx-kit`)
+<div align="center">
 
-[![Node.js >=22.5](https://img.shields.io/badge/Node.js-%3E%3D22.5-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Dependencies: 0](https://img.shields.io/badge/npm%20dependencies-0-brightgreen)](#快速开始)
-[![AI Agents](https://img.shields.io/badge/AI%20Agents-WorkBuddy%20%7C%20Trae%20%7C%20Qoder%20%7C%20OpenClaw%20%7C%20Claude%20Code%20%7C%20Codex%20%7C%20Cursor-6366F1)](#快速开始)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
+# 渊眸 PPT · Yuanmou PPT
 
-> **All-in-One AI PPT Generator & Image / Screenshot / PDF to Editable PPTX Skill** for **WorkBuddy, Trae, Qoder, CodeBuddy, OpenClaw, Claude Code, OpenAI Codex, Cursor, and Antigravity** — go from a **one-sentence topic** to a complete consulting-grade editable presentation backed by **16,000+ real commercial layouts**, convert any complex screenshot or PDF 1:1 into real editable PowerPoint (native vector paths, `<a:alpha>` translucent glass layers, organic ink-brush & flood-fill masks, embedded `.xlsx` Excel-backed charts), or perform lossless `.pptx` template editing with **6 gate groups (15 automated OOXML & layout checks)** and side-by-side PDF visual QA.
->
-> **一句话从零策划整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT · 零第三方依赖原生 `.pptx` 引擎与全端 AI Agent Skill**（全覆盖国内主流 **WorkBuddy / Trae / Qoder / CodeBuddy / OpenClaw（龙虾）/ Kimi / Qwen Code** 与海外 **Claude Code / Codex / Cursor / Antigravity**）。无论是**只给一句话主题从零策划大纲、去 AI 腔文案、匹配 1.6W+ 真实商业版式库出整套视觉大片**，还是**把任意复杂截图/PDF 1:1 矢量复刻为可编辑 PowerPoint**、**对老旧 `.pptx` 无损换字换图与注入真 Excel 图表**，全链路一条龙交付。
+**拒绝网页截图套壳，直接交付 100% 可编辑的原生 `.pptx`。**
+
+<sub>一句话从零策划整套商业方案 · 截图 / PDF 1:1 矢量复刻 · 既有 `.pptx` 母本无损改版 · 图表内嵌真实 `.xlsx` 双击弹 Excel</sub>
+
+<p>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node.js-%3E%3D22.5-161514?style=flat-square" alt="Node.js >= 22.5" /></a>
+  <a href="#快速安装"><img src="https://img.shields.io/badge/npm%20dependencies-0-C85A32?style=flat-square" alt="Zero Dependencies" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-161514?style=flat-square" alt="Apache-2.0" /></a>
+</p>
+
+<p>
+  <strong>中文</strong> ·
+  <a href="./README.en.md">English</a> ·
+  <a href="https://ppt.resourcehub.dpdns.org">官网预览</a> ·
+  <a href="#案例画廊">案例画廊</a> ·
+  <a href="#快速安装">快速安装</a> ·
+  <a href="./test-prompts.json">开箱 Prompt 集</a> ·
+  <a href="./SECURITY.md">安全与数据流</a>
+</p>
+
+<br />
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/hero-yuanmou-ppt.gif" width="94%" alt="渊眸 PPT：一句话生成原生可编辑 .pptx，并在 PowerPoint 中双击图表弹出真 Excel 实时改数" />
+  <br />
+  <sub>真实工作流实录：一句话生成 5 页「渊眸声学 AURA 01」发布会 PPT → PowerPoint 中双击柱状图弹出内嵌 <code>Microsoft_Excel_Worksheet.xlsx</code> 实时改数联动。<br />下载这套案例的真实源文件亲自验真：<a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/yuanmou-aura-01-flagship-sample.pptx"><strong>yuanmou-aura-01-flagship-sample.pptx</strong></a>（6 组 15 项门禁 0 报错 0 警告）</sub>
+</p>
+
+</div>
 
 ---
 
-## 快速开始
+## 为什么做这个 Skill？
 
-### 环境依赖（零 npm 依赖，支持真机渲染与离线降级双模式）
-- **必装：Node.js `>= 22.5`**（内置 `node:sqlite` 与 `node:zlib`，无需 `npm install`，即可运行全部原生 PPTX 构建与 **6 组 15 项静态代码门禁**）
-- **强烈推荐：LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)**（开启真机渲染、`compare_batch_*.jpg` 高清拼图与多页左右对照验收 PDF；在无权限装软件的沙箱中可自动降级为 `code-gates-only` 静态门禁模式）：
+市面上的 AI PPT 工具看着很炫，但一旦进到真实职场交付，通常会卡在三个死结里：
+
+1. **生图 / 网页截图套壳交不了差**：老板只说一句“把第三段数字改成 Q3、柱状图换一下配色”，整张死图只能推倒重做。
+2. **HTML 转 `.pptx` 进 PowerPoint / WPS 就散架**：浏览器里精致的排版，导出后字体错位、表格溢出、图表退化成静态图片。
+3. **改公司既有 `.pptx` 模板极其脆弱**：手工脚本动不动炸掉母版渐变和异形图片蒙版，删页后还留着几十 MB 冗余媒体垃圾。
+
+`yuanmou-ppt-skill`（底层引擎 `@yuanmou/pptx-kit`）是一套**零第三方 npm 依赖的纯 Node.js 原生 OOXML 引擎**。它直接按 ECMA-376 标准写出真实形状、矢量路径、透明渐变、合并表格与嵌入式 `.xlsx` 工作簿，并内置 **6 大门禁组 · 15 项自动质检**与真机左右对照验收。
+
+兼容主流 AI 客户端：**WorkBuddy / Trae / Qoder / CodeBuddy / OpenClaw（龙虾）/ Claude Code / OpenAI Codex / Cursor / Antigravity**。
+
+---
+
+## 快速安装
+
+### 一行命令安装（推荐）
+
+```bash
+npx skills@latest add https://github.com/YuanMouJun/yuanmou-ppt-skill
+```
+
+<details>
+<summary><strong>其他安装方式（腾讯 WorkBuddy 拖包导入 / 本地克隆多端同步 / 版本升级）</strong></summary>
+
+<br />
+
+**方式 A · 腾讯 WorkBuddy / 桌面端零命令行导入**
+1. 前往 [Releases 最新版](https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/latest) 下载 `yuanmou-ppt-skill.zip`。
+2. 打开 WorkBuddy → 左侧「专家 · 技能 · 连接器」→「上传技能」→ 拖入 `.zip` 即刻启用。
+
+**方式 B · 克隆仓库本地安装（约 1.2 MB，0 第三方 npm 依赖）**
+```bash
+git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
+cd yuanmou-ppt-skill
+node scripts/install.mjs --target all
+# 或按需指定端：--target workbuddy,trae,qoder,codebuddy,openclaw,claude,codex,cursor,antigravity,agents
+```
+
+**方式 C · 环境自检与一键增量升级**
+```bash
+node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env
+npm run test:m3
+
+# 后续升级（内置国内直连镜像 + SHA-256 逐文件校验，或直接对 Agent 说“更新 yuanmou-ppt 技能”）
+node <SKILL_DIR>/scripts/deck_cli.mjs update
+```
+
+</details>
+
+### 运行环境要求
+
+- **必装：Node.js `>= 22.5`**（使用内置 `node:sqlite` 与 `node:zlib`，无需 `npm install` 即可构建 `.pptx` 并执行全套 15 项静态门禁）。
+- **推荐：LibreOffice (`soffice`) + Poppler (`pdftoppm` 或 `pypdfium2`)**（开启本地高清真机渲染与多页左右对照验收 PDF；无渲染依赖的受限沙箱自动降级为 `code-gates-only` 静态门禁模式）：
   ```bash
   # macOS
   brew install --cask libreoffice && brew install poppler
   # Ubuntu / Debian
   sudo apt update && sudo apt install -y libreoffice poppler-utils
   # Windows
-  winget install TheDocumentFoundation.LibreOffice  # 并将 poppler 加入 PATH（或 pip install pypdfium2 pillow）
+  winget install TheDocumentFoundation.LibreOffice
   ```
 
-### 安装与自检
+---
 
-```bash
-# 方式一（WorkBuddy / 非命令行办公用户推荐）：直接下载自包含 .zip 拖入客户端导入
-# 从 Releases 下载 `yuanmou-ppt-skill.zip`（https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/latest）
-# 打开腾讯 WorkBuddy -> 左侧「专家·技能·连接器」->「上传技能」-> 拖入 zip 即用
+## 案例画廊
 
-# 方式二：通过 skills.sh 一键安装（自动识别 WorkBuddy / OpenClaw / Trae / Qoder / CodeBuddy / Claude Code / Codex / Cursor）
-npx skills add YuanMouJun/yuanmou-ppt-skill
+以下全部展示图均为**本引擎生成的真实 `.pptx` 经 LibreOffice 260 DPI 真机渲染直出**（无任何整页生图拼贴或网页截图）。
 
-# 方式三：克隆仓库本地安装（约 1.1 MB，0 第三方 npm 依赖；自动执行必装环境门禁检查）
-git clone https://github.com/YuanMouJun/yuanmou-ppt-skill.git
-cd yuanmou-ppt-skill
-node scripts/install.mjs --target all
-# 或按需指定端：--target workbuddy,trae,qoder,codebuddy,openclaw,claude,codex,cursor,antigravity,agents
+### 01 · 渊眸声学 AURA 01（暗场工业设计发布会 · 5 页全原生）
 
-# 3. 运行环境与引擎自检
-node skills/yuanmou-ppt/scripts/deck_cli.mjs check-env
-npm run test:m3
+只给一句硬件发布会命题，输出从全出血暗场封面、机械剖面引线标注、双真 Excel 声学实测图表到材质微距画册与三段式架构页的完整 `.pptx`，通过 6 组 15 项门禁（`fail=0, warn=0`）。
 
-# 4. 后续版本升级（内置国内直连镜像检测 + SHA-256 增量校验一键更新，或直接跟 Agent 说“更新 yuanmou-ppt 技能”）
-node <SKILL_DIR>/scripts/deck_cli.mjs check-update
-node <SKILL_DIR>/scripts/deck_cli.mjs update
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-aura-cover.jpg" width="100%" alt="渊眸声学 AURA 01 封面：声如建筑" />
+  <br />
+  <sub>P01 封面 · 全出血暗场主视觉 + 原生矢量声谱标尺与渐变暗角</sub>
+</p>
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-aura-pages.jpg" width="100%" alt="渊眸声学 AURA 01 内页 2x2：硬件剖面标注、双真 Excel 图表与合并表、材质微距色卡、三段式架构页" />
+  <br />
+  <sub>P02 机械剖面与 6 组原生锚点引线 · P03 内嵌双 <code>.xlsx</code> 真图表 + 原生 <code>&lt;a:tbl&gt;</code> 表 · P04 材质微距与阻尼色卡 · P05 瑞士三段式架构页<br />直接下载该套成稿在 PowerPoint / WPS 中双击改数：<a href="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/yuanmou-aura-01-flagship-sample.pptx"><strong>yuanmou-aura-01-flagship-sample.pptx</strong></a></sub>
+</p>
+
+---
+
+### 02 · 多行业高光商业版式画廊（1.6W+ 免登录库 / 10W+ 飞书库精选）
+
+不止暗场科技，内置 **1.6W+ 免登录商业版式库**（与可选 **10W+ 飞书云盘日更库**）横跨轻奢美妆、智能出行、企业里程碑、全域增长方法论与高密度投放结构图——以下 6 类不同风格高光页已统一脱敏为「渊眸」品牌演示：
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/demo-industry-reel.gif" width="94%" alt="渊眸 PPT 多行业高光版式动态展映：工业声学、轻奢美妆、智能出行、企业历程、全域增长矩阵、高密度投放模型" />
+  <br />
+  <sub>6 大商业场景高光版式循环展映：从暗场工业设计、香槟丝绸轻奢画册到红黑汽车战役与高密度咨询结构图</sub>
+</p>
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-industry-highlights.jpg" width="100%" alt="渊眸多行业高光版式 2x2 无框展板：轻奢美妆、智能出行、全域增长矩阵、组合投放框架" />
+  <br />
+  <sub>左上：轻奢美妆画册封面 · 右上：智能出行战役总纲 · 左下：全域增长三阶闭环矩阵 · 右下：高密度组合投放结构模型</sub>
+</p>
+
+---
+
+### 03 · 渊眸电视「一家一屏 100 天」（23 页完整商业推广案 · 脱敏实战）
+
+给定一句电视推广命题与跨行业参考版式，自动完成从**场景痛点洞察 → 核心战役概念 → 线上 H5 招募交互 → 百日连载动线 → 全媒扩散**的 23 页完整商业叙事重构。全套 23 页 `fail=0, warn=0`，所有异形蒙版、水墨笔刷、H5 表单控件与文案均可在 PowerPoint 中独立编辑。
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-yuanmou-tv-grid.jpg" width="100%" alt="渊眸电视一家一屏 100 天 23 页全套原生 PPTX 精选 12 页展板" />
+  <br />
+  <sub>23 页商业推广全案精选 12 页实拍：跨暗场电影感、水墨切片、菱形几何、互动 H5 表单与百日连载动线</sub>
+</p>
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-yuanmou-tv-craft.jpg" width="92%" alt="渊眸电视原生工艺特写：水墨飞白切图、45度菱形裁图、暗底水墨扫带与九宫格多图画廊" />
+  <br />
+  <sub>原生复杂排版工艺特写：<code>brush-mask.mjs</code> 干笔飞白切片与实心朱砂印章 · 45° 菱形零拉伸裁图 · 九宫格独立槽位（右键可单张换图）</sub>
+</p>
+
+---
+
+### 04 · 既有 `.pptx` 企业母本无损外科手术（35.4 MB → 1.05 MB）
+
+不用推倒重画公司老模板。引擎直接解析原 `.pptx` 元素锚点，原位保留品牌母版、左侧视觉骨架与图片裁切蒙版，在右侧注入**双套内嵌真 Excel 图表 + 跨行合并原生表格**，同时自动执行 OPC 垃圾回收剥离未引用冗余媒体，体积直接瘦身 **97%**。
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/demo-template-surgery.gif" width="92%" alt="既有 .pptx 模板无损手术动态对比：35.4 MB 瘦身至 1.05 MB，保留原版骨架注入双真 Excel 图表" />
+  <br />
+  <sub>动态对比：左侧品牌色块与坐标 100% 像素锁定不动，右侧原地升级为双真 Excel 图表与合并表格</sub>
+</p>
+
+<p align="center">
+  <img src="https://github.com/YuanMouJun/yuanmou-ppt-skill/releases/download/v0.1.9/case-surgery-before-after.jpg" width="100%" alt="既有 .pptx 无损手术前后静态高清对照" />
+</p>
+
+---
+
+## 与常见 PPT 方案的客观对比
+
+| 维度 | 生图 / 截图流 PPT | HTML 转 PPT | 传统 `python-pptx` | **`yuanmou-ppt-skill`** |
+| :--- | :--- | :--- | :--- | :--- |
+| **原生可编辑性** | 整页死图，不可修改 | 导出后常错位散架 | 原生可编辑 | **100% 原生 OOXML，文字/形状/表格全可改** |
+| **图表双击改 Excel** | 静态图 | 静态图或前端 Canvas | 配置繁琐、易乱码 | **零依赖内嵌 `ppt/embeddings/*.xlsx`，双击弹 Excel** |
+| **既有 `.pptx` 无损改版** | 不支持 | 不支持 | 易破坏蒙版与母版 | **五步原位手术 + 保蒙版换图 + 自动瘦身 97%** |
+| **复杂视觉 1:1 复刻** | 仅风格近似 | 依赖前端样式 | 缺透明渐变与蒙版 | **`<a:alpha>` 玻璃叠层 + 干笔飞白 + 50% X-Ray 叠图校准** |
+| **运行依赖与体积** | 依赖外部生图 API | 常需无头浏览器 | 50–400 MB Python/C 依赖 | **0 npm 依赖（仅需 Node >=22.5），克隆 ~1.2 MB** |
+| **自动化质量兜底** | 靠肉眼 | 靠肉眼 | 无内置门禁 | **6 组 15 项自动代码门禁 + 真机多页对照 PDF** |
+
+---
+
+## 开箱免费版 vs 飞书云盘 10W+ 版式库
+
+安装即可 **0 登录、0 配置**使用完整引擎与 1.6W+ 免登录商业版式库；如为咨询、品牌策划或 Agency 高频交付团队，可按需接入飞书云盘 10W+ 持续日更版式库：
+
+| 能力维度 | **免费版 · 开箱即用** | **进阶 VIP · 飞书云盘 10W+ 库** |
+| :--- | :--- | :--- |
+| **上手门槛** | 0 登录、0 配置，装完第一句话就能跑 | 飞书扫码授权 1 次（30 秒），后续自动续期 |
+| **全能原生 OOXML 引擎** | 完整包含（一句话策划 / 截图与 PDF 复刻 / 旧模板手术 / 真 Excel 图表 / 15 项门禁） | 完整包含（同一套底层引擎） |
+| **内置商业版式参考库** | **自带 1.6W+ 页免登录精选体验库**（含 1,600+ 结构化图示与高频商业页型） | **10W+ 全行业日更无水印商业母版库**（12 类图示家族 + 槽位指纹毫秒检索） |
+| **拉图机制** | `batch-search` 1 条命令出单选看板 + 按需拉无损原图（2h 自动清缓存） | 本地毫秒级检索 + 按需拉取无损高清原图 |
+
+> 如需独立 2026 各赛道行业报告库 / 完整 `.pptx` 策划方案库，或由渊眸团队承接定制策划与代运营，可联系 **渊眸策略**。
+
+---
+
+## 直接复制试跑（更多场景见 [`test-prompts.json`](./test-prompts.json)）
+
+```text
+# 1. 一句话从零策划并交付暗场高定发布会 PPT（含真 Excel 图表）
+帮我策划并生成一套 5 页的「渊眸声学 AURA 01 空间音箱工业设计发布会」PPT：暗场高定美术馆风格，含高清产品剖面引线标注页、可双击编辑的真 Excel 频响与阻尼对比图表页、材质微距色卡页与三段式架构页，交付原生可编辑 .pptx。
+
+# 2. 截图 / PDF 1:1 复刻为可编辑 PPTX
+把这张参考截图 1:1 矢量复刻成可编辑的原生 .pptx（保留视觉层级、蒙版与配色，替换成我的新能源车 Q3 复盘数据），并用 50% X-Ray 叠图校准到无明显偏移。
+
+# 3. 既有公司模板无损原位手术升级
+保留 template.pptx 的母版风格、图片蒙版和左栏骨架不动，仅原位替换第 3～5 页文案与配图，右侧注入内嵌真实 Excel 的双系列柱形图与合并表格，并清理未用冗余媒体。
 ```
 
 ---
 
-## 两种使用方式：图片转可编辑 PPT（开箱即用） vs 飞书云盘 10W+ 版式库
+## 能力边界与透明安全
 
-装完即可零门槛开箱用；如果想要更全面、更高级的全行业商业版式，可按需接入飞书云盘版式库：
+### 诚实说明：当前边界
+- **真机渲染依赖可选但强烈推荐**：无 LibreOffice 环境时，引擎可零依赖完成构建与 6 组 15 项静态门禁（`code-gates-only` 降级模式），但要获得高清真机审图与左右对照 PDF，仍建议在桌面端安装 `LibreOffice + Poppler`。
+- **图表覆盖范围**：当前聚焦商业咨询最高频的 95% 图表（柱形 / 条形 / 折线 / 面积 / 饼 / 环图 + 合并原生表）；极冷门的 3D 透视图、双轴组合图仍在持续补齐中。
 
-| 对比维度 | **免费版 · 全能 PPT 制作（开箱即用）** | **进阶 VIP · 飞书云盘 10W+ 高质量版式库** |
-| :--- | :--- | :--- |
-| **上手门槛** | ✅ **0 登录、0 配置、开箱即用**（安装完第一句话就能跑） | 飞书扫码授权 1 次（30 秒），后续自动免登续期 |
-| **一句话从零策划整套 PPT** | ✅ **支持从零创意策划**：只给一句话主题 → 咨询级大纲与去 AI 腔文案策划 → 1.6W+ 商业版式库同构选版 → 视觉大片级原生可编辑整套 `.pptx` | ✅ 完全包含，且可从 **10W+ 顶级商业视觉版式** 中挑版，审美上限更高 |
-| **图片 / 截图 / PDF 转 PPT** | ✅ 随手丢入小红书、行业报告、PDF 任意复杂排版（含多层遮罩、半透明玻璃叠层、圆角梯形、有机水墨笔刷与无孔洞蒙版），经 50% X-Ray 叠图与自动热点 2× 精检 1:1 还原为可编辑 `.pptx` | ✅ 完全包含（同一套 6 组 15 项门禁矢量引擎） |
-| **既有 `.pptx` 无损改版** | ✅ 支持对自己的 `.pptx` 模板原位换字、保蒙版换图、注入真 Excel 图表 | ✅ 完全包含 |
-| **内置现成商业版式库** | ✅ **开箱免登录自带 1.6W+ 页高质免费体验库**（含 1,600+ 结构化图示、封面/目录/图表/表格/种草/KFS/公司简介/复盘） | ✅ **享受 10W+ 持续日更高质量无水印商业模板**（覆盖全行业细分赛道、12 类图示家族与精细槽位指纹索引） |
-| **拉图方式与画质** | 自动静默同步全量索引 + 1 条命令 `batch-search` 按需拉取无损原图（临时目录 2 小时自动清理，防止 AI 偷懒复用旧图） | 本地毫秒级查库 + 按需拉取无损高清 PNG（临时目录 2 小时自动清理） |
-| **质量门禁与验收** | ✅ 内置 **6 大门禁组 · 15 项自动代码检查**（ECMA-376 包结构、禁框中套框、菱形/窄图形内切宽防孤字、禁实心块遮死底图、正文与表格最小字号、WCAG 对比度、Anti-Slop、表格合计与 `.xlsx` 图表同步）+ 缓存加速渲染 + 4 页一组高清拼图（`compare_batch_*.jpg`）与多页左右对照验收 PDF（`qa_compare.pdf`） | ✅ 完全包含 |
-| **适合人群** | 个人学习、日常汇报、从零做商业 PPT / 图片转可编辑 PPT 的所有用户 | 策划、咨询、品牌市场部、Agency 等高频交付与高审美需求从业者 |
-
-> 如需独立的 2026 各赛道行业报告库 / 完整 `.pptx` 策划方案库，或由渊眸团队真人承接方案撰写定制与品牌代运营，可联系 **渊眸策略**。
+### 本地优先 · 零遥测安全承诺
+完整外联端点清单、本地缓存目录与一键清理方式均明文公开于 **[`SECURITY.md`](./SECURITY.md)**：
+- **所有文档、文稿、`.pptx` 与表格 100% 本地处理，绝不上传任何远程服务器**。
+- **零埋点、零统计 SDK**；仅在显式拉取免登录体验图库或检查更新时发起只读 `GET`，增量更新强制校验 `skill-manifest.json` 逐文件 SHA-256。
 
 ---
 
-## 实际案例展示（「渊眸电视 · 一家一屏 100 天」23 页整套营销方案实战）
-
-以下展示页均由本引擎原生生成标准 `.pptx`（非整页生图或截图拼贴，相关参考素材与平台数据均已做脱敏处理），在 PowerPoint / WPS / Keynote 中打开后，所有斜切蒙版、菱形画框、水墨字、H5 表单控件与图表数据均可直接双击编辑。
-
-### 1. 一句话命题 + 跨行业参考母本 → 23 页全套原生可编辑 `.pptx` 商业方案
-给定一句产品推广命题与一套完全不同行业的参考版式，自动完成从**场景痛点洞察 → 年度核心战役概念 → 线上互动 H5 招募 → 百日连载故事动线 → 全媒口碑扩散**的 23 页完整商业叙事重构，全套 **0 告警**通过 6 大门禁组 15 项检查。
-
-![一句话命题 + 跨行业参考版式 → 23 页全套原生可编辑 PPTX](./docs/showcase/yuanmou_tv_hero_campaign_overview.jpg)
-
-### 2. 有机水墨飞白蒙版 & 全出血电影感大字叠层
-内置零依赖纯 Node.js 水墨笔刷与 Alpha 遮罩合成引擎（`brush-mask.mjs`），在真实像素空间还原 `-11° / -12°` 锐利干笔飞白底纹、多笔触双斜刷人物蒙版、水平留白切口横幅与朱砂印泥实心章圆（`ink-circle-solid`），标题与正文 100% 保持原生可编辑文本。
-
-![水墨飞白蒙版与全出血电影感大字叠层](./docs/showcase/yuanmou_tv_ink_brush_and_cinematic.jpg)
-
-### 3. 高难异形几何裁图 & 九宫格多图菱形画廊
-通过原生预设几何与任意闭合 SVG 路径（`<a:custGeom>`）实现多图菱形居中裁切（自动计算 `<a:srcRect>` 零拉伸变形）、双翼撞色巨型菱形、平行折线 V 带咬合与九宫格大小交错画册墙；全部照片保留独立槽位，在 PowerPoint 内右键即可单张换图。
-
-![异形几何裁图与九宫格多图菱形画廊](./docs/showcase/yuanmou_tv_diamond_editorial_layouts.jpg)
-
-### 4. 线上 H5 招募交互表单 & 全媒传播样张全原生矢量重绘
-拒绝模糊截图贴死：用原生圆角矩形、半透明暗罩叠层、旋转压角序号、细线话术框与认证角标，1:1 构建可双击改字的 H5 报名输入框/提交按钮、百日观影连载路线图与三栏社媒传播样张（同引擎亦内置可双击改数的 `ppt/embeddings/*.xlsx` 真 Excel 图表与既有 `.pptx` 母本无损改版）。
-
-![线上 H5 交互表单与全媒传播样张全原生重绘](./docs/showcase/yuanmou_tv_interactive_h5_and_social.jpg)
-
----
-
-## 为什么做这个 Skill？
-
-如果你之前用过市面上的 AI PPT 工具或开源 PPT Skill，大概率遇到过这几个实际困扰：
-
-1. **生图/截图类 PPT 看着好看，但交付不了**：一旦老板或客户说“把第三段字改一下、柱状图里的数据换成 Q3 的”，整张死图只能推倒重做。
-2. **HTML / 网页转 PPT 导出容易散架**：浏览器里预览很炫，转成 `.pptx` 放进 PowerPoint / WPS 打开后，字体、表格、对齐和图表经常错位。
-3. **传统 `python-pptx` 或重依赖方案上手门槛高、改旧模板易坏**：光配 Python 虚拟环境和 C 扩展就容易报错；而且直接改既有 `.pptx` 模板时，很容易破坏原版的母版渐变、圆角图片蒙版，或者漏掉一堆没删干净的冗余素材导致文件动辄几十 MB。
-4. **中文商业排版容易“AI 腔”且细节粗糙**：常见默认套一堆圆角卡片、字体偏细偏小、或者文字溢出文本框没人兜底。
-
-`yuanmou-ppt-skill` 是我们在大量真实品牌策划与咨询汇报交付中逐步沉淀下来的方案：底层用纯 Node.js（`>= 22.5`）直接按 ECMA-376 标准读写原生 OOXML 与嵌入式 `.xlsx`，**没有任何第三方 npm 依赖，仓库总计约 1.1 MB**，既可以对照参考截图 1:1 复刻，也可以对现有 `.pptx` 模板做无损原位改版。
-
----
-
-## 与常见 PPT Skill / 排版方案的客观对比
-
-如果你正在对比不同的 PPT Skill，下面这张表可以帮你快速判断是否适合自己的场景：
-
-| 对比维度 | 生图 / 截图流 PPT Skill | HTML / 网页转 PPT Skill | 传统 `python-pptx` / 重依赖方案 | **`yuanmou-ppt-skill` (`@yuanmou/pptx-kit`)** |
-| :--- | :--- | :--- | :--- | :--- |
-| **生成物是否原生可编辑** | ❌ 整页死图，文字和图表不可改 | ⚠️ 导出 `.pptx` 后常见排版错位 | ✅ 原生可编辑 | ✅ **100% 原生 OOXML（形状/文字/表格/图表全可改）** |
-| **图表能否双击改 Excel** | ❌ 静态图片 | ❌ 多为静态图或前端 Canvas | ⚠️ 配置繁琐，中文字体常乱码 | ✅ **零依赖内嵌真实 `ppt/embeddings/*.xlsx`**，双击直接改数 |
-| **既有 `.pptx` 模板无损改版** | ❌ 不支持 | ❌ 不支持 | ⚠️ 容易破坏原母版与异形图片蒙版 | ✅ **内置五步原位改版流**（保蒙版裁切 + 跨 `<a:r>` 改字 + 自动清理未用媒体） |
-| **对照参考图 1:1 复刻** | ⚠️ 只能做近似风格图 | ⚠️ 依赖前端样式还原 | ⚠️ 缺少渐变透明度/圆角梯形原语 | ✅ **支持 `<a:alpha>` 透明渐变、圆角多边形与 `inspect-ref`/`diff` 叠图校准** |
-| **环境与依赖体积** | 依赖生图 API | 常需无头浏览器 | 常需 50~400 MB Python/C 依赖 | ✅ **0 npm 依赖（仅需 Node.js >=22.5），克隆仅 ~1 MB** |
-| **质量与排版兜底** | 依赖人工肉眼 | 依赖人工肉眼 | 多数无内置终检 | ✅ **内置 `finalizeDeck` 6 组 15 项自动检查**（包结构/布局/字体/溢出/去AI腔/算术） |
-
-### 诚实说明：它目前的能力边界
-为了避免不切实际的预期，我们也把目前的边界说明白：
-- **真机渲染验收依赖 LibreOffice (`soffice`) + `pdftoppm`（或 `pypdfium2`）**：虽然生成 `.pptx` 与 6 组 15 项代码门禁零 npm 依赖且支持无渲染依赖离线降级（`code-gates-only`），但要跑完高清真机对比图（`compare_batch_*.jpg` / `qa_compare.pdf`），仍强烈建议在桌面端安装 LibreOffice 与 Poppler。
-- **目前聚焦咨询/策划高频 95% 的版式与图表类型**（柱状/条形/折线/面积/饼/环图、原生合并表、矢量路径、水墨笔刷蒙版、母版换字换图）；极冷门的 3D 图表、双轴组合图或非常规软件生成的畸形旧版 PPTX 仍在持续兼容中。
-
----
-
-## 核心工作流与任务分流机制
-
-[SKILL.md](./skills/yuanmou-ppt/SKILL.md) 顶部内置了清晰的任务分流路由，兼顾“指令遵从”、“还原度”与“Token/速度”：
-
-- **仅文字 / Markdown 大纲**：用户只要求输出 `.md` 逐页要点且不要求 `.pptx` 时，直接按咨询顾问结构与 Anti-Slop 规范产出 Markdown，不强行拉起 `.pptx` 工程流程。
-- **通道 A · 既有 `.pptx` 母本无损改版**：直接解析原 `.pptx` 元素锚点，原位改字、保蒙版换图、注入原生图表，无需重绘结构。
-- **通道 B · 从零策划 / 参考图 1:1 复刻**：按 4 类视觉页型分流（全出血半透明暗罩 / 菱形斜切与水墨笔刷 / 3D 物件与表单 / 常规与高难玻璃叠层），首轮过门禁先落盘 `./output/final.pptx`，再通过 `compare_batch_*.jpg` 与 `qa_compare.pdf` 精修验收。
-
----
-
-## 目录结构
+## 目录结构与许可协议
 
 ```text
 yuanmou-ppt-skill/
-├── skills/yuanmou-ppt/         # 100% 自包含 Agent Skill（SKILL.md + 原生 OOXML 引擎 + provider_cli / deck_cli + 增量更新清单）
-├── packages/pptx-kit/          # 顶层包导出兼容层（供 npm/workspace 与示例脚本直接引用）
-├── scripts/                    # 多端安装、更新清单生成与 ZIP 打包脚本
-├── examples/                   # 自包含验证与示例脚本
-├── docs/showcase/              # README 实战展示图
-├── LICENSE                     # Apache License 2.0（允许个人与企业商业项目免费使用）
-└── NOTICE                      # 渊眸策略版权与署名声明
+├── skills/yuanmou-ppt/   # 100% 自包含 Agent Skill（SKILL.md + 原生 OOXML 引擎 + provider_cli / deck_cli）
+├── packages/pptx-kit/    # 顶层包导出兼容层
+├── scripts/              # 多端安装、原子发版双包校验与清单同步脚本
+├── docs/                 # 官网静态页（ppt.resourcehub.dpdns.org）
+├── test-prompts.json     # 6 类核心工作流开箱 Prompt（中英双语）
+├── SECURITY.md           # 透明安全边界与全部外联端点说明
+├── LICENSE               # Apache License 2.0（允许个人与企业商业免费使用）
+└── NOTICE                # 渊眸策略版权署名声明
 ```
 
-## 许可协议
+本项目代码引擎与 Skill 定义采用 OSI 认证的 **[Apache License 2.0](./LICENSE)**：完全允许个人学习、企业汇报与商业项目免费使用（二次分发须按协议保留 [NOTICE](./NOTICE) 中的「渊眸策略」版权署名）。
 
-本项目代码引擎与 Skill 定义采用标准 OSI 认证的 **[Apache License 2.0](./LICENSE)**：**完全允许个人学习、企业办公汇报、商业项目与二次开发免费使用**（二次分发须按 Apache-2.0 保留 [NOTICE](./NOTICE) 中的「渊眸策略」版权署名）。
-
-> 注：飞书云盘内共享的无水印版式参考图库及独立行业报告/方案资料属于会员专享资料，不适用代码开源协议，仅供会员参考使用，严禁转售或公开二次分发。
+> 注：飞书云盘 VIP 无水印参考图库与独立行业报告/方案资料属于会员专享参考资料，不适用代码开源协议，严禁转售或公开二次分发。

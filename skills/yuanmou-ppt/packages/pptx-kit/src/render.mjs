@@ -8,9 +8,20 @@ import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
-function findExecutable(name, extraCandidates = []) {
+function isWorkingSoffice(binPath) {
+  if (!binPath || !existsSync(binPath)) return false;
+  const res = spawnSync(binPath, ["--version"], { encoding: "utf8", timeout: 5000 });
+  return res.status === 0 && /LibreOffice/i.test(`${res.stdout || ""}${res.stderr || ""}`);
+}
+
+function findExecutable(name, extraCandidates = [], validator = null) {
+  const seen = new Set();
+  const candidates = [];
   for (const cand of extraCandidates) {
-    if (cand && existsSync(cand)) return cand;
+    if (cand && !seen.has(cand)) {
+      seen.add(cand);
+      candidates.push(cand);
+    }
   }
   const whichCmd = process.platform === "win32" ? "where" : "which";
   const res = spawnSync(whichCmd, [name], { encoding: "utf8" });
@@ -23,9 +34,16 @@ function findExecutable(name, extraCandidates = []) {
     for (const line of lines) {
       // Skip Windows Microsoft Store python stub (`WindowsApps\python*.exe`) when real python exists
       if (process.platform === "win32" && /\\WindowsApps\\python/i.test(line)) continue;
-      if (existsSync(line)) return line;
+      if (!seen.has(line)) {
+        seen.add(line);
+        candidates.push(line);
+      }
     }
-    return lines[0] || null;
+  }
+  for (const cand of candidates) {
+    if (!existsSync(cand)) continue;
+    if (validator && !validator(cand)) continue;
+    return cand;
   }
   return null;
 }
@@ -42,26 +60,29 @@ function probePythonModule(pythonBin, moduleName) {
 export function discoverRenderToolchain() {
   const home = os.homedir();
   const isWin = process.platform === "win32";
-  const codexOverride = path.join(
-    home,
-    ".cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override"
-  );
+  const codexRoot = path.join(home, ".cache/codex-runtimes/codex-primary-runtime/dependencies");
+  const codexOverride = path.join(codexRoot, "bin/override");
+  const codexPython = path.join(codexRoot, "python/bin/python3");
 
-  const soffice = findExecutable(isWin ? "soffice.exe" : "soffice", [
-    process.env.SOFFICE_BIN,
-    ...(isWin
-      ? [
-          "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
-          "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
-        ]
-      : [
-          "/Applications/LibreOffice.app/Contents/MacOS/soffice",
-          "/opt/homebrew/bin/soffice",
-          "/usr/local/bin/soffice",
-          "/usr/bin/soffice",
-          path.join(codexOverride, "soffice"),
-        ]),
-  ]);
+  const soffice = findExecutable(
+    isWin ? "soffice.exe" : "soffice",
+    [
+      process.env.SOFFICE_BIN,
+      ...(isWin
+        ? [
+            "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
+            "C:\\Program Files (x86)\\LibreOffice\\program\\soffice.exe",
+          ]
+        : [
+            "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+            "/opt/homebrew/bin/soffice",
+            "/usr/local/bin/soffice",
+            "/usr/bin/soffice",
+            path.join(codexOverride, "soffice"),
+          ]),
+    ],
+    isWorkingSoffice
+  );
 
   const pdftoppm = findExecutable(isWin ? "pdftoppm.exe" : "pdftoppm", [
     process.env.PDFTOPPM_BIN,
@@ -75,10 +96,15 @@ export function discoverRenderToolchain() {
         ]),
   ]);
 
-  let python3 = findExecutable(isWin ? "python.exe" : "python3", [
+  const pyCandidates = [
     process.env.PYTHON_BIN,
-    ...(isWin ? [] : ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3"]),
-  ]);
+    ...(isWin
+      ? []
+      : ["/opt/homebrew/bin/python3", "/usr/local/bin/python3", "/usr/bin/python3", codexPython]),
+  ];
+  let python3 =
+    findExecutable(isWin ? "python.exe" : "python3", pyCandidates, (p) => probePythonModule(p, "PIL")) ||
+    findExecutable(isWin ? "python.exe" : "python3", pyCandidates);
   if (!python3) {
     python3 = findExecutable(isWin ? "python3.exe" : "python", []);
   }
