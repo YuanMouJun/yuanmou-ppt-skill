@@ -83,7 +83,7 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 
 开工前可先跑 `node "<SKILL_DIR>/scripts/deck_cli.mjs" check-env` 探活渲染环境与版本状态（内置 24h 缓存与 1.5s 超时静默兜底，断网不报错；若返回 `update.available === true`，**不中断当前任务**，仅在最终交付末尾顺带提醒一句发现新版本 `vX.Y.Z` 及更新亮点，用户确认后再跑 `deck_cli.mjs update`）。
 
-`verify` 1 条命令跑完 **6 大门禁组 · 全链路自动代码校验**（ECMA-376 包结构、越界、碰撞、**Z-order 前景图/色块遮挡文字与页脚**、框中套框、菱形/窄图形内切宽、WCAG 对比度、整页贴图冒充、实心块遮死底图、长空格与假圆点、全量 Unicode 脏 Emoji/假表单方括号、正文与表格最小字号、孤字折行预警、Anti-Slop、页内占位符、字体核查、表图 `.xlsx`/算术同步 + `--master` 阶段一 SHA-256 签收与槽位几何不变性审计）并原子落盘 `--final`（自动把上一版归档至 `history/`）；有渲染依赖时默认只出高清**左右二联图（`compare_batch_*.jpg`）+ 多页左右对照 PDF（`qa_compare.pdf`）**，省 Token 不再默认生成三联叠图（仅显式加 `--xray` 时输出）：
+`verify` 1 条命令跑完 **6 大门禁组 · 全链路自动代码校验**（含 `--master` 阶段一 SHA-256 签收与槽位几何不变性审计，失败项会自动报出具体错误码）并原子落盘 `--final`（旧版自动归档至 `history/`）；有渲染依赖时默认只出高清**左右二联图（`compare_batch_*.jpg`）+ 多页对照 PDF（`qa_compare.pdf`）**，仅显式加 `--xray` 时输出叠图：
 
 ```bash
 # Phase 1（矢量/混合 PDF 首选）：一键提取矢量对象树 + 真实 Z 序 + 小容器单框融合 + 贝塞尔裁剪蒙版 → 纯骨架母版 & 左右对照验收

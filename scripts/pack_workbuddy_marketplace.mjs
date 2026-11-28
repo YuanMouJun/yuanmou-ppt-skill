@@ -80,7 +80,7 @@ examples_en:
 
 ## 5. 一条龙终检与双模式验收
 
-交付前执行 1 条命令跑完 **6 大门禁组 · 全链路自动代码校验**（ECMA-376 包结构、越界、碰撞、Z-order 遮挡、禁框中套框、菱形/窄图形内切宽、WCAG 对比度、禁整页贴图冒充、禁实心块遮死底图、禁长空格与假圆点、全量 Unicode 脏 Emoji/假表单方括号、正文与表格最小字号、Anti-Slop、禁页内占位符、字体核查、表图 \`.xlsx\`/算术同步 + \`--master\` 阶段一签收与槽位几何不变性审计）并原子发布 \`--final\`；有渲染依赖时自动执行真机渲染并输出 \`qa_sheet.png\`、\`compare_batch_*.jpg\` 与多页对照 PDF（\`qa_compare.pdf\`），无渲染依赖时自动走 \`code-gates-only\` 离线降级：
+交付前执行 1 条命令跑完 **6 大门禁组 · 全链路自动代码校验**（含 \`--master\` 阶段一签收与槽位几何不变性审计，异常项自动报出明确错误码）并原子发布 \`--final\`；有渲染依赖时自动执行真机渲染并输出高清 \`compare_batch_*.jpg\` 与多页对照 PDF（\`qa_compare.pdf\`），无渲染依赖时自动走 \`code-gates-only\` 离线降级：
 
 \`\`\`bash
 # 若构建脚本已直接 finalizeDeck 输出到 ./output/final.pptx，可直接校验该文件；若先写 ./work/candidate.pptx 则加 --final ./output/final.pptx

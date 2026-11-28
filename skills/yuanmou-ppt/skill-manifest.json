@@ -2,9 +2,9 @@
   "name": "yuanmou-ppt",
   "version": "0.6.4",
   "highlights": "默认先出选版看板由用户确认（仅显式指定跳过选版时走 --auto-pick），大纲不确定图数时放飞选版；升级 makeNeutralPlaceholderPng 为虚线内框+居中图标显眼占位图（大背景自动角标不撞标题、异形蒙版免虚线毛刺），缺图槽老实保留占位 <p:pic> 方便右键换图",
-  "fileCount": 35,
+  "fileCount": 34,
   "files": {
-    "SKILL.md": "ef0cb245644a6449ed6e1204c03bf6bcf49d8f06c2ca23a4ffebe47ff2cfb926",
+    "SKILL.md": "8992607bded4176c7ba29808db0154536e97b03b6dcdba2afb741f0514c477cc",
     "agents/openai.yaml": "72200aa3b33c93da60523ac298c4f2745589bd0871a14affbb581ec92277f934",
     "packages/pptx-kit/index.mjs": "e66f8a4542b57e7315c100726d00987678282e14633000cfda9ec46c828e2a33",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
@@ -34,8 +34,7 @@
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
     "references/offline-layout-patterns.md": "c2266d6812db4824b5d985789813c473f76af32bba778e06b1e77114150962ed",
     "references/selection-rules.md": "5db18cca7c5e8916fb37ce16298911a6c48073bda0ad93884aeaf3117ed7b346",
-    "references/structure-and-text.md": "d4872e6fd6f50a9a428b35a3564d659bca78ecb3a78df50ca129e10d1836f709",
-    "scripts/deck_cli.mjs": "a4deb685e0e2fd8c3df14b0f54cd02b0162bc80c74537479919a405b883651b6",
+    "scripts/deck_cli.mjs": "5bd52080df47a4c8f0ec0ed25f16dce252deb70eb7b9e404a960d3cbc7044795",
     "scripts/kit.mjs": "8e6c2e8a738956d364c0df6b308007a8041d179359adccef1779ca37f46b7af3",
     "scripts/provider_cli.mjs": "bf55b083a7378e57800664f1df11de5e402464ef4e3e673d3af9a4bb651b8505",
     "scripts/vision_kernel.py": "24f467d667f38ebc0c77212d056c62e2caaefe3b9007549f3d1cfe8ecffc4829"

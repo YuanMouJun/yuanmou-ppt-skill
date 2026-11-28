@@ -1006,10 +1006,10 @@ async function main() {
       dpi: values.dpi ? Number(values.dpi) : 220,
     });
 
-    // 4) Stitch 1-image QA contact sheet so the Agent inspects the whole deck in a single `read_file`
+    // 4) Stitch 1-image QA contact sheet ONLY when no `--ref-dir` compare batches exist (avoids redundant postage-stamp renders & token waste)
     const renderedPngs = renderRes.pngFiles || renderRes.pngPaths || [];
     let qaSheet = null;
-    if (renderedPngs.length > 0 && toolchain.hasPillow) {
+    if (renderedPngs.length > 0 && toolchain.hasPillow && !values["ref-dir"]) {
       qaSheet = runVisionKernel(
         "contact-sheet",
         {
