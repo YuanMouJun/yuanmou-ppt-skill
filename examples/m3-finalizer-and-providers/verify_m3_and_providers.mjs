@@ -45,6 +45,7 @@ import {
   auditMasterSlotIntegrity,
   parsePageSelectionSpec,
   toNeutralPlaceholderText,
+  makeNeutralPlaceholderPng,
   compilePdfVectorSpecToMasterPptx,
   placeInRotatedFrame,
   rotatedBoundingBox,
@@ -1748,6 +1749,49 @@ bg.convert("RGB").save("${tiltRefPng.replace(/\\/g, "\\\\")}")
       assert.ok(compXml.includes('name="slot:img_1"') && compXml.includes("<a:custGeom>"), "Compiled image must keep native custGeom clip");
       assert.ok(compXml.includes('name="decor:text_2"'), "Rotated background text must be tagged decor:* in unified scene model");
       assert.ok(!compXml.includes("商业核心标题"), "Pure Phase-1 compiler must strip original business copy by default");
+
+      // F9b: Upgraded `makeNeutralPlaceholderPng` (regular dashed+icon vs masked no-border vs full-bleed background corner-badge)
+      const phStdPath = path.join(tmpDir, "ph_std.png");
+      const phMaskPath = path.join(tmpDir, "ph_mask.png");
+      const phBgPath = path.join(tmpDir, "ph_bg.png");
+      await makeNeutralPlaceholderPng(phStdPath, 400, 260);
+      await makeNeutralPlaceholderPng(phMaskPath, 300, 300, { masked: true });
+      await makeNeutralPlaceholderPng(phBgPath, 1280, 288, [48, 58, 72], [28, 35, 46]);
+
+      const pxDiffFromGrad = (decoded, x, y, topRgb, botRgb) => {
+        const t = y / Math.max(1, decoded.height - 1);
+        const er = Math.round(topRgb[0] * (1 - t) + botRgb[0] * t);
+        const eg = Math.round(topRgb[1] * (1 - t) + botRgb[1] * t);
+        const eb = Math.round(topRgb[2] * (1 - t) + botRgb[2] * t);
+        const off = (y * decoded.width + x) * 4;
+        return Math.max(
+          Math.abs(decoded.rgba[off] - er),
+          Math.abs(decoded.rgba[off + 1] - eg),
+          Math.abs(decoded.rgba[off + 2] - eb)
+        );
+      };
+      const maxDiffInBox = (decoded, x0, y0, x1, y1, topRgb, botRgb) => {
+        let best = 0;
+        for (let y = y0; y <= y1; y++) {
+          for (let x = x0; x <= x1; x++) {
+            const d = pxDiffFromGrad(decoded, x, y, topRgb, botRgb);
+            if (d > best) best = d;
+          }
+        }
+        return best;
+      };
+
+      const dStd = decodePngToRgba(await fs.readFile(phStdPath));
+      assert.ok(maxDiffInBox(dStd, 150, 85, 250, 175, [226, 232, 240], [203, 213, 225]) >= 50, "Standard placeholder must draw high-contrast centered picture icon");
+      assert.ok(maxDiffInBox(dStd, 8, 8, 40, 20, [226, 232, 240], [203, 213, 225]) >= 35, "Standard placeholder must draw visible dashed inset border");
+
+      const dMask = decodePngToRgba(await fs.readFile(phMaskPath));
+      assert.ok(maxDiffInBox(dMask, 100, 100, 200, 200, [226, 232, 240], [203, 213, 225]) >= 50, "Masked placeholder must draw centered picture icon");
+      assert.equal(maxDiffInBox(dMask, 6, 6, 40, 25, [226, 232, 240], [203, 213, 225]), 0, "Masked placeholder must omit rectangular dashed border");
+
+      const dBg = decodePngToRgba(await fs.readFile(phBgPath));
+      assert.equal(maxDiffInBox(dBg, 580, 100, 700, 190, [48, 58, 72], [28, 35, 46]), 0, "Wide banner/background placeholder must keep center clear for foreground headlines");
+      assert.ok(maxDiffInBox(dBg, 1180, 215, 1265, 275, [48, 58, 72], [28, 35, 46]) >= 40, "Wide banner/background placeholder must place corner media badge");
     }
 
     // F10: Unified Scene Model (`decor:*` role without magic watermark name) + Hard Phase-1/Phase-2 Cryptographic Receipt (`master_verified.json`)

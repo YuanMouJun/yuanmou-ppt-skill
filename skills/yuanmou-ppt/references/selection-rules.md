@@ -17,9 +17,9 @@
 3. **跨行业借骨架（`crossDomain`）**
    - 科研汇报、学术答辩、硬件发布会、职场述职、B2B 售前、政务/高校、线下活动执行等**非社媒种草场景**，设置 `crossDomain: true`：
    - 引擎会优先拉取全库 `transferability = universal`（纯结构无平台截图的 4A 顶级骨架，即便出自营销通案也能无损复用），并自动隔离 `scene_specific`（手机框/社媒笔记截图墙/达人报价墙），**切忌一刀切用行业词屏蔽整个类别**。
-4. **双档变速工作流**
-   - **一键直出 / 极速交付（默认 `--auto-pick`）**：后台 `<0.3s` 自动全套选版 + 相邻防撞版 + 输出 `deck_blueprint.json`，AI 静默核验预览图后直接进通道 B 生成高定 `.pptx`，零打扰但全程享顶级骨架加持。
-   - **深度定制 / 交互选版**：`<=10` 页一步出 `<20KB` 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人时加 `--portable`）；`>12` 页长全案建议先挑 **3 页定调**（封面 + 1 页核心正文 + 1 页核心图示）再批配剩余页。
+4. **双档选版工作流（默认先出选版看板确认）**
+   - **交互选版看板（默认标准路线）**：`<=10` 页一步出 `<20KB` 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人时加 `--portable`）；`>12` 页长全案建议先挑 **3 页定调**（封面 + 1 页核心正文 + 1 页核心图示）再批配剩余页；看板每张卡片自带 `图 N · 文 M` 标注，用户未确认前不提前重绘。
+   - **静默直出（`--auto-pick`，仅显式指定时启用）**：仅当用户明确要求「不用给我选版，你直接帮我定版直出」时，后台 `<0.3s` 自动全套选版 + 防撞版 + 输出 `deck_blueprint.json` 直进通道 B。
 
 ---
 
@@ -53,7 +53,7 @@
 - **`business_purpose` 合法标准值**（多词逗号拼接，严禁自造词）：`执行策略`、`方法论`、`洞察分析`、`案例展示`、`结案复盘`、`作品展示`、`资源介绍`、`公司介绍`、`结构图示`、`内容示例`。
 - **`diagram_family` 合法标准值**（现已改为软加分，不会硬归零）：`flow`、`hierarchy`、`timeline`、`relationship`、`cycle`、`branch`、`radial`、`funnel`、`nested`、`venn`、`matrix`、`comparison`。
 - **槽位计数口径**：
-  - `targetImages`：仅计**内容区可替换有效图片/完整界面截图**（纯装饰、底图、Logo、二维码、小图标不计；单张主页/笔记/后台截图内部九宫格仍算 `1` 张）。纯逻辑结构页传 `0`。
+  - `targetImages`：仅计**内容区可替换有效图片/完整界面截图**（纯装饰、底图、Logo、二维码、小图标不计；单张主页/笔记/后台截图内部九宫格仍算 `1` 张）。**仅给大纲且不确定有几张图时，直接省略 `targetImages` 放飞选版**（用户看看板上的 `图 N` 自主决定，选定多图版式时缺图槽老实留显眼占位图 `<p:pic>`）；仅当明确不要图/纯结构页才传 `0`，明确固定只用 `N` 张图才传 `N`。
   - `targetTextSlots`：核心可替换信息卡片/要点模块数（极简 `1~3`，常规 `4~6`，高密 `7+`）。
   - `targetResults`：仅计**真实项目实绩/结案战果指标槽**；行业趋势、预算目标或 Demo 示意数字填 `0`。
 
@@ -91,11 +91,11 @@
 ```
 
 ```bash
-# 极速静默档（一键直出推荐）：<0.3s 选版 + 防撞版 + 产出 deck_blueprint.json
-node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
-
-# 交互看板档（深度定制推荐）：生成 ~15KB 极速看板（同级硬链接 *_assets/；发外人加 --portable）
+# 交互看板档（默认推荐）：生成 ~15KB 极速看板（同级硬链接 *_assets/；发外人加 --portable），确认后再重绘
 node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --out ./work/selection_board.html --limit 3
+
+# 静默直出档（仅用户明确要求跳过选版时使用）：<0.3s 自动选版 + 防撞版 + 产出 deck_blueprint.json
+node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
 ```
 
 ---

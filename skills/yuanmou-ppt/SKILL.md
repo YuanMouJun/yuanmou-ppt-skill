@@ -1,6 +1,6 @@
 ---
 name: yuanmou-ppt
-version: 0.6.3
+version: 0.6.4
 description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PPT / 截图转 PPT / PDF 转可编辑 PPT / 既有 .pptx 母本无损改版全能技能（All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill，基于零依赖原生 OOXML 引擎 @yuanmou/pptx-kit）。支持一句话主题咨询级大纲与文案策划、1.6W+ 免登录商业版式库同构选版、两阶段硬解耦 1:1 复刻与矢量 PDF 直出母版、内嵌 .xlsx 可双击改数真图表及 6 大门禁组全链路自动代码校验与多页左右对照验收。
 ---
 
@@ -19,7 +19,7 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 | **既有 `.pptx` 母本原位改版（或局部保留原页 + 其余页重排）** | 全套原位改版走 **通道 A**（`inspectTemplateDeck → prepareStarterDeck → 原位换字换图`）；**局部保留原页（如保留原封面/封底，重排中间页）必须用 `assembleDeck()` 无损拼装原稿页与 Phase 1 母版页**，严禁新建空白稿凭记忆重画原页 |
 | **复用整套成熟模板**（如“找一套成熟发布会/BP 模板直接套用”） | 先跑 **`search-decks`** 按文件名毫秒直查整套目录 → **`deck-outline`** 看单套页序并按需拉图确认；若库内确无匹配整套模板，**先如实告知并征询是否改用单页混搭或停止**，严禁盲扫全库单页或偷换品类硬塞 |
 | **已指定参考图 / 截图 / PDF 1:1 复刻**（或仅调色/局部修形） | 跳过选版海选，严格走 **通道 B · 两阶段硬解耦流水线（Phase 1 纯骨架母版 + 左右对照验收 → Phase 2 原位填槽）** |
-| **一句话主题 / 纯文稿生成整套 `.pptx`**（若同时要 `.md` 则先落盘 `.md`） | 走 **第 2 节（咨询策划 + Selection Engine 2.0 双档选版 → `deck_blueprint.json`）→ 通道 B**：用户要一键直出时后台跑 **`--auto-pick`** 静默锁高定骨架直出，不打扰用户；纯离线无本地库时按 `references/offline-layout-patterns.md` 高定语法卡直进通道 B |
+| **一句话主题 / 纯文稿生成整套 `.pptx`**（若同时要 `.md` 则先落盘 `.md`） | 走 **第 2 节（咨询策划 + Selection Engine 2.0 选版 → `deck_blueprint.json`）→ 通道 B**：**默认先出选版看板让用户确认**再重绘；仅当用户明确要求「别让我选，直接帮我定版直出」时才跑 `--auto-pick` 静默直出；纯离线无本地库时按 `references/offline-layout-patterns.md` 高定语法卡直进通道 B |
 
 ## 1. 核心铁律（不翻源码、不绕路）
 
@@ -33,20 +33,20 @@ description: 一句话从零策划生成整套商业 PPT / 图片转可编辑 PP
 **严禁不读内容乱搜、严禁手搓裸 SQL 绕过同构打分**；纯离线且无本地索引库时，直接按 `references/offline-layout-patterns.md` 高定语法卡进通道 B：
 
 1. **内容轻体检与策略定调（不追原稿字数，先定文案策略与原型）**：无现成文稿时按 MECE / 结论前置策划逐页大纲与去 AI 腔文案（严禁编造战绩）。整套先锁定 `deliveryMode`（演讲/阅读）、**解耦 `coverTone` 与 `bodyTone`**（封面可暗黑、正文默认浅底）及 `copyPolicy`（`distill` 版式优先随版精炼 vs `preserve` 执行手册/消融表硬信息保真，超载主动建议拆页）；逐页标注标准 `archetype`（16 大跨行结构原型，见 `references/selection-rules.md`）、`capacityTier`（`headline/compact/rich/tabular`）与非社媒场景 `crossDomain: true`（跨行借用 `universal` 万能骨架并隔离 `scene_specific` 截图墙）。
-2. **双档极速选版与 `deck_blueprint.json` 衔接（`<0.3s` 内存快照 + 相邻防撞版 + L1/L2/L3 母版脱壳）**：
-   - **一键直出（极速静默档 `--auto-pick`）**：后台毫秒选定全套 Top-1 高审美骨架并产出 `deck_blueprint.json`，AI 静默核图后直进通道 B（零选版打扰、全程享顶级模板库加持）；
-   - **深度定制（交互看板档）**：`<=10` 页一步直出 ~15KB 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人加 `--portable`）；`>12` 页长全案建议先挑 3 页定调再批配剩余页；交互模式下未获确认前不提前重绘。选版返回 `fallbackRecommended: true` 时改用 `references/offline-layout-patterns.md` 原生绘制。
+2. **双档选版与 `deck_blueprint.json` 衔接（`<0.3s` 内存快照 + 相邻防撞版 + L1/L2/L3 母版脱壳）**：
+   - **交互选版看板（默认标准路线）**：`<=10` 页一步直出 ~15KB 极速轻量看板（同级硬链接 `*_assets/`，发微信给外人加 `--portable`）；`>12` 页长全案建议先挑 3 页定调再批配剩余页；**仅给大纲、不确定有几张图时省略 `targetImages` 放飞选版**（看板自带 `图 N` 标注由用户自选），未获确认前不提前重绘；
+   - **静默直出（`--auto-pick`，仅显式指定时启用）**：仅当用户明确说「别让我选，直接帮我定版直出」时，后台毫秒选定全套 Top-1 高审美骨架并产出 `deck_blueprint.json`，AI 静默核图后直进通道 B。选版返回 `fallbackRecommended: true` 时改用 `references/offline-layout-patterns.md` 原生绘制。
 
 ```bash
 # 整套模板文件名直查（<10ms 查本地完整库，不拉全库单页）：先按文件名锁整套，再查目录按页拉图
 node <SKILL_DIR>/scripts/provider_cli.mjs search-decks --keywords "发布会" --exclude-keywords "结案,种草" --limit 15
 node <SKILL_DIR>/scripts/provider_cli.mjs deck-outline --deck <deckId或文件名片段> --pages "1,2,5-8" --fetch-previews --out ./work/deck_preview.html
 
-# 极速静默档（一键直出推荐）：<0.3s 全套自动选版 + 防撞版 + 输出 deck_blueprint.json
-node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
-
-# 交互看板档（深度定制推荐）：默认生成 ~15KB 同级硬链接轻量看板（外发加 --portable）
+# 交互看板档（默认推荐）：生成 ~15KB 同级硬链接轻量看板（外发加 --portable），确认后再重绘
 node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --out ./work/selection_board.html --limit 3
+
+# 静默直出档（仅用户明确要求跳过选版时使用）：<0.3s 全套自动选版 + 防撞版 + 输出 deck_blueprint.json
+node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json
 
 # 单页精准检索（支持 --archetype / --capacity / --copy-policy / --tone / --cross-domain）
 node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_house --capacity compact --cross-domain --limit 4
@@ -64,12 +64,12 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 
 1. **Phase 1 · 纯版式复刻与母版验收（0 业务内容介入）**
    - **矢量/混合 PDF 一键直出骨架（优先调用 `pdf-to-master`）**：当参考源为 `.pdf` 时，优先跑 **`deck_cli.mjs pdf-to-master --pdf ./template.pdf --pages "1-8,13" --out ./work/phase1`**——若为矢量/混合 PDF，引擎自动直读 PyMuPDF 对象树（含真实 Z 序、小容器单框融合、非矩形贝塞尔裁切 `clips` 与所有图片 `bbox`）直接编译出 `masters.pptx`、`pdf_master_spec.json` 与 `master_refs/`；**若探测为纯光栅位图 PDF（返回 `mode: "fallback_to_bitmap"`），不生成假空壳，仅导出 `master_refs/` 直接退回位图复刻路线**（先跑 `inspect-ref` 采色与实测倾角，再逐页精绘纯骨架母版）。**旋转正负号铁律：`rotation > 0` 为顺时针右倾（`\`），`rotation < 0` 为逆时针左倾（`/`）；旋转框内子组件一律用 `placeInRotatedFrame(parentBox, localChild)` 精算坐标**。
-   - **语义层命名契约（`slot:*` vs `decor:*`）**：每个可替换图文槽位必须命名 `slot:*`（如 `slot:hero_img`、`slot:title`；缺真实配图时保留干净中性占位 `<p:pic>`，严禁改画色块或文字卡）；背景暗纹水印、划掉线、光环等装饰层命名 `decor:*`（与 `finalizer.mjs` 统一场景模型对齐，禁止靠猜名字豁免）。页脚/顶栏必须在前景图片**之后**绘制，防 Z-order 遮挡；非零原点 SVG 矢量直接传 `svgPath` + `viewBox: [minX, minY, w, h]`。
+   - **语义层命名契约（`slot:*` vs `decor:*`）**：每个可替换图文槽位必须命名 `slot:*`（如 `slot:hero_img`、`slot:title`；缺真实配图时用 `makeNeutralPlaceholderPng()` 保留显眼中性占位 `<p:pic>`，严禁改画色块或文字卡）；背景暗纹水印、划掉线、光环等装饰层命名 `decor:*`（与 `finalizer.mjs` 统一场景模型对齐，禁止靠猜名字豁免）。页脚/顶栏必须在前景图片**之后**绘制，防 Z-order 遮挡；非零原点 SVG 矢量直接传 `svgPath` + `viewBox: [minX, minY, w, h]`。
    - **母版硬关卡（`verify-master`）**：运行 `deck_cli.mjs verify-master --pptx ./work/masters.pptx --ref-dir ./work/master_refs --out ./work/qa_master`，硬校验 ① 每页具备 `slot:*` 槽位（`slotContractPassed`）、② 摄影区与矢量 PDF 图片槽数未缺失（`photoSlotAuditPassed`）、③ 倾斜角偏差 `<5°`（`angleAuditPassed`），默认仅输出高清**左右二联对比图（`compare_batch_*.jpg` + `master_compare.pdf`）**并签发含 `masterSha256` 的 **`master_verified.json`**；逐批审阅 `compare_batch_*.jpg`，未 1:1 咬合前严禁进入 Phase 2（仅单页精调复杂曲线时才按需加 `--xray`）！
 
 2. **Phase 2 · 严格基于锁死母版的原位内容填充**
    - 用 **`assembleDeck()`** 从已验收的 `./work/masters.pptx`（以及需保留原页的源 `.pptx`）无损克隆拼装出全套页序，仅通过 **`slide.getSlot("slot:...")` → `.text.set()` / `.replace({ path, fit: "cover" })` / `slide.recolor(colorMap)`** 原位填字、换图、换色。
-   - **选版即默认「随槽配文」、严禁破坏母版结构**：只要用户已选定参考模板或版式，**默认版式优先，按母版槽位设计容量双向适配文案**——原文超载时**主动精简提炼**，原文过短导致大文本框空洞时**在不编造真实数据/战绩的前提下克制扩写补齐结构要点**，使字数、行数与留白节奏贴合母版原貌（严禁为迁就原文长短而砍掉照片槽改文字框、拉变形或擅改列数与倾角；缺对应图片时保留母版占位图即可，严禁乱画）。
+   - **选版即默认「随槽配文」与「缺图留显眼占位」**：只要用户已选定参考模板或版式，**默认版式优先，按母版槽位设计容量双向适配文案**——原文超载时**主动精简提炼**，原文过短导致大文本框空洞时**在不编造真实数据/战绩的前提下克制扩写补齐结构要点**，使字数、行数与留白节奏贴合母版原貌（严禁为迁就原文长短而砍掉照片槽改文字框、拉变形或擅改列数与倾角）；**缺图或图片数少于模板图槽时，已有真图优先填入主视觉槽，其余空槽老老实实保留 `makeNeutralPlaceholderPng()` 显眼占位 `<p:pic>`（套好原版圆角/旋转/蒙版，方便用户在 WPS / PowerPoint 右键「更改图片」一键替换），并在交付说明末尾列出待补图页码与槽位**。
    - 终检时传 **`--master ./work/masters.pptx --master-map ...`**，引擎**默认强制校验** `master_verified.json` 的 `passed: true` 与 `masterSha256` 一致性（缺失或过期立即拦截），并通过 `auditMasterSlotIntegrity` 锁死图片槽数、命名槽位几何比例与旋转角度。
    - **无参考图纯从零生成**（如纯离线按 `references/offline-layout-patterns.md` 绘制）或特殊授权改版（仅调色/横竖重排）仍须按模块化单页推进并严格遵守 4 类页型与 Z-order 铁律。
 
@@ -112,7 +112,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 const {
   Presentation, assembleDeck, auditMasterSlotIntegrity, finalizeDeck,
-  makeBulletList, fr, fixed, placeInRotatedFrame,
+  makeBulletList, makeNeutralPlaceholderPng, fr, fixed, placeInRotatedFrame,
   buildRoundedTrapezoidPath, buildPolylineStrokeCommands,
   createBrushPng, applyAlphaMaskToImage,
 } = await import(pathToFileURL(path.resolve("<SKILL_DIR>/scripts/kit.mjs")).href);
@@ -133,7 +133,8 @@ await applyAlphaMaskToImage({ imagePath: "./p2.jpg", strokes: [{ from: [0.22, 0.
 await createBrushPng({ preset: "ink-circle-solid", color: "#C82829", width: 360, height: 360, outPath: "./work/stamp_solid.png" }); // 实心衬底印用 ink-circle-solid；空心环才用 ink-circle-ring；斜扫带用 ink-band
 s.images.add({ path: "./p3.jpg", geometry: "diamond", position: { left: 120, top: 180, width: 240, height: 240 }, fit: "cover", line: { fill: "#E85D04", width: 3 } });
 
-// 3) 旋转父框内子组件精算（+deg=顺时针右倾 \，-deg=逆时针左倾 /） & 跨 PPTX 无损合页 + Phase-2 原位填槽
+// 3) 显眼图片占位槽（缺图时保留真 <p:pic> 方便右键换图；圆角/异形传 { masked: true }）& 旋转父框内子组件精算（+deg=顺时针右倾 \，-deg=逆时针左倾 /）
+await makeNeutralPlaceholderPng("./work/ph_slot.png", 332, 516, { masked: true }); // 大背景/宽横幅自动角标不挡标题
 const phoneBox = { left: 112, top: 214, width: 332, height: 516, rotation: 12 }; // +12° 顺时针右倾
 s.images.add({ name: "slot:phone_img", path: "./p1.jpg", geometry: "roundRect", borderRadius: 34, ...phoneBox, fit: "cover", line: { fill: "#FFFFFF", width: 10 } });
 s.shapes.add({ name: "手机听筒", geometry: "roundRect", borderRadius: 8, ...placeInRotatedFrame(phoneBox, { left: 110, top: 14, width: 112, height: 14 }), fill: "#FFFFFF", line: { fill: "none" } });

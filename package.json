@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.6.3",
-  "latestHighlights": "选版后上屏文案升级为双向「随槽配文」原则：原文超载主动精简、原文偏少且不编造数据时克制扩写补齐结构要点，始终贴合母版槽位容量与留白节奏",
+  "version": "0.6.4",
+  "latestHighlights": "默认先出选版看板由用户确认（仅显式指定跳过选版时走 --auto-pick），大纲不确定图数时放飞选版；升级 makeNeutralPlaceholderPng 为虚线内框+居中图标显眼占位图（大背景自动角标不撞标题、异形蒙版免虚线毛刺），缺图槽老实保留占位 <p:pic> 方便右键换图",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

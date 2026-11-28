@@ -74,17 +74,115 @@ export function toNeutralPlaceholderText(rawText) {
   return out;
 }
 
+function blendPixelRgba(rgba, w, h, x, y, fg, alpha) {
+  if (x < 0 || y < 0 || x >= w || y >= h || alpha <= 0) return;
+  const a = Math.min(1, alpha);
+  const off = (y * w + x) * 4;
+  rgba[off] = Math.round(rgba[off] * (1 - a) + fg[0] * a);
+  rgba[off + 1] = Math.round(rgba[off + 1] * (1 - a) + fg[1] * a);
+  rgba[off + 2] = Math.round(rgba[off + 2] * (1 - a) + fg[2] * a);
+}
+
+function sdRoundedRect(px, py, bx, by, r) {
+  const qx = Math.abs(px) - bx + r;
+  const qy = Math.abs(py) - by + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+}
+
+function drawPictureIcon(rgba, w, h, cx0, cy0, iconH, fg, iconAlpha, tintAlpha) {
+  const iconW = Math.round(iconH * 1.24);
+  const halfW = iconW / 2;
+  const halfH = iconH / 2;
+  const rad = Math.max(3, iconH * 0.16);
+  const stroke = Math.max(1.8, Math.min(4.2, iconH * 0.075));
+  const innerHalfW = Math.max(2, halfW - stroke);
+  const innerHalfH = Math.max(2, halfH - stroke);
+
+  const sunX = -innerHalfW * 0.42;
+  const sunY = -innerHalfH * 0.34;
+  const sunR = Math.max(2.0, iconH * 0.105);
+
+  const y0 = Math.max(0, Math.floor(cy0 - halfH - 2));
+  const y1 = Math.min(h - 1, Math.ceil(cy0 + halfH + 2));
+  const x0 = Math.max(0, Math.floor(cx0 - halfW - 2));
+  const x1 = Math.min(w - 1, Math.ceil(cx0 + halfW + 2));
+
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const px = x - cx0;
+      const py = y - cy0;
+      const dOuter = sdRoundedRect(px, py, halfW, halfH, rad);
+      const dInner = sdRoundedRect(px, py, innerHalfW, innerHalfH, Math.max(1.5, rad - stroke * 0.6));
+
+      if (dInner < 0 && tintAlpha > 0) {
+        blendPixelRgba(rgba, w, h, x, y, fg, tintAlpha);
+      }
+
+      const frameCov = Math.min(1, Math.max(0, 0.5 - dOuter)) * Math.min(1, Math.max(0, dInner + 0.5));
+      if (frameCov > 0) {
+        blendPixelRgba(rgba, w, h, x, y, fg, frameCov * iconAlpha);
+      }
+
+      if (dInner < -0.5) {
+        const dSun = Math.hypot(px - sunX, py - sunY) - sunR;
+        const sunCov = Math.min(1, Math.max(0, 0.5 - dSun));
+        if (sunCov > 0) {
+          blendPixelRgba(rgba, w, h, x, y, fg, sunCov * iconAlpha);
+        }
+
+        const nx = px / innerHalfW;
+        const ny = py / innerHalfH;
+        const m1Top = -0.18 + Math.abs(nx - 0.24) * 1.25;
+        const m2Top = 0.16 + Math.abs(nx + 0.42) * 1.15;
+        const mTop = Math.min(m1Top, m2Top);
+        const mCov = Math.min(1, Math.max(0, (ny - mTop) * innerHalfH + 0.5));
+        if (mCov > 0) {
+          blendPixelRgba(rgba, w, h, x, y, fg, mCov * (iconAlpha * 0.82));
+        }
+      }
+    }
+  }
+}
+
 /**
- * Generates a clean neutral editorial gradient placeholder PNG (minimal camera-frame reticle, zero baked text).
+ * Generates a crisp, unmistakable editorial image placeholder PNG (zero baked text, zero dependencies).
+ * - Standard content slots: smooth gradient + symmetric dashed inset border + centered mountain-sun picture icon.
+ * - Masked/clipped slots (`options.masked = true`): omits rectangular dashed border so organic/rounded masks stay clean.
+ * - Full-bleed background/wide banner slots (`options.isBackground` or auto-detected): keeps slide center unobstructed
+ *   for foreground titles and places a subtle replaceable-photo icon in the bottom-right corner instead.
  */
-export async function makeNeutralPlaceholderPng(outPath, width, height, topRgb = [138, 146, 156], botRgb = [74, 82, 92]) {
+export async function makeNeutralPlaceholderPng(
+  outPath,
+  width,
+  height,
+  topRgbOrOpts = [226, 232, 240],
+  botRgbArg = [203, 213, 225],
+  optionsArg = {}
+) {
+  const isOpts4th =
+    topRgbOrOpts && !Array.isArray(topRgbOrOpts) && typeof topRgbOrOpts === "object";
+  const opts = isOpts4th ? topRgbOrOpts : optionsArg || {};
+  const topRgb = Array.isArray(opts.topRgb)
+    ? opts.topRgb
+    : Array.isArray(topRgbOrOpts)
+      ? topRgbOrOpts
+      : [226, 232, 240];
+  const botRgb = Array.isArray(opts.botRgb)
+    ? opts.botRgb
+    : Array.isArray(botRgbArg)
+      ? botRgbArg
+      : [203, 213, 225];
+
   const w = Math.max(16, Math.min(1280, Math.round(width)));
   const h = Math.max(16, Math.min(720, Math.round(height)));
   const rgba = new Uint8Array(w * h * 4);
-  const showReticle = w >= 56 && h >= 56;
-  const rx = Math.min(22, Math.max(8, Math.round(w * 0.08)));
-  const ry = Math.min(15, Math.max(6, Math.round(h * 0.08)));
-  const lr = Math.min(6.5, Math.max(3, Math.round(Math.min(rx, ry) * 0.45)));
+
+  const avgLum =
+    0.299 * ((topRgb[0] + botRgb[0]) / 2) +
+    0.587 * ((topRgb[1] + botRgb[1]) / 2) +
+    0.114 * ((topRgb[2] + botRgb[2]) / 2);
+  const isLight = avgLum >= 145;
+  const fg = isLight ? [51, 65, 85] : [255, 255, 255];
 
   for (let y = 0; y < h; y++) {
     const t = y / Math.max(1, h - 1);
@@ -93,26 +191,79 @@ export async function makeNeutralPlaceholderPng(outPath, width, height, topRgb =
     const b = Math.round(topRgb[2] * (1 - t) + botRgb[2] * t);
     for (let x = 0; x < w; x++) {
       const off = (y * w + x) * 4;
-      let rr = r;
-      let gg = g;
-      let bb = b;
-      if (showReticle) {
-        const cx = Math.abs(x - w / 2);
-        const cy = Math.abs(y - h / 2);
-        const inFrame = cx <= rx && cy <= ry && (cx >= rx - 2 || cy >= ry - 2);
-        const inLens = Math.abs(Math.hypot(x - w / 2, y - h / 2) - lr) <= 1.2;
-        if (inFrame || inLens) {
-          rr = Math.min(255, r + 42);
-          gg = Math.min(255, g + 42);
-          bb = Math.min(255, b + 42);
-        }
-      }
-      rgba[off] = rr;
-      rgba[off + 1] = gg;
-      rgba[off + 2] = bb;
+      rgba[off] = r;
+      rgba[off + 1] = g;
+      rgba[off + 2] = b;
       rgba[off + 3] = 255;
     }
   }
+
+  const minSide = Math.min(w, h);
+  const isBackground =
+    opts.isBackground === true ||
+    (opts.isBackground !== false && (w >= 1100 || w * h >= 1280 * 720 * 0.45));
+  const masked = Boolean(opts.masked);
+
+  // Symmetric dashed inset frame for unmasked slots >= 64px
+  const showBorder =
+    opts.showBorder !== undefined
+      ? Boolean(opts.showBorder)
+      : !masked && minSide >= 64;
+  if (showBorder) {
+    const inset = Math.max(6, Math.min(16, Math.round(minSide * 0.05)));
+    const bw = Math.max(1.5, Math.min(2.4, minSide * 0.008));
+    const dash = Math.max(6, Math.min(12, Math.round(minSide * 0.045)));
+    const gap = Math.max(4, Math.round(dash * 0.7));
+    const period = dash + gap;
+    const borderAlpha = isBackground
+      ? (isLight ? 0.22 : 0.28)
+      : (isLight ? 0.42 : 0.50);
+
+    const spanX = Math.max(1, w - 1 - 2 * inset);
+    const spanY = Math.max(1, h - 1 - 2 * inset);
+    const isSymDash = (pos, span) => {
+      const dEdge = Math.min(pos, span - pos);
+      return (dEdge % period) < dash;
+    };
+
+    for (let y = inset; y <= h - 1 - inset; y++) {
+      for (let x = inset; x <= w - 1 - inset; x++) {
+        const dTop = y - inset;
+        const dBot = h - 1 - inset - y;
+        const dLeft = x - inset;
+        const dRight = w - 1 - inset - x;
+        const onH = dTop < bw || dBot < bw;
+        const onV = dLeft < bw || dRight < bw;
+        if (onH && onV) {
+          blendPixelRgba(rgba, w, h, x, y, fg, borderAlpha);
+        } else if (onH) {
+          if (isSymDash(x - inset, spanX)) blendPixelRgba(rgba, w, h, x, y, fg, borderAlpha);
+        } else if (onV) {
+          if (isSymDash(y - inset, spanY)) blendPixelRgba(rgba, w, h, x, y, fg, borderAlpha);
+        }
+      }
+    }
+  }
+
+  // Picture icon: corner badge for full-bleed background/wide banners (avoids colliding with headlines);
+  // centered icon for regular & masked photo slots.
+  const showIcon = opts.showIcon !== undefined ? Boolean(opts.showIcon) : minSide >= 32;
+  if (showIcon) {
+    const iconAlpha = isBackground
+      ? (isLight ? 0.46 : 0.56)
+      : (isLight ? 0.72 : 0.88);
+    const tintAlpha = isBackground ? 0.04 : (isLight ? 0.07 : 0.10);
+    if (isBackground) {
+      const cornerH = Math.max(20, Math.min(34, Math.round(minSide * 0.10)));
+      const cornerW = Math.round(cornerH * 1.24);
+      const pad = Math.max(20, Math.min(36, Math.round(minSide * 0.08)));
+      drawPictureIcon(rgba, w, h, w - pad - cornerW / 2, h - pad - cornerH / 2, cornerH, fg, iconAlpha, tintAlpha);
+    } else {
+      const iconH = Math.max(18, Math.min(82, Math.round(minSide * 0.30)));
+      drawPictureIcon(rgba, w, h, w / 2, h / 2, iconH, fg, iconAlpha, tintAlpha);
+    }
+  }
+
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, encodeRgbaPng(w, h, rgba));
   return outPath;
@@ -472,7 +623,8 @@ export async function compilePdfVectorSpecToMasterPptx({
           width,
           height,
           im.topRgb || [136, 144, 154],
-          im.botRgb || [74, 80, 90]
+          im.botRgb || [74, 80, 90],
+          { masked: Boolean(im.clipSvgPath && im.clipViewBox) }
         );
 
         const imgCfg = {

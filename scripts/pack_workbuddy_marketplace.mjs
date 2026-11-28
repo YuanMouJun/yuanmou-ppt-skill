@@ -45,7 +45,7 @@ examples_en:
 | **只要 Markdown（\`.md\`）/ 纯文本逐页大纲与要点**（未要求生成 \`.pptx\`） | 直接按咨询结构（MECE / 结论前置）与第 4 节去 AI 腔规范写出最终 \`.md\` 到用户目标目录（如 \`./output/\`），**不启动 \`.pptx\` 构建与渲染** |
 | **既有 \`.pptx\` 母本原位改版** | 走 **通道 A**（\`inspectTemplateDeck → prepareStarterDeck → 原位换字换图 → auditTemplateFidelity\`），严禁新建空白页重画 |
 | **已给参考图 / 截图 / PDF 1:1 复刻** | 直接走 **通道 B（原生矢量与水墨蒙版复刻）** |
-| **一句话主题 / 纯文稿生成整套 \`.pptx\`**（若同时要 \`.md\` 则先落盘 \`.md\`） | 走 **第 2 节策划与离线高定语法卡（\`@references/offline-layout-patterns.md\`）→ 通道 B**；若配置了本地模板库（\`YUANMOU_LOCAL_DIR\`）可按需跑 \`batch-search --auto-pick\` 选版 |
+| **一句话主题 / 纯文稿生成整套 \`.pptx\`**（若同时要 \`.md\` 则先落盘 \`.md\`） | 走 **第 2 节策划与离线高定语法卡（\`@references/offline-layout-patterns.md\`）→ 通道 B**；若配置了本地模板库（\`YUANMOU_LOCAL_DIR\`）默认先跑 \`batch-search --out ./work/selection_board.html\` 出选版看板确认后再重绘（仅明确要求跳过选版时用 \`--auto-pick\`） |
 
 ## 1. 核心工程铁律
 
@@ -58,7 +58,7 @@ examples_en:
 
 1. **一句话主题从零策划**：无现成文稿时，按 MECE 与金字塔原理拆出结论前置的逐页大纲、核心论点、正文文案、配图与图表建议（严禁编造真实客户战绩，示意数据明确标注口径）。
 2. **先定文案策略与离线高定语法卡**：区分 \`distill\`（提案/发布/述职：版式优先随版精炼）与 \`preserve\`（执行手册/消融表/标书：硬信息保真，超载拆页）；**纯离线无本地模板库时，按 \`@references/offline-layout-patterns.md\` 8 大高定排版语法卡（信息屋、多层架构、泳道甘特、活动时刻表、科研管线、三线消融表、暗黑巨幕、一页纸 Bento）弹性构图**，拒绝千篇一律圆角卡片。
-3. **可选本地模板检索**：当本机配置自有模板索引目录（\`YUANMOU_LOCAL_DIR\`）时，查阅 \`@references/selection-rules.md\` 调用 \`node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --auto-pick --blueprint ./work/deck_blueprint.json\`（或 \`--out ./work/selection_board.html\` 交互选版）。
+3. **可选本地模板检索**：当本机配置自有模板索引目录（\`YUANMOU_LOCAL_DIR\`）时，查阅 \`@references/selection-rules.md\` 默认跑 \`node <SKILL_DIR>/scripts/provider_cli.mjs batch-search --plan ./pages.json --out ./work/selection_board.html\` 交互选版（仅给大纲且不确定图数时省略 \`targetImages\` 放飞选版，用户明确要求跳过选版直出时才用 \`--auto-pick\`）。
 
 ## 3. 双制作通道
 
@@ -68,7 +68,7 @@ examples_en:
 ### 通道 B：从零生成 / 参考图与 PDF 两阶段 1:1 复刻
 凡基于参考图、截图或 PDF 复刻版式，**必须拆分为两阶段执行（Phase 1 纯骨架母版 + 左右对照验收 → Phase 2 基于锁死母版原位填槽），严禁合并直出**：
 - **Phase 1 纯骨架母版与左右对照验收**：PDF 参考优先调用 \`deck_cli.mjs pdf-to-master\`，矢量/混合 PDF 直接编译带中性占位图与 \`slot:*\`/\`decor:*\` 的 \`masters.pptx\`，纯光栅 PDF 自动导出 \`master_refs/\` 退回位图路线（先跑 \`inspect-ref\` 实测 100px 网格与倾角，再精绘纯骨架母版）；随后跑 \`deck_cli.mjs verify-master\` 签发 \`master_verified.json\` 并审阅高清左右二联图（\`compare_batch_*.jpg\`）；
-- **Phase 2 锁死母版原位填槽**：用 \`assembleDeck()\` 克隆已验收母版（及需原 XML 保留的原始页），仅在 \`slot:*\` 槽位内执行 \`.text.set()\` / \`.replace({ path, fit: "cover" })\` / \`.recolor()\`；只要已选定参考版式即默认「随槽配文」（超载精简、过短且不编造数据时克制扩写补齐要点，严禁改坏母版），终检传 \`--master\` 自动核验 SHA-256 签收与槽位几何不变性；
+- **Phase 2 锁死母版原位填槽**：用 \`assembleDeck()\` 克隆已验收母版（及需原 XML 保留的原始页），仅在 \`slot:*\` 槽位内执行 \`.text.set()\` / \`.replace({ path, fit: "cover" })\` / \`.recolor()\`；只要已选定参考版式即默认「随槽配文」（超载精简、过短且不编造数据时克制扩写补齐要点，严禁改坏母版），缺图时已有真图优先填主槽、余槽保留 \`makeNeutralPlaceholderPng()\` 显眼占位 \`<p:pic>\` 并在交付说明列出待补图页码与槽位，终检传 \`--master\` 自动核验 SHA-256 签收与槽位几何不变性；
 - **视觉原语速查**：全出血底图配半透明暗罩（\`fill: { color: "#0B1120", opacity: 0.55 }\`）+ 顶层 \`fill: "none"\` 线框，禁 100% 实心块盖死底图；菱形/斜切/水墨蒙版调用 \`images.add({ geometry: "diamond" | svgPath, rotation })\`、\`applyAlphaMaskToImage\` 与 \`createBrushPng\`；旋转父框内子组件用 \`placeInRotatedFrame()\` 精算。
 - **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标保层次；**横竖重排**保持文字正常阅读方向，禁整图旋转。
 
@@ -99,7 +99,7 @@ node <SKILL_DIR>/scripts/deck_cli.mjs verify --pptx ./output/final.pptx \\
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 const {
-  Presentation, finalizeDeck, makeBulletList, fr, fixed,
+  Presentation, finalizeDeck, makeBulletList, makeNeutralPlaceholderPng, fr, fixed,
   buildRoundedTrapezoidPath, buildPolylineStrokeCommands,
   createBrushPng, applyAlphaMaskToImage,
 } = await import(pathToFileURL(path.resolve("<SKILL_DIR>/scripts/kit.mjs")).href);
