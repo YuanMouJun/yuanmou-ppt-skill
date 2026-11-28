@@ -1,10 +1,10 @@
 {
   "name": "yuanmou-ppt",
   "version": "0.6.3",
-  "highlights": "云端商业版式库新增 24h 惰性 ETag 自动刷新、断网无感降级与 404 自动重同步；配合实看审美重洗优化 S 级 5 分高定母版召回权重",
+  "highlights": "选版后上屏文案升级为双向「随槽配文」原则：原文超载主动精简、原文偏少且不编造数据时克制扩写补齐结构要点，始终贴合母版槽位容量与留白节奏",
   "fileCount": 35,
   "files": {
-    "SKILL.md": "22a6807e009518191f32c20b31aa9d8569d46d40ecfaf9e1f70b79eb17622acb",
+    "SKILL.md": "e2b875edf8e46d543a8eb816d2962833b4ac3f5a8e1e6fdaa87bdbf2d8db0e32",
     "agents/openai.yaml": "72200aa3b33c93da60523ac298c4f2745589bd0871a14affbb581ec92277f934",
     "packages/pptx-kit/index.mjs": "e66f8a4542b57e7315c100726d00987678282e14633000cfda9ec46c828e2a33",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",

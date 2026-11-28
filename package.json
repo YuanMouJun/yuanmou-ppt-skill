@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
   "version": "0.6.3",
-  "latestHighlights": "云端商业版式库新增 24h 惰性 ETag 自动刷新、断网无感降级与 404 自动重同步；配合实看审美重洗优化 S 级 5 分高定母版召回权重",
+  "latestHighlights": "选版后上屏文案升级为双向「随槽配文」原则：原文超载主动精简、原文偏少且不编造数据时克制扩写补齐结构要点，始终贴合母版槽位容量与留白节奏",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",
