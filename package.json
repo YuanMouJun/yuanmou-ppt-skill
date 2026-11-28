@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.6.2",
-  "latestHighlights": "verify-master 与 verify 默认取消批量三联 50% 叠图，仅输出高清左右二联对比图与对照 PDF（省视觉 Token、提升清晰度；50% 叠图改为 --xray 或单页 diff 按需触发）",
+  "version": "0.6.3",
+  "latestHighlights": "云端商业版式库新增 24h 惰性 ETag 自动刷新、断网无感降级与 404 自动重同步；配合实看审美重洗优化 S 级 5 分高定母版召回权重",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

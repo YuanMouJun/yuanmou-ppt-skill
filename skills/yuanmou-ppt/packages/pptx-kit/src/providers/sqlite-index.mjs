@@ -976,7 +976,7 @@ function scoreSnapshotEntry(e, opts) {
   if (tier <= 1) {
     finalScore = Math.min(coreScore, 10) - 35;
   } else if (coreScore > 20) {
-    const mult = tier >= 5 ? 1.12 : tier === 4 ? 1.04 : tier === 3 ? 0.96 : 0.80;
+    const mult = tier >= 5 ? 1.18 : tier === 4 ? 1.06 : tier === 3 ? 0.95 : 0.78;
     finalScore = coreScore * mult;
     if (tier >= 5) reasons.push("S级审美");
     else if (tier === 4) reasons.push("A级审美");

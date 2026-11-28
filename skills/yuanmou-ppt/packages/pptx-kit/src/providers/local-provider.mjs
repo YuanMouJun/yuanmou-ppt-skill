@@ -11,6 +11,9 @@ import { querySlideIndexDb, queryDecksByFilename, queryDeckOutline } from "./sql
 
 const gunzipAsync = promisify(zlib.gunzip);
 const DEFAULT_PREVIEW_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours ephemeral preview TTL (prevents stale local bias)
+const DEFAULT_INDEX_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours lazy index revalidation TTL (0ms within window)
+const DEFAULT_INDEX_CHECK_TIMEOUT_MS = 2500; // Fast HEAD ETag probe timeout; falls back to local cache if offline
+const DEFAULT_OFFLINE_COOLDOWN_MS = 5 * 60 * 1000; // 5 min cooldown after an offline/failed HEAD probe
 
 async function pruneExpiredPreviews(dir, ttlMs) {
   if (!existsSync(dir)) return;
@@ -75,10 +78,16 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     const cacheBase = this.cache?.rootDir || defaultCacheRoot(options.cacheDir);
     this.trialCacheDir = path.join(cacheBase, "trial");
     this.previewTtlMs = options.previewTtlMs ?? DEFAULT_PREVIEW_TTL_MS;
+    this.indexTtlMs = options.indexTtlMs ?? DEFAULT_INDEX_TTL_MS;
+    this.indexCheckTimeoutMs = options.indexCheckTimeoutMs ?? DEFAULT_INDEX_CHECK_TIMEOUT_MS;
+    this.offlineCooldownMs = options.offlineCooldownMs ?? DEFAULT_OFFLINE_COOLDOWN_MS;
+    this._lastHeadFailAt = 0;
+    this._refreshedOn404 = false;
     this.trialPreviewsDir = options.cacheDir
       ? path.join(options.cacheDir, "tmp-trial-previews")
       : path.join(os.tmpdir(), "yuanmou-ppt-tmp-previews", "trial");
     this.trialIndexDbPath = path.join(this.trialCacheDir, "ppt-index-trial.db");
+    this.trialIndexMetaPath = path.join(this.trialCacheDir, "ppt-index-trial.meta.json");
 
     this.capabilities = {
       slideIndex: Boolean(this.localLibraryDir || this.enablePublicTrial),
@@ -116,6 +125,26 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     return "";
   }
 
+  async _readTrialIndexMeta() {
+    if (!existsSync(this.trialIndexMetaPath)) return null;
+    try {
+      return JSON.parse(await fs.readFile(this.trialIndexMetaPath, "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
+  async _writeTrialIndexMeta(meta) {
+    try {
+      await fs.mkdir(this.trialCacheDir, { recursive: true });
+      const tmp = `${this.trialIndexMetaPath}.tmp`;
+      await fs.writeFile(tmp, `${JSON.stringify(meta, null, 2)}\n`, "utf8");
+      await atomicReplaceFile(tmp, this.trialIndexMetaPath);
+    } catch {
+      // non-fatal sidecar metadata error
+    }
+  }
+
   async syncSlideIndex(options = {}) {
     const colocatedDb = this._findColocatedDb();
     if (colocatedDb) {
@@ -137,32 +166,133 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     }
 
     const force = Boolean(options.force);
-    if (!force && existsSync(this.trialIndexDbPath)) {
+    const hasLocalCache = existsSync(this.trialIndexDbPath);
+    const baseIndexUrl = `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
+
+    if (!force && hasLocalCache) {
       const st = await fs.stat(this.trialIndexDbPath);
-      return {
-        synced: true,
-        cached: true,
-        dbPath: this.trialIndexDbPath,
-        bytes: st.size,
-        source: "public-trial-cache",
-      };
+      const meta = await this._readTrialIndexMeta();
+      const now = Date.now();
+      const lastCheckedAt = Number(meta?.lastCheckedAt || st.mtimeMs || 0);
+      const withinTtl = this.indexTtlMs > 0 && now - lastCheckedAt < this.indexTtlMs;
+      const inOfflineCooldown =
+        this._lastHeadFailAt > 0 && now - this._lastHeadFailAt < this.offlineCooldownMs;
+
+      if (withinTtl || inOfflineCooldown) {
+        return {
+          synced: true,
+          cached: true,
+          dbPath: this.trialIndexDbPath,
+          bytes: st.size,
+          etag: meta?.etag || null,
+          source: inOfflineCooldown ? "public-trial-cache-offline-fallback" : "public-trial-cache",
+        };
+      }
+
+      // Lazy ETag probe after TTL expiry: fast timeout + graceful offline fallback
+      try {
+        const headRes = await fetch(baseIndexUrl, {
+          method: "HEAD",
+          headers: { [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE },
+          signal: AbortSignal.timeout(this.indexCheckTimeoutMs),
+        });
+        if (headRes.ok) {
+          this._lastHeadFailAt = 0;
+          const remoteEtag = headRes.headers.get("etag") || null;
+          if (remoteEtag && meta?.etag && remoteEtag === meta.etag) {
+            await this._writeTrialIndexMeta({
+              ...meta,
+              etag: remoteEtag,
+              lastCheckedAt: now,
+            });
+            return {
+              synced: true,
+              cached: true,
+              revalidated: true,
+              dbPath: this.trialIndexDbPath,
+              bytes: st.size,
+              etag: remoteEtag,
+              source: "public-trial-cache-etag",
+            };
+          }
+          // ETag changed (or legacy cache lacked ETag) -> proceed to fresh download below
+        } else {
+          this._lastHeadFailAt = now;
+          return {
+            synced: true,
+            cached: true,
+            dbPath: this.trialIndexDbPath,
+            bytes: st.size,
+            etag: meta?.etag || null,
+            source: "public-trial-cache-offline-fallback",
+          };
+        }
+      } catch {
+        this._lastHeadFailAt = now;
+        return {
+          synced: true,
+          cached: true,
+          dbPath: this.trialIndexDbPath,
+          bytes: st.size,
+          etag: meta?.etag || null,
+          source: "public-trial-cache-offline-fallback",
+        };
+      }
     }
 
-    const indexUrl = force
-      ? `${this.trialBaseUrl}/ppt-index-trial.db.gz?t=${Date.now()}`
-      : `${this.trialBaseUrl}/ppt-index-trial.db.gz`;
-    const res = await fetch(indexUrl, {
-      headers: {
-        [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE,
-        ...(force ? { "Cache-Control": "no-cache" } : {}),
-      },
-    });
+    const indexUrl = force ? `${baseIndexUrl}?t=${Date.now()}` : baseIndexUrl;
+    let res;
+    try {
+      res = await fetch(indexUrl, {
+        headers: {
+          [TRIAL_CLIENT_HEADER_NAME]: TRIAL_CLIENT_HEADER_VALUE,
+          ...(force ? { "Cache-Control": "no-cache" } : {}),
+        },
+      });
+    } catch (err) {
+      if (!force && hasLocalCache) {
+        this._lastHeadFailAt = Date.now();
+        const st = await fs.stat(this.trialIndexDbPath);
+        return {
+          synced: true,
+          cached: true,
+          dbPath: this.trialIndexDbPath,
+          bytes: st.size,
+          source: "public-trial-cache-offline-fallback",
+        };
+      }
+      throw err;
+    }
+
     if (res.status === 429) {
+      if (!force && hasLocalCache) {
+        const st = await fs.stat(this.trialIndexDbPath);
+        return {
+          synced: true,
+          cached: true,
+          dbPath: this.trialIndexDbPath,
+          bytes: st.size,
+          source: "public-trial-cache-offline-fallback",
+        };
+      }
       throw buildTrialRateLimitError();
     }
     if (!res.ok) {
+      if (!force && hasLocalCache) {
+        this._lastHeadFailAt = Date.now();
+        const st = await fs.stat(this.trialIndexDbPath);
+        return {
+          synced: true,
+          cached: true,
+          dbPath: this.trialIndexDbPath,
+          bytes: st.size,
+          source: "public-trial-cache-offline-fallback",
+        };
+      }
       throw new Error(`Failed to fetch public trial index (${res.status}) from ${indexUrl}`);
     }
+
+    const etag = res.headers.get("etag") || null;
     const rawBuf = Buffer.from(await res.arrayBuffer());
     const isGzip = rawBuf.length >= 2 && rawBuf[0] === 0x1f && rawBuf[1] === 0x8b;
     const dbBuf = isGzip ? await gunzipAsync(rawBuf) : rawBuf;
@@ -172,12 +302,24 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     await fs.writeFile(tmpPath, dbBuf);
     await atomicReplaceFile(tmpPath, this.trialIndexDbPath);
 
+    const sha256 = await sha256File(this.trialIndexDbPath);
+    const now = Date.now();
+    this._lastHeadFailAt = 0;
+    await this._writeTrialIndexMeta({
+      etag,
+      lastCheckedAt: now,
+      lastSyncedAt: now,
+      bytes: dbBuf.length,
+      sha256,
+    });
+
     return {
       synced: true,
       cached: false,
       dbPath: this.trialIndexDbPath,
       bytes: dbBuf.length,
-      sha256: await sha256File(this.trialIndexDbPath),
+      etag,
+      sha256,
       source: "public-trial-r2",
     };
   }
@@ -190,13 +332,12 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     if (!this.enablePublicTrial) {
       return [];
     }
-    if (!existsSync(this.trialIndexDbPath)) {
-      try {
-        await this.syncSlideIndex();
-      } catch {
-        return [];
-      }
+    try {
+      await this.syncSlideIndex();
+    } catch {
+      if (!existsSync(this.trialIndexDbPath)) return [];
     }
+    if (!existsSync(this.trialIndexDbPath)) return [];
     return querySlideIndexDb(this.trialIndexDbPath, filter, "local");
   }
 
@@ -204,12 +345,10 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
     const colocatedDb = this._findColocatedDb();
     if (colocatedDb) return colocatedDb;
     if (!this.enablePublicTrial) return "";
-    if (!existsSync(this.trialIndexDbPath)) {
-      try {
-        await this.syncSlideIndex();
-      } catch {
-        return "";
-      }
+    try {
+      await this.syncSlideIndex();
+    } catch {
+      // fall through to check existing local cache
     }
     return existsSync(this.trialIndexDbPath) ? this.trialIndexDbPath : "";
   }
@@ -297,6 +436,27 @@ export class LocalStandaloneProvider extends SlideSourceProvider {
       });
       if (res.status === 429) {
         throw buildTrialRateLimitError();
+      }
+      if (res.status === 404) {
+        // Stale index may reference a pruned/retired preview -> invalidate & refresh once automatically
+        await fs.unlink(this.trialIndexMetaPath).catch(() => {});
+        let refreshed = false;
+        if (!this._refreshedOn404) {
+          this._refreshedOn404 = true;
+          try {
+            await this.syncSlideIndex({ force: true });
+            refreshed = true;
+          } catch {
+            // keep original 404 context
+          }
+        }
+        const err = new Error(
+          `Public trial preview not found (404) for ${imgUrl}` +
+            (refreshed ? " — local trial index has been auto-refreshed; re-run search-slides to pick from current curated slides." : "")
+        );
+        err.code = "PREVIEW_NOT_FOUND";
+        err.indexRefreshed = refreshed;
+        throw err;
       }
       if (!res.ok) {
         throw new Error(`Public trial preview download failed (${res.status}) for ${imgUrl}`);

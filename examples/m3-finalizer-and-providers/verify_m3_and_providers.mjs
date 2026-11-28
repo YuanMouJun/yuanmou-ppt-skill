@@ -2207,6 +2207,133 @@ im.save(${JSON.stringify(rasPdf)}, "PDF")
   }
 }
 
+async function testTrialIndexLazyRefreshAnd404Recovery() {
+  console.log("[8/8] Testing LocalStandaloneProvider lazy 24h TTL + ETag revalidation + offline fallback + 404 recovery...");
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ym-trial-ttl-"));
+  const { gzipSync } = await import("node:zlib");
+  const { LocalStandaloneProvider } = await import("../../packages/pptx-kit/index.mjs");
+
+  const dbV1 = Buffer.from("SQLITE_MOCK_DB_V1");
+  const dbV2 = Buffer.from("SQLITE_MOCK_DB_V2_UPDATED");
+  let currentVersion = 1;
+  let headCount = 0;
+  let getCount = 0;
+  let serverDown = false;
+
+  const server = http.createServer((req, res) => {
+    if (serverDown) {
+      res.writeHead(503);
+      res.end("down");
+      return;
+    }
+    const u = new URL(req.url, "http://127.0.0.1");
+    if (u.pathname === "/ppt-index-trial.db.gz") {
+      const etag = currentVersion === 1 ? '"etag-v1"' : '"etag-v2"';
+      if (req.method === "HEAD") {
+        headCount++;
+        res.writeHead(200, { ETag: etag });
+        res.end();
+        return;
+      }
+      if (req.method === "GET") {
+        getCount++;
+        const payload = gzipSync(currentVersion === 1 ? dbV1 : dbV2);
+        res.writeHead(200, { ETag: etag, "Content-Type": "application/gzip" });
+        res.end(payload);
+        return;
+      }
+    }
+    if (u.pathname === "/previews/CP_deleted_tier1.png") {
+      res.writeHead(404);
+      res.end("Not Found");
+      return;
+    }
+    res.writeHead(404);
+    res.end();
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    // 1. Initial sync downloads V1
+    const p1 = new LocalStandaloneProvider({
+      cacheDir: tmpDir,
+      trialBaseUrl: baseUrl,
+      enablePublicTrial: true,
+      indexTtlMs: 60_000,
+    });
+    const s1 = await p1.syncSlideIndex();
+    assert.equal(s1.cached, false);
+    assert.equal(s1.etag, '"etag-v1"');
+    assert.equal(getCount, 1);
+    assert.equal(headCount, 0);
+
+    // 2. Within TTL -> 0 network calls!
+    const s2 = await p1.syncSlideIndex();
+    assert.equal(s2.cached, true);
+    assert.equal(s2.source, "public-trial-cache");
+    assert.equal(getCount, 1);
+    assert.equal(headCount, 0);
+
+    // 3. After TTL with SAME ETag -> HEAD only, 0 full GET downloads!
+    const pExpired = new LocalStandaloneProvider({
+      cacheDir: tmpDir,
+      trialBaseUrl: baseUrl,
+      enablePublicTrial: true,
+      indexTtlMs: 1,
+    });
+    await new Promise((r) => setTimeout(r, 15));
+    const s3 = await pExpired.syncSlideIndex();
+    assert.equal(s3.cached, true);
+    assert.equal(s3.revalidated, true);
+    assert.equal(s3.source, "public-trial-cache-etag");
+    assert.equal(headCount, 1);
+    assert.equal(getCount, 1);
+
+    // 4. After TTL when server is down -> graceful offline fallback!
+    serverDown = true;
+    await new Promise((r) => setTimeout(r, 15));
+    const sOffline = await pExpired.syncSlideIndex();
+    assert.equal(sOffline.cached, true);
+    assert.equal(sOffline.source, "public-trial-cache-offline-fallback");
+    assert.equal(getCount, 1);
+    serverDown = false;
+
+    // 5. After TTL with CHANGED ETag -> downloads V2 atomically!
+    currentVersion = 2;
+    const pFresh = new LocalStandaloneProvider({
+      cacheDir: tmpDir,
+      trialBaseUrl: baseUrl,
+      enablePublicTrial: true,
+      indexTtlMs: 1,
+    });
+    await new Promise((r) => setTimeout(r, 15));
+    const s4 = await pFresh.syncSlideIndex();
+    assert.equal(s4.cached, false);
+    assert.equal(s4.etag, '"etag-v2"');
+    assert.equal(getCount, 2);
+    assert.equal((await fs.readFile(pFresh.trialIndexDbPath)).toString("utf8"), dbV2.toString("utf8"));
+
+    // 6. On 404 preview PNG -> automatically force-refreshes index once and tags PREVIEW_NOT_FOUND
+    let err404 = null;
+    try {
+      await pFresh.fetchAsset({ kind: "preview", contentPageId: "CP_deleted_tier1" });
+    } catch (err) {
+      err404 = err;
+    }
+    assert.ok(err404, "Expected 404 preview to throw structured error");
+    assert.equal(err404.code, "PREVIEW_NOT_FOUND");
+    assert.equal(err404.indexRefreshed, true);
+    assert.equal(getCount, 3, "Expected single-flight force refresh on first 404");
+
+    console.log("  [PASS] Lazy 24h TTL + ETag revalidation + offline fallback + 404 auto-refresh verified!");
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   await testPluggableProviders();
   await testM3Finalizer();
@@ -2215,7 +2342,8 @@ async function main() {
   await testSelectionEngine2();
   await testTwoStageArchitectureV040();
   await testRedBlueHardeningV060();
-  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 + V0.4.0/V0.5.0/V0.6.0 ARCHITECTURE TESTS PASSED!");
+  await testTrialIndexLazyRefreshAnd404Recovery();
+  console.log("\nALL PROVIDER SPI + M3 FINALIZER + SKILL UPDATER + V0.1.6 + SELECTION ENGINE 2.0 + V0.4.0/V0.5.0/V0.6.0/V0.6.3 ARCHITECTURE TESTS PASSED!");
 }
 
 main().catch((err) => {
