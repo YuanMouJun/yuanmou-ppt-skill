@@ -964,7 +964,7 @@ def cmd_multi_compare(cfg):
     gens = cfg["gens"]
     out_dir = cfg["outDir"]
     batch_size = int(cfg.get("batchSize", 4))
-    xray_mode = cfg.get("xrayMode", "flagged")
+    xray_mode = cfg.get("xrayMode", "none")
     pairs_dir = os.path.join(out_dir, "compare_pairs")
     os.makedirs(pairs_dir, exist_ok=True)
 

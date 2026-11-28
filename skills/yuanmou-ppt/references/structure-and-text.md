@@ -76,7 +76,7 @@ slide.shapes.add({
 ## 四、两阶段硬解耦与双模式验收
 
 1. **参考图 / 截图 / PDF 复刻强制两阶段硬解耦（Phase 1 纯骨架母版 → Phase 2 原位填槽）**：
-   - **Phase 1（纯版式与母版锁定，0 业务内容介入）**：矢量/混合 PDF 优先跑 `deck_cli.mjs pdf-to-master` 直读对象树生成带中性占位槽的 `masters.pptx`（自动完成小容器与文字单框融合、按 PDF 真实 Z-order 渲染并保留 `<a:custGeom>` 异形裁剪）；位图/截图或需手工精修页先跑 `deck_cli.mjs inspect-ref` 采色与实测倾角，再逐页构建纯骨架母版。随后必须通过 `deck_cli.mjs verify-master` 校验 `slot:*` 契约、照片槽面积/数量与倾斜角误差，并审阅全页 **50% 半透明 X 光叠图**（`xray_batch_*.jpg`）与高细节区 2× 放大图，签发含 `masterSha256` 的 `master_verified.json` 后方可放行；
+   - **Phase 1（纯版式与母版锁定，0 业务内容介入）**：矢量/混合 PDF 优先跑 `deck_cli.mjs pdf-to-master` 直读对象树生成带中性占位槽的 `masters.pptx`（纯光栅 PDF 自动导出 `master_refs/` 退回位图路线）；位图/截图或需手工精修页先跑 `deck_cli.mjs inspect-ref` 采色与实测倾角，再逐页构建纯骨架母版。随后必须通过 `deck_cli.mjs verify-master` 校验 `slot:*` 契约、照片槽面积/数量与倾斜角误差，并审阅高清**左右二联对比图（`compare_batch_*.jpg`）**，签发含 `masterSha256` 的 `master_verified.json` 后方可放行（单页精调复杂曲线时才按需加 `--xray` 或跑 `diff`）；
    - **Phase 2（锁死母版原位填槽）**：用 `assembleDeck()` 克隆已验收母版（以及需原 XML 保留的原始页），仅在既定 `slot:*` 槽位内完成 `.text.set()` / `.replace({ path, fit: "cover" })` / `.recolor()`，严禁破坏母版槽位结构或擅自缩减照片槽。终检调用 `deck_cli.mjs verify --master ./work/masters.pptx --master-map ...`（默认强制校验 `master_verified.json` SHA-256 与槽位几何不变性）。
 2. **交付前双重复核**：
    - **对象层面**：确认带底色节点由同一 `<p:sp>` 同时持有图形填充与 `<p:txBody>`，排除承载同一内容的内框、覆盖透明文本框与背景文字分离；移动或缩放底色节点时文字须随同一对象变化（不能靠编组冒充）；表格文字须归属原生单元格，图表须内嵌 `.xlsx`；

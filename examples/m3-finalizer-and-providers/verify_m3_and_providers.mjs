@@ -2159,6 +2159,7 @@ async function testRedBlueHardeningV060() {
         assert.notEqual(dmRes.status, 0, "Tiny 20x20 dummy image on photo-rich ref must fail verify-master");
         const dmJson = JSON.parse(dmRes.stdout);
         assert.equal(dmJson.photoSlotAuditPassed, false);
+        assert.equal(dmJson.xrayBatches.length, 0, "verify-master must default to 2-panel side-by-side without generating 3-panel xray batches");
         assert.ok(dmJson.missingPhotoSlotIssues.some((x) => x.code === "tiny_dummy_photo_slot"), `Expected tiny_dummy_photo_slot, got: ${JSON.stringify(dmJson.missingPhotoSlotIssues)}`);
       }
     }

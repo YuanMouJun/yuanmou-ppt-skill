@@ -1,7 +1,7 @@
 {
   "name": "@yuanmou/pptx-kit",
-  "version": "0.6.1",
-  "latestHighlights": "pdf-to-master 纯光栅位图 PDF 不再生成空壳 masters.pptx，直接导出高清参考图并优雅退回位图复刻路线；明确选版后默认版式优先、主动精简上屏文案贴合母版槽位容量",
+  "version": "0.6.2",
+  "latestHighlights": "verify-master 与 verify 默认取消批量三联 50% 叠图，仅输出高清左右二联对比图与对照 PDF（省视觉 Token、提升清晰度；50% 叠图改为 --xray 或单页 diff 按需触发）",
   "description": "All-in-One AI PPT Generator & Image/Screenshot/PDF to Editable PPTX Skill — 一句话从零策划整套商业PPT / 1.6W+免登录版式库选版 / 图片截图PDF转可编辑PPT / 既有PPTX无损改版",
   "keywords": [
     "ppt-generator",

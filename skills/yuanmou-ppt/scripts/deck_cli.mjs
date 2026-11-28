@@ -212,6 +212,7 @@ async function main() {
       "font-policy": { type: "string" },
       "allow-full-bg-pic": { type: "boolean" },
       "require-render": { type: "boolean" },
+      xray: { type: "boolean" },
       ref: { type: "string" },
       "ref-dir": { type: "string" },
       gen: { type: "string" },
@@ -648,7 +649,8 @@ async function main() {
 
     let multi = null;
     let comparePdf = null;
-    const pdfOut = values.pdf ? path.resolve(values.pdf) : path.join(outDir, "master_xray_compare.pdf");
+    const enableXray = Boolean(values.xray);
+    const pdfOut = values.pdf ? path.resolve(values.pdf) : path.join(outDir, "master_compare.pdf");
     if (refFiles.length > 0 && renderedPngs.length > 0 && toolchain.hasPillow) {
       multi = runVisionKernel(
         "multi-compare",
@@ -657,7 +659,7 @@ async function main() {
           gens: renderedPngs,
           outDir,
           batchSize: 4,
-          xrayMode: "all",
+          xrayMode: enableXray ? "all" : "none",
         },
         toolchain.python3
       );
@@ -666,8 +668,10 @@ async function main() {
         {
           outPdf: pdfOut,
           pages: multi.pairs.map((p) => ({
-            label: `Master ${String(p.slide).padStart(2, "0")}  |  左：原图 (${p.refName}) ｜ 中：50% X光叠图 ｜ 右：纯骨架母版  |  边缘结构 ${p.edgeSimilarityPct}%`,
-            imgPath: p.xrayJpg || p.pairJpg,
+            label: enableXray
+              ? `Master ${String(p.slide).padStart(2, "0")}  |  左：原图 (${p.refName}) ｜ 中：50% 叠图 ｜ 右：纯骨架母版  |  边缘结构 ${p.edgeSimilarityPct}%`
+              : `Master ${String(p.slide).padStart(2, "0")}  |  左：原图 (${p.refName})   vs   右：纯骨架母版  |  边缘结构 ${p.edgeSimilarityPct}%`,
+            imgPath: enableXray ? p.xrayJpg || p.pairJpg : p.pairJpg,
           })),
         },
         toolchain.python3
@@ -761,7 +765,7 @@ async function main() {
     const receipt = {
       schema: "yuanmou.master.verified/v1",
       passed,
-      verificationMode: "full-visual-xray",
+      verificationMode: enableXray ? "full-visual-xray" : "full-visual",
       masterPptx: masterPath,
       masterSha256: validation.sha256,
       masterCount: renderedPngs.length,
@@ -772,9 +776,9 @@ async function main() {
       missingPhotoSlotIssues,
       slotContractPassed,
       unslottedSlides,
-      xrayBatches: multi?.xrayBatches || [],
       compareBatches: multi?.compareBatches || [],
-      masterXrayPdf: comparePdf,
+      xrayBatches: multi?.xrayBatches || [],
+      masterComparePdf: comparePdf,
       masterInventory,
       manifestPath,
     };
@@ -1050,7 +1054,7 @@ async function main() {
           gens: genFiles,
           outDir,
           batchSize: 4,
-          xrayMode: "flagged",
+          xrayMode: values.xray ? "flagged" : "none",
         },
         toolchain.python3
       );
@@ -1102,10 +1106,14 @@ async function main() {
               label: `全页并排对比（左：参考原图 ｜ 右：最终成稿）· 相似度 ${diffRes.fullSimilarityPct}%`,
               imgPath: diffRes.sideBySidePng,
             },
-            {
-              label: "三联 50% 半透明 X 光叠图校准",
-              imgPath: diffRes.overlay3PanelPng,
-            },
+            ...(values.xray
+              ? [
+                  {
+                    label: "三联 50% 半透明叠图校准",
+                    imgPath: diffRes.overlay3PanelPng,
+                  },
+                ]
+              : []),
             ...diffRes.zoomCrops.map((z) => ({
               label: `局部 2x 放大精检：${z.name} [${z.box.join(", ")}] · 局部相似度 ${z.similarityPct}%`,
               imgPath: z.zoomPng2x,

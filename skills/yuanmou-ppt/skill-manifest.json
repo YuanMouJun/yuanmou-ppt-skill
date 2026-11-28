@@ -1,10 +1,10 @@
 {
   "name": "yuanmou-ppt",
-  "version": "0.6.1",
-  "highlights": "pdf-to-master 纯光栅位图 PDF 不再生成空壳 masters.pptx，直接导出高清参考图并优雅退回位图复刻路线；明确选版后默认版式优先、主动精简上屏文案贴合母版槽位容量",
+  "version": "0.6.2",
+  "highlights": "verify-master 与 verify 默认取消批量三联 50% 叠图，仅输出高清左右二联对比图与对照 PDF（省视觉 Token、提升清晰度；50% 叠图改为 --xray 或单页 diff 按需触发）",
   "fileCount": 35,
   "files": {
-    "SKILL.md": "18ba683291073bf43d308612fdee0e63e6f50f14ffce3c184bb027470f6e0564",
+    "SKILL.md": "1b4239e67da759d0bb98c33c109be4df341088eee888014283a9f4218536a6eb",
     "agents/openai.yaml": "72200aa3b33c93da60523ac298c4f2745589bd0871a14affbb581ec92277f934",
     "packages/pptx-kit/index.mjs": "e66f8a4542b57e7315c100726d00987678282e14633000cfda9ec46c828e2a33",
     "packages/pptx-kit/src/brush-mask.mjs": "1321ab9a30fe30cf6516c74657b339a775e3922524c813ed7104c251f09ed897",
@@ -30,14 +30,14 @@
     "packages/pptx-kit/src/tables.mjs": "29a7f16c3324d296fcce0572f14b2db610c87fdb39dc0315201ece3efa0428d6",
     "packages/pptx-kit/src/tokens.mjs": "a87559c8f9d1117676573407f5a310a06b5ff543aa01b397dc09ea99a1c50073",
     "packages/pptx-kit/src/units.mjs": "7aba5619a8858e27c7cbdbd89468d42a8590663adfa50b85668563986f8bafa9",
-    "packages/pptx-kit/src/updater.mjs": "ae0d6c217646e4b9699ceb1f6adba916639ae397ee271635dc8572f361723958",
+    "packages/pptx-kit/src/updater.mjs": "c5ec0dd2fbd45fcde95e24a1624a83a0a0e6dc88c69fe0de3efbee290478abbd",
     "packages/pptx-kit/src/xml.mjs": "a9d0b5c5159ef3ffa4a5e281f412767fb7ab9c4a0ec2776126b17eb6f626a350",
     "references/offline-layout-patterns.md": "c2266d6812db4824b5d985789813c473f76af32bba778e06b1e77114150962ed",
     "references/selection-rules.md": "21bde694696f27639fd287fb50e533eeaadb4aeb5a9bf92e4fc187a583ad19da",
-    "references/structure-and-text.md": "d7a9ad57be9ab3afaeab28f33375136eb80493f4f1b0780ee46f5d143cae5d9e",
-    "scripts/deck_cli.mjs": "e551cc5ac575440e7db8d107a321aedcb7955de70e9373bf9f74bda24451cd52",
+    "references/structure-and-text.md": "d4872e6fd6f50a9a428b35a3564d659bca78ecb3a78df50ca129e10d1836f709",
+    "scripts/deck_cli.mjs": "a4deb685e0e2fd8c3df14b0f54cd02b0162bc80c74537479919a405b883651b6",
     "scripts/kit.mjs": "8e6c2e8a738956d364c0df6b308007a8041d179359adccef1779ca37f46b7af3",
     "scripts/provider_cli.mjs": "bf55b083a7378e57800664f1df11de5e402464ef4e3e673d3af9a4bb651b8505",
-    "scripts/vision_kernel.py": "8e54e6f9780fe367cd1c5a37d5ff897c73235cdbf8aa9a9e1c4f71013cb6a4c6"
+    "scripts/vision_kernel.py": "24f467d667f38ebc0c77212d056c62e2caaefe3b9007549f3d1cfe8ecffc4829"
   }
 }
