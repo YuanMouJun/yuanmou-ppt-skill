@@ -68,7 +68,7 @@ examples_en:
 ### 通道 B：从零生成 / 参考图与 PDF 两阶段 1:1 复刻
 凡基于参考图、截图或 PDF 复刻版式，**必须拆分为两阶段执行（Phase 1 纯骨架母版 + 左右对照验收 → Phase 2 基于锁死母版原位填槽），严禁合并直出**：
 - **Phase 1 纯骨架母版与左右对照验收**：PDF 参考优先调用 \`deck_cli.mjs pdf-to-master\`，矢量/混合 PDF 直接编译带中性占位图与 \`slot:*\`/\`decor:*\` 的 \`masters.pptx\`，纯光栅 PDF 自动导出 \`master_refs/\` 退回位图路线（先跑 \`inspect-ref\` 实测 100px 网格与倾角，再精绘纯骨架母版）；随后跑 \`deck_cli.mjs verify-master\` 签发 \`master_verified.json\` 并审阅高清左右二联图（\`compare_batch_*.jpg\`）；
-- **Phase 2 锁死母版原位填槽**：用 \`assembleDeck()\` 克隆已验收母版（及需原 XML 保留的原始页），仅在 \`slot:*\` 槽位内执行 \`.text.set()\` / \`.replace({ path, fit: "cover" })\` / \`.recolor()\`；只要已选定参考版式即默认「随槽配文」（超载精简、过短且不编造数据时克制扩写补齐要点，严禁改坏母版），缺图时已有真图优先填主槽、余槽保留 \`makeNeutralPlaceholderPng()\` 显眼占位 \`<p:pic>\` 并在交付说明列出待补图页码与槽位，终检传 \`--master\` 自动核验 SHA-256 签收与槽位几何不变性；
+- **Phase 2 锁死母版原位填槽**：用 \`assembleDeck()\` 克隆已验收母版（及需原 XML 保留的原始页），仅在 \`slot:*\` 槽位内执行 \`.text.set()\` / \`.replace({ path, fit: "cover" })\` / \`.recolor()\`；只要已选定参考版式即默认「随槽配文」（超载精简、过短且不编造数据时克制扩写补齐要点，严禁改坏母版），缺图时已有真图优先填主槽、余槽保留 \`makeNeutralPlaceholderPng()\` 显眼占位 \`<p:pic>\` 方便右键一键换图，终检传 \`--master\` 自动核验 SHA-256 签收与槽位几何不变性；
 - **视觉原语速查**：全出血底图配半透明暗罩（\`fill: { color: "#0B1120", opacity: 0.55 }\`）+ 顶层 \`fill: "none"\` 线框，禁 100% 实心块盖死底图；菱形/斜切/水墨蒙版调用 \`images.add({ geometry: "diamond" | svgPath, rotation })\`、\`applyAlphaMaskToImage\` 与 \`createBrushPng\`；旋转父框内子组件用 \`placeInRotatedFrame()\` 精算。
 - **特殊授权改版**：**仅调色**沿用原有几何/素材/文案，改白底时逐个映射渐变色标保层次；**横竖重排**保持文字正常阅读方向，禁整图旋转。
 

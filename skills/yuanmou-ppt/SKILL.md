@@ -69,7 +69,7 @@ node <SKILL_DIR>/scripts/provider_cli.mjs search-slides --archetype message_hous
 
 2. **Phase 2 · 严格基于锁死母版的原位内容填充**
    - 用 **`assembleDeck()`** 从已验收的 `./work/masters.pptx`（以及需保留原页的源 `.pptx`）无损克隆拼装出全套页序，仅通过 **`slide.getSlot("slot:...")` → `.text.set()` / `.replace({ path, fit: "cover" })` / `slide.recolor(colorMap)`** 原位填字、换图、换色。
-   - **选版即默认「随槽配文」与「缺图留显眼占位」**：只要用户已选定参考模板或版式，**默认版式优先，按母版槽位设计容量双向适配文案**——原文超载时**主动精简提炼**，原文过短导致大文本框空洞时**在不编造真实数据/战绩的前提下克制扩写补齐结构要点**，使字数、行数与留白节奏贴合母版原貌（严禁为迁就原文长短而砍掉照片槽改文字框、拉变形或擅改列数与倾角）；**缺图或图片数少于模板图槽时，已有真图优先填入主视觉槽，其余空槽老老实实保留 `makeNeutralPlaceholderPng()` 显眼占位 `<p:pic>`（套好原版圆角/旋转/蒙版，方便用户在 WPS / PowerPoint 右键「更改图片」一键替换），并在交付说明末尾列出待补图页码与槽位**。
+   - **选版即默认「随槽配文」与「缺图留显眼占位」**：只要用户已选定参考模板或版式，**默认版式优先，按母版槽位设计容量双向适配文案**——原文超载时**主动精简提炼**，原文过短导致大文本框空洞时**在不编造真实数据/战绩的前提下克制扩写补齐结构要点**，使字数、行数与留白节奏贴合母版原貌（严禁为迁就原文长短而砍掉照片槽改文字框、拉变形或擅改列数与倾角）；**缺图或图片数少于模板图槽时，已有真图优先填入主视觉槽，其余空槽老老实实保留 `makeNeutralPlaceholderPng()` 显眼占位 `<p:pic>`（套好原版圆角/旋转/蒙版，方便用户在 WPS / PowerPoint 右键「更改图片」一键替换）**。
    - 终检时传 **`--master ./work/masters.pptx --master-map ...`**，引擎**默认强制校验** `master_verified.json` 的 `passed: true` 与 `masterSha256` 一致性（缺失或过期立即拦截），并通过 `auditMasterSlotIntegrity` 锁死图片槽数、命名槽位几何比例与旋转角度。
    - **无参考图纯从零生成**（如纯离线按 `references/offline-layout-patterns.md` 绘制）或特殊授权改版（仅调色/横竖重排）仍须按模块化单页推进并严格遵守 4 类页型与 Z-order 铁律。
 
